@@ -13,6 +13,11 @@ npm run dev
 
 ブラウザで http://localhost:5173 を開く。
 
+## 公開（デプロイ）とAIアシスタントの有効化
+
+Vercelでの公開手順と「🤖AI調査アシスタント」の接続手順は **[docs/DEPLOY.md](docs/DEPLOY.md)** を参照。
+アカウント作成からAPIキー設定まで、初めての方向けに書いてあります。
+
 ## Claude Codeで開発を続けるには
 
 1. Claude Codeをインストール（公式手順: https://code.claude.com/docs/en/overview ）
@@ -26,5 +31,5 @@ npm run dev
 
 ## 注意
 
-- データはブラウザのlocalStorageに保存される（claude.aiアーティファクト版のデータは自動移行されない）
-- AI調査アシスタントは初期状態で未接続（CLAUDE.md「AIアシスタントの接続」参照）
+- データはブラウザのlocalStorageに保存される（claude.aiアーティファクト版のデータは自動移行されない）。端末間の移行は図鑑の「💾 バックアップ」機能で
+- AI調査アシスタントはローカル開発では未接続。Vercelデプロイ＋APIキー設定で有効になる（docs/DEPLOY.md）

@@ -62,18 +62,22 @@ npm run dev      # http://localhost:5173
 npm run build    # 本番ビルド(dist/)
 ```
 
-## AIアシスタントの接続（現在は未接続）
+## AIアシスタントの接続
 
-「🤖AI調査アシスタント」はアーティファクト環境ではAPIキーなしで動いたが、ローカルでは動かない。
-有効化するには: APIキーをブラウザに置かないよう、サーバーサイドのプロキシ（例: Vercel Functions / Express）を作り、
-`ANTHROPIC_API_KEY` をサーバー側環境変数で保持して `/v1/messages` へ転送する。
-フロントは `VITE_ANTHROPIC_PROXY` にプロキシURLを設定すれば動く（`KabuDex.jsx` の `AiAssistant` 参照）。
+プロキシは実装済み（`api/ai-draft.js` = Vercel Serverless Function）。Vercelにデプロイして
+環境変数 `ANTHROPIC_API_KEY` を設定すれば「🤖AI調査アシスタント」が動く。手順は `docs/DEPLOY.md`。
+
+- フロント（`src/components/AiAssistant.jsx`）は同一オリジンの `/api/ai-draft` を呼ぶ。
+  ローカル開発でデプロイ済みプロキシを使う場合のみ `VITE_ANTHROPIC_PROXY` を設定
+- プロキシは許可モデル・max_tokens上限(2000)・web検索ツールのみをホワイトリストで固定。
+  任意リクエストの転送はしない（キー悪用・コスト暴走の防止）
+- web検索の `pause_turn` はプロキシ側で継続処理し、テキストを集約して返す
 
 ## バックログ（優先度順の提案）
 
 1. ~~データのエクスポート/インポート（JSON）~~ ✅ 実装済み（図鑑の「💾 バックアップ」ボタン）
 2. ~~`KabuDex.jsx` のモジュール分割（data / lib / components）~~ ✅ 実装済み
 3. ~~three.js公式OrbitControlsへの置換（慣性つき操作）~~ ✅ 実装済み
-4. AIプロキシの実装（上記）
-5. Vercel等へのデプロイ
+4. ~~AIプロキシの実装~~ ✅ 実装済み（`api/ai-draft.js`）
+5. ~~Vercel等へのデプロイ~~ ✅ 準備完了（コード・設定・手順書済み。オーナーのVercel操作のみ残 → `docs/DEPLOY.md`）
 6. 株価表示（表示のみ・推奨なし。無料APIの利用規約を確認すること）

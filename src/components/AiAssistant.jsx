@@ -25,15 +25,9 @@ function AiAssistant({ stock, onSaveAsNote, onClose }) {
 - 出力はマークダウンの投資メモ本文のみ。前置き・後書き不要
 - 分量制限があるため簡潔に。見出し: マクロ仮説との関係 / 直近の業績・ニュース / 強気材料 / リスク / 未確認事項`;
     try {
-      // ローカル版: claude.aiアーティファクト内と違いAPIキーが自動付与されないため、
-      // 環境変数(VITE_ANTHROPIC_PROXY)で自前のプロキシURLを指定する方式。詳細はCLAUDE.md参照。
-      const endpoint = import.meta.env?.VITE_ANTHROPIC_PROXY || "";
-      if (!endpoint) {
-        setErrMsg("ローカル版ではAI下書きは初期状態で未接続です。CLAUDE.mdの「AIアシスタントの接続」手順（プロキシ設定）で有効化できます。それまではチャットのkabu-researchで作成したメモの貼り付けをご利用ください。");
-        setState("error");
-        runningRef.current = false;
-        return;
-      }
+      // Vercelデプロイでは同一オリジンの /api/ai-draft (api/ai-draft.js) が使われる。
+      // ローカル開発でデプロイ済みプロキシを使う場合は VITE_ANTHROPIC_PROXY にそのURLを設定。
+      const endpoint = import.meta.env?.VITE_ANTHROPIC_PROXY || "/api/ai-draft";
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -41,10 +35,23 @@ function AiAssistant({ stock, onSaveAsNote, onClose }) {
           model: "claude-sonnet-4-6",
           max_tokens: 1000,
           messages: [{ role: "user", content: prompt }],
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
+          tools: [{ type: "web_search_20260209", name: "web_search" }],
         }),
       });
+      if (res.status === 404 || res.status === 405) {
+        // プロキシ未設置(ローカルのnpm run dev等)
+        setErrMsg("AI下書きは未接続です。Vercelへのデプロイで有効になります（docs/DEPLOY.md参照）。それまではチャットのkabu-researchで作成したメモの貼り付けをご利用ください。");
+        setState("error");
+        runningRef.current = false;
+        return;
+      }
       const data = await res.json();
+      if (!res.ok) {
+        setErrMsg(data?.error?.message || `生成に失敗しました（HTTP ${res.status}）`);
+        setState("error");
+        runningRef.current = false;
+        return;
+      }
       const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
       if (!text) throw new Error("empty response");
       setDraft(text);
