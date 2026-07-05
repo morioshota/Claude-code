@@ -17,8 +17,14 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 
 ## ファイル構成
 
-- `src/KabuDex.jsx` — アプリ本体（約2,200行の単一ファイル。分割リファクタリングはバックログ参照）
+- `src/KabuDex.jsx` — メインコンポーネント（状態管理・永続化・バックアップ処理）
+- `src/data/constants.js` — 定数・マスタデータ（タイプ/レアリティ/ステージ/実績/シード銘柄/メモテンプレ）
+- `src/data/species.js` — 種族ドット絵データ（`SPECIES_POOL` / `CREATURE_LOOK`）
 - `src/lib/storage.js` — ストレージアダプタ。claude.aiの `window.storage` 互換API
+- `src/lib/util.js` — 日付/ID生成/ハッシュ/擬似乱数/色
+- `src/lib/stock.js` — 銘柄の派生値（Lv/CP/ステージ/鮮度/実績判定）
+- `src/lib/sprites.js` — ドット絵のピクセル生成（決定論的抽選）
+- `src/components/` — UI部品（`ui.jsx` 共通部品 / `DexCard` / `DetailModal` / `StockForm` / `notes` / `AiAssistant` / `modals`（パーティ・実績・バックアップ）/ `Ranch`（3D牧場））
 - `src/main.jsx` / `index.html` — エントリポイント
 
 ## データモデル
@@ -65,8 +71,8 @@ npm run build    # 本番ビルド(dist/)
 
 ## バックログ（優先度順の提案）
 
-1. データのエクスポート/インポート（JSON）— localStorage消失リスクへの備え。最優先
-2. `KabuDex.jsx` のモジュール分割（data / lib / components）
+1. ~~データのエクスポート/インポート（JSON）~~ ✅ 実装済み（図鑑の「💾 バックアップ」ボタン）
+2. ~~`KabuDex.jsx` のモジュール分割（data / lib / components）~~ ✅ 実装済み
 3. three.js公式OrbitControlsへの置換（慣性つき操作）
 4. AIプロキシの実装（上記）
 5. Vercel等へのデプロイ
