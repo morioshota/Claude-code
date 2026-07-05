@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Creature } from "./ui.jsx";
 import { spriteCanvasFor } from "../lib/sprites.js";
 import { calcLevel, stageOf, moveTierOf } from "../lib/stock.js";
@@ -52,15 +53,24 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(50, W() / H(), 0.1, 400);
-    const orbit = { az: 0.5, pol: 1.02, r: 27 }; // 自作オービット(この環境ではOrbitControls不使用)
-    const applyCam = () => {
-      camera.position.set(
-        orbit.r * Math.sin(orbit.pol) * Math.sin(orbit.az),
-        orbit.r * Math.cos(orbit.pol) + 1.5,
-        orbit.r * Math.sin(orbit.pol) * Math.cos(orbit.az)
-      );
-      camera.lookAt(0, 1, 0);
-    };
+    // 初期アングルは旧自作オービット(az=0.5, pol=1.02, r=27)と同じ位置
+    const AZ0 = 0.5, POL0 = 1.02, R0 = 27;
+    camera.position.set(
+      R0 * Math.sin(POL0) * Math.sin(AZ0),
+      R0 * Math.cos(POL0) + 1.5,
+      R0 * Math.sin(POL0) * Math.cos(AZ0)
+    );
+    // 公式OrbitControls(慣性つき)。回転とズームのみ・パンなし。可動域は旧実装と同じ
+    const controls = new OrbitControls(camera, el);
+    controls.target.set(0, 1, 0);
+    controls.enablePan = false;
+    controls.enableDamping = !reduced; // 動きを減らす設定では慣性もオフ
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 11;
+    controls.maxDistance = 55;
+    controls.minPolarAngle = 0.28;
+    controls.maxPolarAngle = 1.35;
+    controls.update();
 
     // ライト(時間帯で変化)
     const amb = new THREE.AmbientLight(0xffffff, 0.7);
@@ -192,63 +202,38 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
         const hopY = o.tier === 0 && moving && !reduced ? Math.abs(Math.sin(t * 6 + o.st.hop)) * 0.5 : 0;
         p.y = o.hgt / 2 + hopY;
       });
-      applyCam();
+      controls.update(); // 慣性(damping)の反映
       renderer.render(scene, camera);
     };
-    applyCam();
     loop();
 
-    // 自作コントロール: 1本指ドラッグ=回転 / 2本指ピンチ・ホイール=ズーム / タップ=選択
-    const pointers = new Map();
-    let moved = 0, lastPinch = null;
+    // タップ/クリック=選択。回転・ピンチ・ホイールはOrbitControlsが担当
+    // ドラッグ後(7px以上の移動)と2本指操作では選択しない(旧実装と同じ挙動)
+    let downAt = null, multi = false;
     const onDown = (e) => {
-      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pointers.size === 1) moved = 0;
-      el.setPointerCapture && el.setPointerCapture(e.pointerId);
-    };
-    const onMove = (e) => {
-      if (!pointers.has(e.pointerId)) return;
-      const prev = pointers.get(e.pointerId);
-      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pointers.size === 1) {
-        const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
-        moved += Math.abs(dx) + Math.abs(dy);
-        orbit.az -= dx * 0.006;
-        orbit.pol = Math.min(1.35, Math.max(0.28, orbit.pol - dy * 0.005));
-      } else if (pointers.size === 2) {
-        const pts = [...pointers.values()];
-        const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        if (lastPinch != null && d > 0) {
-          orbit.r = Math.min(55, Math.max(11, orbit.r * (lastPinch / d)));
-        }
-        lastPinch = d;
-        moved = 99; // ピンチはタップ扱いにしない
-      }
+      if (downAt === null) { downAt = { x: e.clientX, y: e.clientY }; multi = false; }
+      else multi = true;
     };
     const onUp = (e) => {
-      if (pointers.size === 1 && moved < 7) {
-        const rect = el.getBoundingClientRect();
-        const m = new THREE.Vector2(
-          ((e.clientX - rect.left) / rect.width) * 2 - 1,
-          -((e.clientY - rect.top) / rect.height) * 2 + 1
-        );
-        const rc = new THREE.Raycaster();
-        rc.setFromCamera(m, camera);
-        const hits = rc.intersectObjects([...members.values()].map((o) => o.sp));
-        if (hits.length > 0) onSelectRef.current(hits[0].object.userData.stockId);
-      }
-      pointers.delete(e.pointerId);
-      if (pointers.size < 2) lastPinch = null;
+      if (downAt === null) return;
+      const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
+      const wasMulti = multi;
+      downAt = null;
+      if (wasMulti || moved >= 7) return;
+      const rect = el.getBoundingClientRect();
+      const m = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      const rc = new THREE.Raycaster();
+      rc.setFromCamera(m, camera);
+      const hits = rc.intersectObjects([...members.values()].map((o) => o.sp));
+      if (hits.length > 0) onSelectRef.current(hits[0].object.userData.stockId);
     };
-    const onWheel = (e) => {
-      e.preventDefault();
-      orbit.r = Math.min(55, Math.max(11, orbit.r + e.deltaY * 0.03));
-    };
+    const onCancel = () => { downAt = null; };
     el.addEventListener("pointerdown", onDown);
-    el.addEventListener("pointermove", onMove);
     el.addEventListener("pointerup", onUp);
-    el.addEventListener("pointercancel", onUp);
-    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("pointercancel", onCancel);
 
     // リサイズ追従
     const ro = new ResizeObserver(() => {
@@ -263,11 +248,10 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
       clearInterval(moveIv);
       clearInterval(timeIv);
       ro.disconnect();
+      controls.dispose();
       el.removeEventListener("pointerdown", onDown);
-      el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerup", onUp);
-      el.removeEventListener("pointercancel", onUp);
-      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("pointercancel", onCancel);
       members.forEach((o) => { o.tex.dispose(); o.sp.material.dispose(); });
       starGeo.dispose();
       renderer.dispose();

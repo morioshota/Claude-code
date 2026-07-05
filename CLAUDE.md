@@ -12,7 +12,7 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 ## 技術スタック
 
 - Vite + React 18（JSX、単一コンポーネントファイル構成）
-- three.js 0.128（3D牧場。**OrbitControlsを使わず自作カメラ制御**——アーティファクト環境の制約の名残。npm環境では公式OrbitControlsへの置換が可能）
+- three.js 0.128（3D牧場。カメラ操作は公式OrbitControls＝慣性つき。タップ選択は自前実装で、7px以上のドラッグ後や2本指操作では選択しない）
 - 永続化: `src/lib/storage.js` のアダプタ経由（現在はlocalStorage）
 
 ## ファイル構成
@@ -73,7 +73,7 @@ npm run build    # 本番ビルド(dist/)
 
 1. ~~データのエクスポート/インポート（JSON）~~ ✅ 実装済み（図鑑の「💾 バックアップ」ボタン）
 2. ~~`KabuDex.jsx` のモジュール分割（data / lib / components）~~ ✅ 実装済み
-3. three.js公式OrbitControlsへの置換（慣性つき操作）
+3. ~~three.js公式OrbitControlsへの置換（慣性つき操作）~~ ✅ 実装済み
 4. AIプロキシの実装（上記）
 5. Vercel等へのデプロイ
 6. 株価表示（表示のみ・推奨なし。無料APIの利用規約を確認すること）
