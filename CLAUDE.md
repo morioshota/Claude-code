@@ -23,6 +23,7 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 - `src/lib/storage.js` — ストレージアダプタ。claude.aiの `window.storage` 互換API
 - `src/lib/util.js` — 日付/ID生成/ハッシュ/擬似乱数/色
 - `src/lib/stock.js` — 銘柄の派生値（Lv/CP/ステージ/鮮度/実績判定）
+- `src/lib/quotes.js` — 参考株価の取得・キャッシュ（`api/quote.js` 経由）
 - `src/lib/sprites.js` — ドット絵のピクセル生成（決定論的抽選）
 - `src/components/` — UI部品（`ui.jsx` 共通部品 / `DexCard` / `DetailModal` / `StockForm` / `notes` / `AiAssistant` / `modals`（パーティ・実績・バックアップ）/ `Ranch`（3D牧場））
 - `src/main.jsx` / `index.html` — エントリポイント
@@ -73,6 +74,15 @@ npm run build    # 本番ビルド(dist/)
   任意リクエストの転送はしない（キー悪用・コスト暴走の防止）
 - web検索の `pause_turn` はプロキシ側で継続処理し、テキストを集約して返す
 
+## 株価表示（参考株価）
+
+- 構成: `api/quote.js`（Vercel Function。stooqのCSVをJSON化）→ `src/lib/quotes.js`（取得＋キャッシュ）→ `DetailModal` の `QuoteRow`
+- データ源は stooq.com の無料遅延データ（個人利用向け）。エッジ10分＋ブラウザ10分キャッシュ、未知銘柄は1時間ネガティブキャッシュ
+- **表示は事実のみ**（価格・日時・出典・免責）。前日比・騰落色・矢印などの演出は意図的に入れていない——追加しないこと（オーナー方針）
+- 取得失敗・未対応銘柄・未デプロイ環境では行ごと非表示（アプリ本体に影響を出さない）
+- シンボル変換: 数字始まり4桁（1721 / 186A）→ `.jp`、英字ティッカー → `.us`
+- ⚠ stooq利用規約の原文確認は未完（開発環境から到達不可のためオーナーがブラウザで確認する宿題）
+
 ## バックログ（優先度順の提案）
 
 1. ~~データのエクスポート/インポート（JSON）~~ ✅ 実装済み（図鑑の「💾 バックアップ」ボタン）
@@ -80,4 +90,4 @@ npm run build    # 本番ビルド(dist/)
 3. ~~three.js公式OrbitControlsへの置換（慣性つき操作）~~ ✅ 実装済み
 4. ~~AIプロキシの実装~~ ✅ 実装済み（`api/ai-draft.js`）
 5. ~~Vercel等へのデプロイ~~ ✅ 準備完了（コード・設定・手順書済み。オーナーのVercel操作のみ残 → `docs/DEPLOY.md`）
-6. 株価表示（表示のみ・推奨なし。無料APIの利用規約を確認すること）
+6. ~~株価表示~~ ✅ 実装済み（表示のみ・推奨なし。上記「株価表示」参照。規約原文の確認のみオーナー宿題）

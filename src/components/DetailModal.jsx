@@ -1,10 +1,35 @@
 /* 銘柄詳細モーダル */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NoteItem } from "./notes.jsx";
 import { Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay } from "./ui.jsx";
 import { TYPES, RARITIES, STAGES } from "../data/constants.js";
 import { calcLevel, calcCP, stageOf, freshInfo } from "../lib/stock.js";
+import { fetchQuote } from "../lib/quotes.js";
+
+/* 参考株価(表示のみ・推奨なし)。取得できないときは何も表示しない。
+   色付けや前日比などの演出は意図的に入れない(事実の提示のみ) */
+function QuoteRow({ stock }) {
+  const [quote, setQuote] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetchQuote(stock).then((q) => { if (alive) setQuote(q); });
+    return () => { alive = false; };
+  }, [stock.id, stock.code]);
+
+  if (!quote) return null;
+  const price = quote.currency === "JPY"
+    ? `${quote.close.toLocaleString("ja-JP")}円`
+    : `$${quote.close.toLocaleString("en-US")}`;
+  const d = (quote.date || "").slice(5).replace("-", "/");
+  const t = (quote.time || "").slice(0, 5);
+  return (
+    <div style={{ fontSize: 11.5, color: "#8b93b8", marginTop: 3 }}>
+      参考株価 <span style={{ color: "#dfe4ff", fontWeight: 700 }}>{price}</span>
+      <span style={{ fontSize: 10, color: "#5b6284" }}>（{d} {t}・{quote.source}・売買判断には使用しないでください）</span>
+    </div>
+  );
+}
 
 function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, onLog, onOpenNoteEditor, onOpenAi, onDeleteNote }) {
   const t = TYPES[stock.type] || TYPES.metal;
@@ -55,6 +80,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
               </div>
               <div style={{ fontSize: 20, fontWeight: 800, color: "#f2f4ff" }}>{stock.name}</div>
               <div style={{ fontSize: 12, color: "#8b93b8" }}>{stock.code}・{stock.market || "市場未設定"}</div>
+              <QuoteRow stock={stock} />
               <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <TypeChip typeKey={stock.type} small />
                 <StatusBadge status={stock.status} />
