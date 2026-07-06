@@ -28,16 +28,21 @@ export const fetchQuote = async (stock) => {
 
   const endpoint = import.meta.env?.VITE_QUOTE_PROXY || "/api/quote";
   let quote = null;
+  let cacheable = false; // 一時的な失敗(オフライン・デプロイ直後等)はキャッシュせず次回開いたとき再試行する
   try {
     const res = await fetch(`${endpoint}?symbol=${encodeURIComponent(symbol)}`);
     if (res.ok) {
       const data = await res.json();
-      if (data && typeof data.close === "number") quote = data;
+      if (data && typeof data.close === "number") { quote = data; cacheable = true; }
+    } else if (res.status === 404) {
+      cacheable = true; // 「銘柄のデータが存在しない」と確定した場合のみ1時間ネガティブキャッシュ
     }
   } catch (e) { /* オフライン・未デプロイ等。表示しないだけ */ }
 
-  try {
-    localStorage.setItem(cacheKey(symbol), JSON.stringify({ at: Date.now(), quote }));
-  } catch (e) { /* 容量不足等は無視 */ }
+  if (cacheable) {
+    try {
+      localStorage.setItem(cacheKey(symbol), JSON.stringify({ at: Date.now(), quote }));
+    } catch (e) { /* 容量不足等は無視 */ }
+  }
   return quote;
 };
