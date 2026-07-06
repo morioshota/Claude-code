@@ -76,12 +76,13 @@ npm run build    # 本番ビルド(dist/)
 
 ## 株価表示（参考株価）
 
-- 構成: `api/quote.js`（Vercel Function。stooqのCSVをJSON化）→ `src/lib/quotes.js`（取得＋キャッシュ）→ `DetailModal` の `QuoteRow`
-- データ源は stooq.com の無料遅延データ（個人利用向け）。エッジ10分＋ブラウザ10分キャッシュ、未知銘柄は1時間ネガティブキャッシュ
+- 構成: `api/quote.js`（Vercel Function。Yahoo Finance chart APIをJSON化）→ `src/lib/quotes.js`（取得＋キャッシュ）→ `DetailModal` の `QuoteRow`
+- データ源は Yahoo Finance の非公式chart API（`query1.finance.yahoo.com/v8/finance/chart/`）の遅延データ。エッジ10分＋ブラウザ10分キャッシュ、未知銘柄は1時間ネガティブキャッシュ
+- **なぜstooqでないか**: stooq.comはクラウド(Vercel)からのアクセスを404で弾くため実運用に使えなかった。Yahooはサーバー経由でも動く（コミット履歴参照）
 - **表示は事実のみ**（価格・日時・出典・免責）。前日比・騰落色・矢印などの演出は意図的に入れていない——追加しないこと（オーナー方針）
 - 取得失敗・未対応銘柄・未デプロイ環境では行ごと非表示（アプリ本体に影響を出さない）
-- シンボル変換: 数字始まり4桁（1721 / 186A）→ `.jp`、英字ティッカー → `.us`
-- ⚠ stooq利用規約の原文確認は未完（開発環境から到達不可のためオーナーがブラウザで確認する宿題）
+- シンボル変換: 数字始まり4桁（1721 / 186A）→ 東証 `.T`、英字ティッカー（RKLB / BRK.B）→ そのまま（`.`は`-`に）
+- ⚠ Yahoo Financeは非公式エンドポイント。個人利用・表示目的にとどめる（商用再配信は規約上不可の可能性）
 
 ## バックログ（優先度順の提案）
 

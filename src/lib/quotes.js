@@ -1,17 +1,19 @@
 /* 参考株価の取得(表示のみ・推奨なし)
-   /api/quote (api/quote.js) 経由でstooqの遅延データを取得する。
+   /api/quote (api/quote.js) 経由でYahoo Financeの遅延データを取得する。
    失敗時はnullを返し、UI側は何も表示しない(アプリ本体に影響を出さない)。 */
 
 const TTL_MS = 10 * 60 * 1000; // 取得結果のブラウザ側キャッシュ
 const NEG_TTL_MS = 60 * 60 * 1000; // 見つからない銘柄は1時間再問い合わせしない
 const cacheKey = (symbol) => `kabu-quote:${symbol}`;
 
-// 証券コードからstooqシンボルへ: 日本株(数字始まり4桁: 1721/186A) → .jp / それ以外 → .us
+// 証券コードからYahoo Financeシンボルへ:
+//   日本株(数字始まり4桁: 1721 / 186A) → 東証の .T
+//   米国株(英字ティッカー: RKLB / BRK.B) → そのまま(クラス株の . は - に)
 export const symbolFor = (stock) => {
   const code = String(stock.code || "").trim();
   if (!code) return null;
-  if (/^[0-9][0-9A-Za-z]{3}$/.test(code)) return `${code.toLowerCase()}.jp`;
-  if (/^[A-Za-z.]{1,6}$/.test(code)) return `${code.toLowerCase().replace(/\./g, "-")}.us`;
+  if (/^[0-9][0-9A-Za-z]{3}$/.test(code)) return `${code.toUpperCase()}.T`;
+  if (/^[A-Za-z.]{1,6}$/.test(code)) return code.toUpperCase().replace(/\./g, "-");
   return null;
 };
 
