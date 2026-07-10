@@ -90,7 +90,7 @@ state = {
 | `zone` | 作業帯（工事箇所） | `pts[]`（多角形頂点） |
 | `divzone` | **導流帯**（v1.1 追加） | `pts[]`, `stripe`(斜線間隔 m), `fill`(内部薄塗り), `color` |
 | `pedpath` | 歩行者通路 | `pts[]`, `width`(m) |
-| `conerow` | コーン列 | `pts[]`, `interval`(m), `bar`(コーンバー有無) |
+| `conerow` | コーン列/バリケード列 | `pts[]`, `interval`(m), `bar`(コーンバー有無), `kind`(並べる記号: `cone`/`abarricade`/`drum`。省略=cone。v2.2)。cone以外は経路方向に回転して連続配置 |
 | `dim` | 寸法線 | `a, b`(端点), `off`(引出し量), `text`(空欄=実測値自動) |
 | `text` | 文字 | `x, y, text, size, rot` |
 

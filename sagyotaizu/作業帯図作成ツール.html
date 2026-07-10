@@ -356,6 +356,9 @@ footer b{color:#fff; font-weight:600;}
    v2.1: 複数選択。空所からのドラッグで矩形(窓)選択、Shift+クリックで増減、Ctrl+A全選択。
          選択物をまとめて移動/削除/複製。state.selを配列化(selIds)、頂点編集・詳細
          プロパティは単一選択時のみ (R7)
+   v2.2: コーン列(conerow)に「並べる記号」kindを追加(cone/abarricade/drum)。A型バリケードを
+         経路方向に連続配置できる専用ツール「A型バリケード列」と、後から記号を切替できる
+         右パネルのセレクタ。バリケード等は経路の向きに合わせて回転(conePositionsがangを返す)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -864,8 +867,9 @@ function drawObj(c, o) {
     c.lineCap = 'butt'; c.lineJoin = 'round';
     c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.stroke();
   } else if (o.type === 'conerow') {
-    // コーンバー
-    if (o.bar !== false) {
+    const kind = o.kind || 'cone';
+    // コーンバー(カラーコーン列のときのみ)
+    if (kind === 'cone' && o.bar !== false) {
       c.lineWidth = Math.max(2, pxPerM() * 0.09);
       for (let i = 0; i < o.pts.length - 1; i++) {
         c.strokeStyle = '#f5c211'; c.setLineDash([]);
@@ -875,8 +879,12 @@ function drawObj(c, o) {
       }
       c.setLineDash([]);
     }
+    const p = pxPerM() * state.settings.symScale;
+    const along = kind !== 'cone'; // A型バリケード等は経路方向に長辺を向け、連続して並べる
     conePositions(o).forEach(q => {
-      c.save(); c.translate(q.x, q.y); KINDS.cone.draw(c, pxPerM() * state.settings.symScale); c.restore();
+      c.save(); c.translate(q.x, q.y);
+      if (along) c.rotate(q.ang);
+      KINDS[kind].draw(c, p); c.restore();
     });
   } else if (o.type === 'dim') {
     drawDim(c, o);
@@ -887,6 +895,7 @@ function drawObj(c, o) {
     c.fillText(o.text, 0, 0); c.restore();
   }
 }
+// 経路に沿った配置点を返す。ang=その区間の進行方向(記号の向き用)
 function conePositions(o) {
   const res = [];
   const step = Math.max(0.3, o.interval || 2) * pxPerM();
@@ -894,13 +903,15 @@ function conePositions(o) {
     const a = o.pts[i], b = o.pts[i + 1];
     const L = V.len(V.sub(b, a)); if (L < 0.01) continue;
     const u = V.norm(V.sub(b, a));
+    const ang = Math.atan2(u.y, u.x);
     const n = Math.max(1, Math.round(L / step));
     for (let k = 0; k <= n; k++) {
       if (i > 0 && k === 0) continue; // 頂点の重複を避ける
-      res.push(V.add(a, V.mul(u, (L * k) / n)));
+      const pos = V.add(a, V.mul(u, (L * k) / n));
+      res.push({ x: pos.x, y: pos.y, ang });
     }
   }
-  if (res.length === 0 && o.pts.length) res.push(o.pts[0]);
+  if (res.length === 0 && o.pts.length) res.push({ x: o.pts[0].x, y: o.pts[0].y, ang: 0 });
   return res;
 }
 function drawDim(c, o) {
@@ -946,7 +957,7 @@ function usedLegendItems() {
   const used = new Set();
   state.objects.forEach(o => {
     if (o.type === 'symbol') used.add(o.kind);
-    if (o.type === 'conerow') { used.add('cone'); if (o.bar !== false) used.add('_bar'); }
+    if (o.type === 'conerow') { const k = o.kind || 'cone'; used.add(k); if (k === 'cone' && o.bar !== false) used.add('_bar'); }
     if (o.type === 'zone') used.add('_zone');
     if (o.type === 'divzone') used.add('_divzone');
     if (o.type === 'pedpath') used.add('_ped');
@@ -1276,7 +1287,7 @@ function setTool(t, hint) {
     t === 'calib' ? '縮尺設定' : t === 'frame' ? '出力範囲指定' : t.startsWith('wizard') ? 'パターン配置' :
     t === 'dim' ? '寸法線' : t === 'text' ? '文字' :
     t === 'poly:zone' ? '作業帯 作図' : t === 'poly:divzone' ? '導流帯 作図' : t === 'poly:pedpath' ? '歩行者通路 作図' :
-    t === 'poly:conerow' ? 'コーン列 作図' : t);
+    t === 'poly:conerow' ? 'コーン列 作図' : t === 'poly:barricaderow' ? 'A型バリケード列 作図' : t);
   setHint(hint || '');
   render();
 }
@@ -1449,7 +1460,8 @@ function finishDraft() {
     if (d.mode === 'poly:zone') state.objects.push({ id: uid(), type: 'zone', pts: d.pts });
     if (d.mode === 'poly:divzone') state.objects.push({ id: uid(), type: 'divzone', pts: d.pts, stripe: 0.6, fill: true });
     if (d.mode === 'poly:pedpath') state.objects.push({ id: uid(), type: 'pedpath', pts: d.pts, width: 1.5 });
-    if (d.mode === 'poly:conerow') state.objects.push({ id: uid(), type: 'conerow', pts: d.pts, interval: 2, bar: true });
+    if (d.mode === 'poly:conerow') state.objects.push({ id: uid(), type: 'conerow', kind: 'cone', pts: d.pts, interval: 2, bar: true });
+    if (d.mode === 'poly:barricaderow') state.objects.push({ id: uid(), type: 'conerow', kind: 'abarricade', pts: d.pts, interval: 1.8, bar: false });
   }
   state.draft = null; render();
 }
@@ -1605,7 +1617,8 @@ function runTemplate(A, B) {
 const PALETTE = [
   { title: '規制部材', items: [
     ['place:cone', 'cone'], ['poly:conerow', null, 'コーン列＋バー', 'conerow'],
-    ['place:abarricade', 'abarricade'], ['place:drum', 'drum'], ['place:light', 'light'],
+    ['place:abarricade', 'abarricade'], ['poly:barricaderow', null, 'A型バリケード列', 'barricaderow'],
+    ['place:drum', 'drum'], ['place:light', 'light'],
   ]},
   { title: '人・車両', items: [['place:guardman', 'guardman'], ['place:truck', 'truck']] },
   { title: '標示板・標識', items: [
@@ -1653,6 +1666,7 @@ function buildPalette() {
           'poly:divzone': '導流帯: 頂点をクリック → ダブルクリック/Enterで確定 (通常は三角形/台形)',
           'poly:pedpath': '歩行者通路: 通路の中心線をクリック → ダブルクリック/Enterで確定',
           'poly:conerow': 'コーン列: 経路をクリック → ダブルクリック/Enterで確定',
+          'poly:barricaderow': 'A型バリケード列: 経路をクリック → ダブルクリック/Enterで確定（バリケードが経路方向に連続配置）',
           'dim': '寸法線: 1点目 → 2点目をクリック',
           'text': '文字を置く位置をクリック',
         };
@@ -1671,6 +1685,16 @@ function drawToolIcon(c, icon) {
     c.beginPath(); c.moveTo(-12, 4); c.lineTo(12, -4); c.stroke(); c.setLineDash([]);
     for (const [x, y] of [[-12, 4], [0, 0], [12, -4]]) {
       c.fillStyle = '#e74c3c'; c.fillRect(x - 3.5, y - 3.5, 7, 7);
+    }
+  } else if (icon === 'barricaderow') {
+    // 経路方向に連なるA型バリケード(横長の白い板+X)を数個
+    c.lineWidth = 1.2;
+    for (const [cx, cy] of [[-12, 5], [0, 0], [12, -5]]) {
+      c.save(); c.translate(cx, cy); c.rotate(-0.38);
+      c.fillStyle = '#fff'; c.strokeStyle = '#111';
+      c.fillRect(-7, -3, 14, 6); c.strokeRect(-7, -3, 14, 6);
+      c.beginPath(); c.moveTo(-7, -3); c.lineTo(7, 3); c.moveTo(7, -3); c.lineTo(-7, 3); c.stroke();
+      c.restore();
     }
   } else if (icon === 'divzone') {
     c.save();
@@ -1745,8 +1769,11 @@ function renderProps() {
     return;
   }
   const o = state.objects.find(x => x.id === state.sel);
+  const typeLabel = ob => ob.type === 'symbol' ? KINDS[ob.kind].name
+    : ob.type === 'conerow' ? KINDS[ob.kind || 'cone'].name + '列'
+    : ({ zone: '作業帯', divzone: '導流帯', pedpath: '歩行者通路', dim: '寸法線', text: '文字' })[ob.type];
   document.getElementById('selLabel').textContent = o
-    ? '選択中: ' + (o.type === 'symbol' ? KINDS[o.kind].name : ({ zone: '作業帯', divzone: '導流帯', pedpath: '歩行者通路', conerow: 'コーン列', dim: '寸法線', text: '文字' })[o.type])
+    ? '選択中: ' + typeLabel(o)
     : (state.sel === '_legend' ? '選択中: 凡例' : '');
   if (!o) {
     root.innerHTML = state.sel === '_legend'
@@ -1770,8 +1797,17 @@ function renderProps() {
     html += `<div class="prow"><label>引出し長さ</label><input type="range" id="pLabelDist" min="10" max="160" value="${dist}"><span class="val" id="pLabelDistV">${dist}</span></div>`;
   }
   if (o.type === 'conerow') {
-    html += num('pInterval', 'コーン間隔 (m)', o.interval || 2);
-    html += `<div class="prow"><label>コーンバー</label><input type="checkbox" id="pBar" ${o.bar !== false ? 'checked' : ''}></div>`;
+    const rk = o.kind || 'cone';
+    html += `<div class="prow"><label>並べる記号</label><select id="pRowKind">
+      <option value="cone"${rk === 'cone' ? ' selected' : ''}>カラーコーン</option>
+      <option value="abarricade"${rk === 'abarricade' ? ' selected' : ''}>A型バリケード</option>
+      <option value="drum"${rk === 'drum' ? ' selected' : ''}>クッションドラム</option>
+    </select></div>`;
+    html += num('pInterval', '間隔 (m)', o.interval || 2);
+    if (rk === 'cone')
+      html += `<div class="prow"><label>コーンバー</label><input type="checkbox" id="pBar" ${o.bar !== false ? 'checked' : ''}></div>`;
+    if (rk !== 'cone')
+      html += `<p class="pnote">間隔を記号の幅に近づけると隙間なく連結して見えます（A型バリケードは幅約1.8m）。</p>`;
   }
   if (o.type === 'pedpath') html += num('pWidth', '通路幅 (m)', o.width || 1.5);
   if (o.type === 'divzone') {
@@ -1798,6 +1834,7 @@ function renderProps() {
   bind('pLabel', e => { o.label = e.target.value || null; render(); autosave(); });
   bind('pLabelAng', e => { o.labelAngle = +e.target.value; document.getElementById('pLabelAngV').textContent = e.target.value; render(); autosave(); });
   bind('pLabelDist', e => { o.labelDist = +e.target.value; document.getElementById('pLabelDistV').textContent = e.target.value; render(); autosave(); });
+  bind('pRowKind', e => { o.kind = e.target.value; if (o.kind !== 'cone') o.bar = false; renderProps(); render(); autosave(); });
   bind('pInterval', e => { const v = parseFloat(e.target.value); if (v > 0) { o.interval = v; render(); autosave(); } });
   bind('pBar', e => { o.bar = e.target.checked; render(); autosave(); });
   bind('pWidth', e => { const v = parseFloat(e.target.value); if (v > 0) { o.width = v; render(); autosave(); } });
