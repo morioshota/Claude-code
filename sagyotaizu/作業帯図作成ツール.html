@@ -49,6 +49,25 @@ header input[type=range]{width:80px; accent-color:var(--amber);}
 }
 #scaleBadge.ok{background:#0e3320; border-color:#1d7a45; color:#5ee39a;}
 
+/* ── パターンバー ── */
+#patternBar{
+  background:#1b2a38; color:#cdd8e2; display:flex; align-items:center; gap:6px;
+  padding:5px 10px; border-bottom:1px solid #0e1a24; flex-wrap:wrap; font-size:12px;
+}
+#patternBar .pbLabel{font-size:10px; letter-spacing:.12em; color:#7d8ea0; text-transform:uppercase;}
+#pbTabs{display:flex; gap:4px; flex-wrap:wrap;}
+.pbtab{
+  background:#243342; color:#cdd8e2; border:1px solid #3a4c5e; border-radius:6px;
+  padding:5px 11px; font-size:12px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.pbtab:hover{background:#2f4356;}
+.pbtab.active{background:var(--amber); color:var(--ink); border-color:var(--amber-d); font-weight:700;}
+.pbtn2{background:#243342; color:#fff; border:1px solid #3a4c5e; border-radius:5px; padding:4px 8px; font-size:11.5px; white-space:nowrap;}
+.pbtn2:hover{background:#2f4356;}
+.pbtn2:disabled{opacity:.4; cursor:default;}
+.pbsep{width:1px; height:18px; background:#3a4c5e; margin:0 2px;}
+.pbHint{font-size:10.5px; color:#7d8ea0;}
+
 /* ── レイアウト ── */
 main{flex:1; display:flex; min-height:0;}
 aside{background:var(--panel); overflow-y:auto;}
@@ -175,6 +194,20 @@ footer b{color:#fff; font-weight:600;}
   <button class="hbtn" id="btnPrint">印刷 (A4/A3)</button>
   <button class="hbtn" id="btnHelp">使い方</button>
 </header>
+<div id="patternBar">
+  <span class="pbLabel">パターン</span>
+  <span id="pbTabs" class="pbTabs"></span>
+  <button class="pbtn2" id="pbAdd" title="新しいパターンを追加">＋ 追加</button>
+  <span class="pbsep"></span>
+  <button class="pbtn2" id="pbRename">名前変更</button>
+  <button class="pbtn2" id="pbDup">複製</button>
+  <button class="pbtn2" id="pbDel">削除</button>
+  <span class="pbsep"></span>
+  <span class="pbLabel">出力範囲</span>
+  <button class="pbtn2" id="pbFrame">範囲を指定</button>
+  <button class="pbtn2" id="pbFrameClear">クリア</button>
+  <span class="pbHint" id="pbHint"></span>
+</div>
 <main>
   <aside id="palette"></aside>
   <div id="stage"><canvas id="cv"></canvas><div id="hint"></div></div>
@@ -229,6 +262,10 @@ footer b{color:#fff; font-weight:600;}
       ① 地形図読込 (PDF/画像) → ② <b>縮尺設定</b>(2点＋実距離、または「1/500」等の縮尺分母を直接入力) → ③ 規制パターン自動配置 or パレットから手動配置(作業帯・導流帯・コーン列など) → ④ 手直し → ⑤ PNG出力 / 印刷(A4またはA3を選択)
       <h5>縮尺・スケールバー</h5>
       縮尺設定の「縮尺分母を直接入力」タブは<b>A3横(420mm)で出力する前提</b>で用紙寸法から逆算します。図面設定の「スケールバー」をオンにすると、用紙左下に実寸の目盛りバーを表示できます（バーの長さは常に実寸に連動）。
+      <h5>複数パターン（1工事＝親図面＋複数図面）</h5>
+      背景の地形図(親図面)・縮尺・表示設定は<b>全パターンで共有</b>し、上部の「パターン」タブで図面を切り替えます。パターンごとに規制の配置・図面名・凡例位置・出力範囲を個別に持てます（例: 場所や区間の違い、施工フェーズ、規制方法の代替案）。<br>
+      「＋追加」で新規、「複製」で現在のパターンをコピー、「名前変更」でタブ名を編集（タブのダブルクリックでも可）。<br>
+      <b>出力範囲</b>: 「範囲を指定」で親図面上に対角2点をクリックすると、そのパターンの出力範囲(用紙比に自動調整)を設定できます。PNG出力・印刷時は、この範囲を用紙いっぱいに拡大して出力します（範囲未指定なら親図面全体）。図枠・表題・凡例・スケールバーは用紙側に固定表示されます。
       <h5>編集操作</h5>
       クリックで選択、ドラッグで移動。<kbd>R</kbd> で15°回転。<kbd>Delete</kbd> で削除。<kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> で取消/やり直し。線・多角形は選択すると頂点(白い四角)が表示され、ドラッグで変形できます。
       <h5>記号のラベル・引き出し線</h5>
@@ -310,6 +347,10 @@ footer b{color:#fff; font-weight:600;}
    v1.4: 複数ページPDFのページ選択に対応(2ページ以上でページ番号を確認して読込) (R3)
    v1.5: 自動保存を堅牢化。背景は縮小+JPEG圧縮して保存、容量超過時は背景を外して
          最低限を保存しトーストでJSON保存を案内(元画像は表示/JSON書出しに保持) (R4)
+   v2.0: 複数パターン。親図面(背景)・縮尺・表示設定を全パターン共有し、上部タブで切替。
+         パターンごとにobjects/図面名/凡例位置/出力範囲枠を保持。drawSheetを
+         地図レイヤ(クロップ可)+用紙クローム(枠/表題/凡例)に分離し、範囲枠つき
+         パターンの出力は枠を用紙全体へ拡大。保存形式v2(v1は自動移行)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -329,7 +370,9 @@ const state = {
     bgOpacity: 1.0,
     legendPos: null,      // {x,y} 未設定なら右下自動
   },
-  bg: null,               // {img, dataURL, x, y, w, h}
+  bg: null,               // {img, dataURL, x, y, w, h} — 全パターン共有の親図面(背景)
+  patterns: [],           // 工事内の複数パターン。各: {id,name,title,objects,legendPos,frame}
+  activePattern: 0,       // 編集中パターンの添字。state.objectsは常にこのパターンのobjectsを指す
   view: { z: 0.55, ox: 40, oy: 30 },
   sel: null,              // 選択中オブジェクトid or '_legend'
   tool: 'select',
@@ -342,6 +385,95 @@ const pxPerM = () => 1 / state.settings.mPerPx;
 // 縮尺分母 ↔ mPerPx の相互変換 (A3=420mm幅で出力する前提)
 const mPerPxFromDenom = D => (A3_WIDTH_MM / 1000) * D / PAPER.w;
 const denomFromMPerPx = m => m * PAPER.w / (A3_WIDTH_MM / 1000);
+
+// ---------- パターン(工事内の複数図面) ----------
+// 親図面(bg)・縮尺・表示設定は state.settings / state.bg で全パターン共有。
+// オブジェクト・図面名・凡例位置・出力範囲枠はパターンごとに保持する。
+function makePattern(name) {
+  const n = state.patterns.length + 1;
+  return { id: uid(), name: name || ('パターン' + n), title: name || ('作業帯図' + n),
+    objects: [], legendPos: null, frame: null };
+}
+function activePat() { return state.patterns[state.activePattern] || null; }
+// state.objects等の作業内容をアクティブパターンへ書き戻す(保存・切替の直前に呼ぶ)
+function syncActivePattern() {
+  const p = activePat(); if (!p) return;
+  p.objects = state.objects;
+  p.legendPos = state.settings.legendPos || null;
+  p.title = state.settings.title;
+}
+// アクティブパターンの内容を state.objects 等へ読み込む
+function loadActivePattern() {
+  const p = activePat(); if (!p) return;
+  state.objects = p.objects;
+  state.settings.title = p.title;
+  state.settings.legendPos = p.legendPos || null;
+  state.sel = null; state.draft = null;
+  state.undoStack.length = 0; state.redoStack.length = 0; // Undoはパターン内に限定
+}
+function activatePattern(i) {
+  i = Math.max(0, Math.min(state.patterns.length - 1, i));
+  if (i === state.activePattern) return;
+  syncActivePattern();
+  state.activePattern = i;
+  loadActivePattern();
+  if (state.tool !== 'select') setTool('select');
+  syncSettingsUI(); renderPatternBar(); renderProps(); render(); autosave();
+}
+function addPattern(dup) {
+  syncActivePattern();
+  const p = makePattern();
+  if (dup) {
+    const src = activePat();
+    p.objects = JSON.parse(JSON.stringify(src.objects));
+    p.frame = src.frame ? { ...src.frame } : null;
+    p.legendPos = src.legendPos ? { ...src.legendPos } : null;
+    p.name = src.name + 'の複製';
+    p.title = src.title;
+  }
+  state.patterns.push(p);
+  state.activePattern = state.patterns.length - 1;
+  loadActivePattern();
+  if (state.tool !== 'select') setTool('select');
+  syncSettingsUI(); renderPatternBar(); renderProps(); render(); autosave();
+}
+function deletePattern() {
+  if (state.patterns.length <= 1) { showToast('パターンは最低1つ必要です。'); return; }
+  state.patterns.splice(state.activePattern, 1);
+  state.activePattern = Math.max(0, state.activePattern - 1);
+  loadActivePattern();
+  syncSettingsUI(); renderPatternBar(); renderProps(); render(); autosave();
+}
+async function renamePattern() {
+  const p = activePat(); if (!p) return;
+  const v = await askInput({ title: 'パターン名の変更', message: 'このパターンの名前(タブに表示)を入力してください。', value: p.name });
+  if (v === null) return;
+  p.name = v || p.name;
+  renderPatternBar(); autosave();
+}
+// パターン正規化(読込データの欠損を補う)
+function normalizePattern(p) {
+  return {
+    id: p && p.id || uid(),
+    name: p && p.name || 'パターン',
+    title: p && p.title || (p && p.name) || '作業帯図',
+    objects: p && Array.isArray(p.objects) ? p.objects : [],
+    legendPos: p && p.legendPos || null,
+    frame: p && p.frame || null,
+  };
+}
+function wrapAsPattern(objects, settings) {
+  return { id: uid(), name: 'パターン1', title: settings && settings.title || '作業帯図1',
+    objects: Array.isArray(objects) ? objects : [], legendPos: settings && settings.legendPos || null, frame: null };
+}
+// 出力範囲枠 → 地図レイヤのview変換 (枠を用紙全体へ拡大)
+function frameView(fr) { const s = PAPER.w / fr.w; return { scale: s, ox: -fr.x * s, oy: -fr.y * s }; }
+// ドラッグ2点 → 用紙比(√2:1)に固定した範囲枠
+function frameFromDrag(a, b) {
+  let w = Math.abs(b.x - a.x); if (w < 12) w = 12;
+  const h = w * PAPER.h / PAPER.w;
+  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w, h };
+}
 
 // ---------- 記号ライブラリ ----------
 // draw(ctx, p) : 原点中心・上向き基準で描画。p = pxPerM * symScale
@@ -633,17 +765,24 @@ function render() {
   drawOverlays(ctx);
 }
 // 図面本体 (画面表示にも出力にも使う)
+// opt.view = {scale,ox,oy} 地図レイヤ(背景+オブジェクト)の変換。省略時は等倍(親図面全体)。
+//            出力範囲枠つきパターンの出力では枠を用紙全体へ拡大する。
+// opt.mPerPx = スケールバー用の実効縮尺(省略時は共有縮尺)。
 function drawSheet(c, opt = {}) {
+  const view = opt.view || { scale: 1, ox: 0, oy: 0 };
+  const mPerPxEff = opt.mPerPx || state.settings.mPerPx;
   // 用紙
   c.save();
   if (opt.screen) { c.shadowColor = 'rgba(22,34,46,.25)'; c.shadowBlur = 18 / state.view.z; }
   c.fillStyle = '#fff';
   c.fillRect(0, 0, PAPER.w, PAPER.h);
   c.restore();
+
+  // 地図レイヤ (背景+オブジェクト): view変換でクロップ/ズーム可能
   c.save();
   c.beginPath(); c.rect(0, 0, PAPER.w, PAPER.h); c.clip();
-
-  // 背景地形図
+  c.save();
+  c.translate(view.ox, view.oy); c.scale(view.scale, view.scale);
   if (state.bg && state.bg.img) {
     c.globalAlpha = state.settings.bgOpacity;
     c.drawImage(state.bg.img, state.bg.x, state.bg.y, state.bg.w, state.bg.h);
@@ -653,10 +792,14 @@ function drawSheet(c, opt = {}) {
   const order = { pedpath: 0, divzone: 1, zone: 1, conerow: 2, symbol: 3, dim: 4, text: 5 };
   const objs = [...state.objects].sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9));
   objs.forEach(o => drawObj(c, o));
+  c.restore(); // view変換を戻す
+  c.restore(); // クリップを戻す
 
-  // 凡例・注記・スケールバー
+  // 用紙座標系のクローム (凡例・スケールバー・注記): 地図の上に固定表示
+  c.save();
+  c.beginPath(); c.rect(0, 0, PAPER.w, PAPER.h); c.clip();
   if (state.settings.showLegend) drawLegend(c);
-  if (state.settings.showScaleBar) drawScaleBar(c);
+  if (state.settings.showScaleBar) drawScaleBar(c, mPerPxEff);
   if (state.settings.showNote) {
     c.fillStyle = '#111'; c.font = 'bold 15px sans-serif';
     c.textAlign = 'left'; c.textBaseline = 'alphabetic';
@@ -867,19 +1010,20 @@ function drawLegendIcon(c, kind) {
 
 // ---------- スケールバー ----------
 // 用紙左下に「0–(中間)–(全長)m」目盛のバーを描画。実長はpxPerM()基準で常に正確。
-function niceBarMeters() {
+function niceBarMeters(mPerPx) {
   const target = 220; // 用紙px上での目標バー長
   const cand = [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
-  const ppm = pxPerM();
+  const ppm = 1 / mPerPx;
   let best = cand[0];
   for (const t of cand) if (Math.abs(t * ppm - target) < Math.abs(best * ppm - target)) best = t;
   return best;
 }
 function fmtMeters(m) { return Number.isInteger(m) ? String(m) : String(+m.toFixed(1)); }
-function drawScaleBar(c) {
-  const ppm = pxPerM();
+function drawScaleBar(c, mPerPx) {
+  mPerPx = mPerPx || state.settings.mPerPx;
+  const ppm = 1 / mPerPx;
   if (!isFinite(ppm) || ppm <= 0) return;
-  const T = niceBarMeters();
+  const T = niceBarMeters(mPerPx);
   const wpx = T * ppm;
   if (!(wpx > 20 && wpx < PAPER.w * 0.6)) return;
   const segs = 4, h = 9;
@@ -945,8 +1089,25 @@ function drawOverlays(c) {
     c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz; c.setLineDash([6 * hz, 4 * hz]);
     c.strokeRect(legendBBox.x, legendBBox.y, legendBBox.w, legendBBox.h); c.setLineDash([]);
   }
-  // 作図中プレビュー
+  // 出力範囲枠 (アクティブパターン): 編集画面では親図面上にガイド表示
+  const ap = activePat();
+  if (ap && ap.frame) {
+    const fr = ap.frame;
+    c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz; c.setLineDash([10 * hz, 6 * hz]);
+    c.strokeRect(fr.x, fr.y, fr.w, fr.h); c.setLineDash([]);
+    c.fillStyle = 'rgba(31,95,139,.12)'; c.fillRect(fr.x, fr.y, fr.w, fr.h);
+    c.fillStyle = '#1f5f8b'; c.font = `bold ${13 * hz}px sans-serif`;
+    c.textAlign = 'left'; c.textBaseline = 'bottom';
+    c.fillText('出力範囲: ' + ap.name, fr.x + 4 * hz, fr.y - 4 * hz);
+  }
+  // 範囲枠 作図中プレビュー
   const d = state.draft;
+  if (d && d.mode === 'frame' && d.pts && d.pts.length === 1 && d.cursor) {
+    const fr = frameFromDrag(d.pts[0], d.cursor);
+    c.strokeStyle = '#e67e22'; c.lineWidth = 2 * hz; c.setLineDash([8 * hz, 5 * hz]);
+    c.strokeRect(fr.x, fr.y, fr.w, fr.h); c.setLineDash([]);
+  }
+  // 作図中プレビュー
   if (d && d.pts && d.pts.length) {
     c.strokeStyle = '#e67e22'; c.lineWidth = 2 * hz; c.setLineDash([7 * hz, 5 * hz]);
     c.beginPath(); d.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y));
@@ -1015,6 +1176,7 @@ function applySnap(s) {
   try {
     const d = JSON.parse(s);
     state.objects = d.objects; Object.assign(state.settings, d.settings);
+    syncActivePattern(); // 取消/やり直しの結果をアクティブパターンへ反映
     state.sel = null; syncSettingsUI(); renderProps(); render(); autosave();
   } catch (e) { console.error(e); }
 }
@@ -1025,19 +1187,19 @@ let saveWarned = false; // 容量警告トーストの多重表示を防ぐ(1セ
 function autosave() {
   clearTimeout(asTimer);
   asTimer = setTimeout(() => {
+    syncActivePattern();
     const bgRect = state.bg ? { x: state.bg.x, y: state.bg.y, w: state.bg.w, h: state.bg.h } : null;
+    const base = { settings: state.settings, patterns: state.patterns, activePattern: state.activePattern };
     // ① 圧縮背景つきで保存を試みる
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify({
-        objects: state.objects, settings: state.settings,
-        bg: state.bg ? Object.assign({ dataURL: state.bg.saveURL || state.bg.dataURL }, bgRect) : null,
-      }));
+      localStorage.setItem(LS_KEY, JSON.stringify(Object.assign({}, base,
+        { bg: state.bg ? Object.assign({ dataURL: state.bg.saveURL || state.bg.dataURL }, bgRect) : null })));
       saveWarned = false; // 成功したら次回また警告できるようにする
       return;
     } catch (e) { /* 多くは QuotaExceededError。②へ */ }
-    // ② 背景を除いて最低限(オブジェクト・設定)だけでも保存を試みる
+    // ② 背景を除いて最低限(パターン・設定)だけでも保存を試みる
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify({ objects: state.objects, settings: state.settings, bg: null }));
+      localStorage.setItem(LS_KEY, JSON.stringify(Object.assign({}, base, { bg: null })));
     } catch (e2) { /* それも不可(容量ゼロ/無効環境)なら諦める */ }
     if (!saveWarned) {
       saveWarned = true;
@@ -1064,7 +1226,7 @@ function setTool(t, hint) {
   const labels = { select: '選択' };
   document.getElementById('modeLabel').textContent =
     labels[t] || (t.startsWith('place:') ? KINDS[t.slice(6)].name + ' 配置' :
-    t === 'calib' ? '縮尺設定' : t.startsWith('wizard') ? 'パターン配置' :
+    t === 'calib' ? '縮尺設定' : t === 'frame' ? '出力範囲指定' : t.startsWith('wizard') ? 'パターン配置' :
     t === 'dim' ? '寸法線' : t === 'text' ? '文字' :
     t === 'poly:zone' ? '作業帯 作図' : t === 'poly:divzone' ? '導流帯 作図' : t === 'poly:pedpath' ? '歩行者通路 作図' :
     t === 'poly:conerow' ? 'コーン列 作図' : t);
@@ -1141,6 +1303,18 @@ function pointerDown(e) {
   } else if (t === 'calib') {
     if (!state.draft) state.draft = { mode: 'calib', pts: [w] };
     else finishCalib(state.draft.pts[0], w);
+    render();
+  } else if (t === 'frame') {
+    if (!state.draft) state.draft = { mode: 'frame', pts: [w] };
+    else {
+      const p = activePat();
+      if (p) p.frame = frameFromDrag(state.draft.pts[0], w);
+      state.draft = null; setTool('select');
+      renderPatternBar();
+      setHint('出力範囲を設定しました。PNG出力・印刷はこの範囲を用紙全体に拡大します。');
+      setTimeout(() => setHint(''), 4000);
+      render(); autosave();
+    }
     render();
   } else if (t === 'wizardA') {
     state.draft = { mode: 'wizard', pts: [w] };
@@ -1451,6 +1625,28 @@ function drawToolIcon(c, icon) {
   }
 }
 
+// ---------- パターンバー ----------
+function renderPatternBar() {
+  const tabs = document.getElementById('pbTabs');
+  tabs.innerHTML = '';
+  state.patterns.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'pbtab' + (i === state.activePattern ? ' active' : '');
+    b.textContent = p.name + (p.frame ? ' ▣' : '');
+    b.title = (p.name || 'パターン') + (p.frame ? '（出力範囲あり）' : '') + '　ダブルクリックで名前変更';
+    b.onclick = () => activatePattern(i);
+    b.ondblclick = () => renamePattern();
+    tabs.appendChild(b);
+  });
+  const p = activePat();
+  const clr = document.getElementById('pbFrameClear');
+  if (clr) clr.disabled = !(p && p.frame);
+  const del = document.getElementById('pbDel');
+  if (del) del.disabled = state.patterns.length <= 1;
+  const hint = document.getElementById('pbHint');
+  if (hint) hint.textContent = p && p.frame ? '（このパターンは出力範囲を用紙全体に拡大して出力します）' : '';
+}
+
 // ---------- プロパティパネル ----------
 function renderProps() {
   const root = document.getElementById('objProps');
@@ -1633,29 +1829,38 @@ function download(name, blobOrURL) {
   if (typeof blobOrURL !== 'string') setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 function saveJson() {
+  syncActivePattern();
   const data = {
-    app: 'sagyotaizu', version: 1, savedAt: new Date().toISOString(),
-    settings: state.settings, objects: state.objects,
+    app: 'sagyotaizu', version: 2, savedAt: new Date().toISOString(),
+    settings: state.settings, patterns: state.patterns, activePattern: state.activePattern,
     bg: state.bg ? { dataURL: state.bg.dataURL, x: state.bg.x, y: state.bg.y, w: state.bg.w, h: state.bg.h } : null,
   };
-  download((state.settings.title || '作業帯図') + '.json',
+  // ファイル名は工種+日付で工事単位に。図面名(パターン)は各シートに描画される
+  download((state.settings.koshu || state.settings.title || '作業帯図') + '.json',
     new Blob([JSON.stringify(data)], { type: 'application/json' }));
 }
 async function loadJson(file) {
   try {
     const text = await file.text();
     const d = JSON.parse(text);
-    if (d.app !== 'sagyotaizu' || !Array.isArray(d.objects)) throw new Error('このツールの保存ファイルではありません');
-    pushUndo();
-    state.objects = d.objects;
+    if (d.app !== 'sagyotaizu' || !(Array.isArray(d.patterns) || Array.isArray(d.objects)))
+      throw new Error('このツールの保存ファイルではありません');
     Object.assign(state.settings, d.settings || {});
     state.bg = null;
     if (d.bg && d.bg.dataURL) {
       await setBgFromDataURL(d.bg.dataURL);
       Object.assign(state.bg, { x: d.bg.x, y: d.bg.y, w: d.bg.w, h: d.bg.h });
     }
+    if (Array.isArray(d.patterns) && d.patterns.length) {          // v2: 複数パターン
+      state.patterns = d.patterns.map(normalizePattern);
+      state.activePattern = Math.min(Math.max(0, d.activePattern || 0), state.patterns.length - 1);
+    } else {                                                        // v1: 単一図面 → パターン1に包む
+      state.patterns = [wrapAsPattern(d.objects, d.settings)];
+      state.activePattern = 0;
+    }
+    loadActivePattern();
     state.sel = null;
-    syncSettingsUI(); updateScaleBadge(); renderProps(); render(); autosave();
+    syncSettingsUI(); updateScaleBadge(); renderPatternBar(); renderProps(); render(); autosave();
   } catch (e) {
     alert('読み込みに失敗しました: ' + (e.message || '不明なエラー'));
   }
@@ -1666,7 +1871,11 @@ function renderExportCanvas(scale = 2) {
   const c = oc.getContext('2d');
   c.scale(scale, scale);
   const selBak = state.sel; state.sel = null;
-  drawSheet(c, { screen: false });
+  const p = activePat();
+  // 出力範囲枠つきパターンは枠を用紙全体に拡大して出力(縮尺も実効値に)
+  const opt = { screen: false };
+  if (p && p.frame) { opt.view = frameView(p.frame); opt.mPerPx = state.settings.mPerPx * p.frame.w / PAPER.w; }
+  drawSheet(c, opt);
   state.sel = selBak;
   return oc;
 }
@@ -1804,6 +2013,13 @@ function bindUI() {
     setHint(`縮尺を 1/${D} に設定しました（A3横出力時）`);
     setTimeout(() => setHint(''), 3000);
   };
+  // パターンバー
+  $('pbAdd').onclick = () => addPattern(false);
+  $('pbDup').onclick = () => addPattern(true);
+  $('pbRename').onclick = () => renamePattern();
+  $('pbDel').onclick = () => deletePattern();
+  $('pbFrame').onclick = () => setTool('frame', '出力範囲: 親図面上で対角の2点をクリックして矩形を指定します(用紙比に自動調整。Escで中止)');
+  $('pbFrameClear').onclick = () => { const p = activePat(); if (p && p.frame) { p.frame = null; renderPatternBar(); render(); autosave(); } };
   $('btnHelp').onclick = () => $('helpModal').classList.add('show');
   $('helpClose').onclick = () => $('helpModal').classList.remove('show');
   document.querySelectorAll('.modal-bg').forEach(m => m.addEventListener('click', e => {
@@ -1819,17 +2035,26 @@ async function init() {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (Array.isArray(d.objects)) {
-        state.objects = d.objects;
-        Object.assign(state.settings, d.settings || {});
-        if (d.bg && d.bg.dataURL) {
-          await setBgFromDataURL(d.bg.dataURL);
-          Object.assign(state.bg, { x: d.bg.x, y: d.bg.y, w: d.bg.w, h: d.bg.h });
-        }
+      Object.assign(state.settings, d.settings || {});
+      if (d.bg && d.bg.dataURL) {
+        await setBgFromDataURL(d.bg.dataURL);
+        Object.assign(state.bg, { x: d.bg.x, y: d.bg.y, w: d.bg.w, h: d.bg.h });
+      }
+      if (Array.isArray(d.patterns) && d.patterns.length) {
+        state.patterns = d.patterns.map(normalizePattern);
+        state.activePattern = Math.min(Math.max(0, d.activePattern || 0), state.patterns.length - 1);
+      } else if (Array.isArray(d.objects)) {                 // v1データからの移行
+        state.patterns = [wrapAsPattern(d.objects, d.settings)];
+        state.activePattern = 0;
       }
     }
   } catch (e) { /* 復元不可でも新規として起動 */ }
-  syncSettingsUI(); updateScaleBadge(); renderProps();
+  if (!state.patterns.length) { // 新規起動: 既定パターンを1つ用意
+    const p = makePattern(); p.name = 'パターン1'; p.title = state.settings.title || '作業帯図1';
+    state.patterns = [p]; state.activePattern = 0;
+  }
+  loadActivePattern();
+  syncSettingsUI(); updateScaleBadge(); renderPatternBar(); renderProps();
   zoomFit();
 }
 init();
