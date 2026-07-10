@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>作業帯図作成ツール｜道路使用許可申請用</title>
+<style>
+:root{
+  --ink:#16222e; --ink2:#2c3e50; --panel:#f4f5f7; --line:#d4d9de;
+  --amber:#f7b500; --amber-d:#c99300; --red:#d63031; --accent:#1f5f8b;
+  --paper-shadow:0 4px 24px rgba(22,34,46,.18);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%; overflow:hidden;}
+body{
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
+  font-size:13px; color:var(--ink); background:#e8ebee;
+  display:flex; flex-direction:column;
+}
+button{font-family:inherit; cursor:pointer;}
+
+/* ── ヘッダー ── */
+header{
+  background:var(--ink); color:#fff; display:flex; align-items:center;
+  gap:6px; padding:6px 10px; flex-wrap:wrap; border-bottom:3px solid var(--amber);
+}
+header .brand{display:flex; align-items:center; gap:8px; margin-right:10px;}
+header .brand .mark{
+  width:22px;height:22px; background:repeating-linear-gradient(45deg,var(--amber) 0 5px,var(--ink) 5px 10px);
+  border:1.5px solid #fff; border-radius:3px;
+}
+header .brand b{font-size:14px; letter-spacing:.06em;}
+header .brand small{opacity:.65; font-size:10.5px;}
+.hbtn{
+  background:#243342; color:#fff; border:1px solid #3a4c5e; border-radius:5px;
+  padding:5px 9px; font-size:12px; line-height:1; white-space:nowrap;
+}
+.hbtn:hover{background:#2f4356;}
+.hbtn.primary{background:var(--amber); border-color:var(--amber-d); color:var(--ink); font-weight:700;}
+.hbtn.primary:hover{background:#ffc61a;}
+.hbtn:disabled{opacity:.4; cursor:default;}
+.hsep{width:1px; height:22px; background:#3a4c5e; margin:0 3px;}
+.hgroup{display:flex; align-items:center; gap:4px;}
+header label.mini{font-size:11px; opacity:.8; display:flex; align-items:center; gap:5px;}
+header input[type=range]{width:80px; accent-color:var(--amber);}
+#scaleBadge{
+  font-size:11px; padding:4px 8px; border-radius:4px; background:#3d2e00;
+  border:1px solid var(--amber-d); color:var(--amber); font-weight:700;
+}
+#scaleBadge.ok{background:#0e3320; border-color:#1d7a45; color:#5ee39a;}
+
+/* ── レイアウト ── */
+main{flex:1; display:flex; min-height:0;}
+aside{background:var(--panel); overflow-y:auto;}
+#palette{width:172px; border-right:1px solid var(--line); padding:8px;}
+#props{width:236px; border-left:1px solid var(--line); padding:10px;}
+.pgroup{margin-bottom:10px;}
+.pgroup h4{
+  font-size:10.5px; color:#5a6a78; letter-spacing:.12em; margin:0 0 5px 2px;
+  border-left:3px solid var(--amber); padding-left:6px;
+}
+.pal{display:grid; grid-template-columns:1fr 1fr; gap:4px;}
+.palbtn{
+  background:#fff; border:1px solid var(--line); border-radius:6px; padding:4px 2px 3px;
+  display:flex; flex-direction:column; align-items:center; gap:1px; min-height:52px;
+}
+.palbtn:hover{border-color:var(--accent); background:#f2f8fc;}
+.palbtn.active{border-color:var(--amber-d); background:#fff7e0; box-shadow:inset 0 0 0 1px var(--amber);}
+.palbtn canvas{width:30px; height:30px;}
+.palbtn span{font-size:9.5px; color:var(--ink2); line-height:1.15; text-align:center;}
+.palbtn.wide{grid-column:1/-1; flex-direction:row; justify-content:flex-start; gap:8px; min-height:38px; padding-left:8px;}
+.palbtn.wide span{font-size:11px;}
+
+#stage{flex:1; position:relative; min-width:0; background:
+  linear-gradient(#dfe3e7 1px,transparent 1px),linear-gradient(90deg,#dfe3e7 1px,transparent 1px);
+  background-size:24px 24px; background-color:#e8ebee;}
+#cv{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;}
+#hint{
+  position:absolute; left:50%; transform:translateX(-50%); top:10px;
+  background:rgba(22,34,46,.92); color:#fff; padding:7px 14px; border-radius:20px;
+  font-size:12.5px; pointer-events:none; display:none; box-shadow:0 2px 10px rgba(0,0,0,.25);
+  border:1px solid var(--amber); max-width:90%;
+}
+#hint.show{display:block;}
+
+/* ── 右パネル ── */
+#props h3{font-size:12px; color:#5a6a78; letter-spacing:.1em; margin-bottom:8px;
+  border-bottom:2px solid var(--amber); padding-bottom:4px;}
+.prow{display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:7px;}
+.prow label{font-size:11.5px; color:var(--ink2); flex-shrink:0;}
+.prow input[type=text],.prow input[type=number],.prow select{
+  width:110px; padding:4px 6px; border:1px solid var(--line); border-radius:4px; font-size:12px; font-family:inherit;
+}
+.prow input[type=range]{width:110px; accent-color:var(--accent);}
+.prow .val{font-size:11px; color:#5a6a78; width:34px; text-align:right;}
+.pbtnrow{display:flex; gap:6px; margin-top:8px;}
+.pbtn{flex:1; padding:6px 0; border:1px solid var(--line); border-radius:5px; background:#fff; font-size:12px;}
+.pbtn:hover{background:#eef3f7;}
+.pbtn.danger{color:var(--red); border-color:#eab3b3;}
+.pbtn.danger:hover{background:#fdeeee;}
+.pdivider{height:1px; background:var(--line); margin:12px 0;}
+.pempty{font-size:11.5px; color:#8795a1; line-height:1.7; background:#fff; border:1px dashed var(--line);
+  border-radius:6px; padding:10px;}
+.pnote{font-size:10.5px; color:#8795a1; line-height:1.6; margin-top:6px;}
+
+footer{
+  background:var(--ink); color:#aebccb; font-size:11px; padding:4px 12px;
+  display:flex; gap:18px; align-items:center;
+}
+footer b{color:#fff; font-weight:600;}
+#coord{margin-left:auto; font-variant-numeric:tabular-nums;}
+
+/* ── モーダル ── */
+.modal-bg{position:fixed; inset:0; background:rgba(22,34,46,.5); display:none;
+  align-items:center; justify-content:center; z-index:50;}
+.modal-bg.show{display:flex;}
+.modal{background:#fff; border-radius:10px; width:400px; max-width:92vw; max-height:88vh; overflow-y:auto;
+  box-shadow:0 10px 40px rgba(0,0,0,.3); border-top:4px solid var(--amber);}
+.modal .mhead{padding:12px 16px 8px; font-size:14.5px; font-weight:700;}
+.modal .mbody{padding:4px 16px 8px;}
+.modal .mfoot{padding:10px 16px 14px; display:flex; gap:8px; justify-content:flex-end;}
+.mbtn{padding:7px 16px; border-radius:6px; border:1px solid var(--line); background:#fff; font-size:12.5px;}
+.mbtn.go{background:var(--amber); border-color:var(--amber-d); font-weight:700;}
+.radio-card{display:block; border:1.5px solid var(--line); border-radius:8px; padding:9px 11px; margin-bottom:7px; cursor:pointer;}
+.radio-card:has(input:checked){border-color:var(--amber-d); background:#fff9e6;}
+.radio-card b{font-size:13px;}
+.radio-card p{font-size:11px; color:#5a6a78; margin-top:2px; line-height:1.5;}
+.radio-card input{margin-right:6px;}
+.mgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; margin-top:8px;}
+.mgrid label{font-size:11.5px; color:var(--ink2); display:block; margin-bottom:3px;}
+.mgrid input,.mgrid select{width:100%; padding:5px 7px; border:1px solid var(--line); border-radius:5px; font-size:12.5px; font-family:inherit;}
+.helpbox{font-size:12px; line-height:1.9; color:var(--ink2);}
+.helpbox h5{margin:10px 0 3px; font-size:12.5px; color:var(--ink); border-left:3px solid var(--amber); padding-left:6px;}
+.helpbox kbd{background:#eef1f4; border:1px solid var(--line); border-radius:3px; padding:0 5px; font-size:11px;}
+@media (max-width:900px){ #palette{width:120px;} #props{width:190px;} .palbtn span{font-size:8.5px;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><div class="mark"></div><div><b>作業帯図作成ツール</b><br><small>道路使用許可申請用</small></div></div>
+  <div class="hsep"></div>
+  <button class="hbtn" id="btnBg">地形図読込 (PDF/画像)</button>
+  <label class="mini">透明度 <input type="range" id="bgOpacity" min="10" max="100" value="100"></label>
+  <div class="hsep"></div>
+  <button class="hbtn" id="btnCalib">縮尺設定</button>
+  <span id="scaleBadge">縮尺 未設定</span>
+  <div class="hsep"></div>
+  <button class="hbtn primary" id="btnWizard">▶ 規制パターン自動配置</button>
+  <div class="hsep"></div>
+  <div class="hgroup">
+    <button class="hbtn" id="btnUndo" title="元に戻す (Ctrl+Z)">↩</button>
+    <button class="hbtn" id="btnRedo" title="やり直す (Ctrl+Y)">↪</button>
+    <button class="hbtn" id="btnZoomOut">−</button>
+    <button class="hbtn" id="btnZoomFit">全体</button>
+    <button class="hbtn" id="btnZoomIn">＋</button>
+  </div>
+  <div class="hsep"></div>
+  <button class="hbtn" id="btnSave">保存(JSON)</button>
+  <button class="hbtn" id="btnLoad">読込</button>
+  <button class="hbtn" id="btnPng">PNG出力</button>
+  <button class="hbtn" id="btnPrint">印刷 (A4/A3)</button>
+  <button class="hbtn" id="btnHelp">使い方</button>
+</header>
+<main>
+  <aside id="palette"></aside>
+  <div id="stage"><canvas id="cv"></canvas><div id="hint"></div></div>
+  <aside id="props">
+    <h3>図面設定</h3>
+    <div class="prow"><label>図面名</label><input type="text" id="setTitle" value="作業帯図1"></div>
+    <div class="prow"><label>工種</label><input type="text" id="setKoshu" value="管路工"></div>
+    <div class="prow"><label>凡例を表示</label><input type="checkbox" id="setLegend" checked></div>
+    <div class="prow"><label>注記を表示</label><input type="checkbox" id="setNote" checked></div>
+    <div class="prow"><label>記号の倍率</label><input type="range" id="setSymScale" min="50" max="300" value="100"><span class="val" id="setSymScaleV">1.0</span></div>
+    <div class="pdivider"></div>
+    <h3>選択中のオブジェクト</h3>
+    <div id="objProps"><div class="pempty">オブジェクトを選択すると、ここで回転・寸法・ラベル等を編集できます。<br><br>左のパレットから記号を選んで図面をクリックすると配置できます。</div></div>
+  </aside>
+</main>
+<footer>
+  <span>モード: <b id="modeLabel">選択</b></span>
+  <span id="selLabel"></span>
+  <span id="coord"></span>
+</footer>
+
+<input type="file" id="fileBg" accept=".pdf,image/*" hidden>
+<input type="file" id="fileJson" accept=".json,application/json" hidden>
+
+<div class="modal-bg" id="wizardModal">
+  <div class="modal">
+    <div class="mhead">規制パターン自動配置</div>
+    <div class="mbody">
+      <label class="radio-card"><input type="radio" name="wpat" value="katagawa" checked><b>片側交互通行</b><p>作業帯＋カラーコーン列・ガードマン・片側交互通行標示板・矢印板を両端に自動配置</p></label>
+      <label class="radio-card"><input type="radio" name="wpat" value="shasen"><b>車線減少</b><p>作業帯＋進行方向手前にすり付け(テーパー)コーン・車線減少標示板・幅員減少看板を配置</p></label>
+      <label class="radio-card"><input type="radio" name="wpat" value="tome"><b>通行止め＋迂回</b><p>規制区間全幅を閉鎖。両端にA型バリケード・通行止め標示板・迂回路標示板・ガードマンを配置</p></label>
+      <div class="mgrid">
+        <div><label>作業帯の幅 (m)</label><input type="number" id="wWidth" value="3.0" step="0.5" min="0.5"></div>
+        <div><label>コーン間隔 (m)</label><input type="number" id="wCone" value="2.0" step="0.5" min="0.5"></div>
+        <div><label>作業帯を置く側</label><select id="wSide"><option value="1">進行方向 右側</option><option value="-1">進行方向 左側</option></select></div>
+        <div id="wTaperWrap"><label>テーパー長 (m)</label><input type="number" id="wTaper" value="10" step="1" min="3"></div>
+      </div>
+      <p class="pnote">※パターン開始後、地形図上で「起点 → 終点」の順に2点クリックしてください。生成後はすべての部材を個別に移動・回転・削除できます。</p>
+    </div>
+    <div class="mfoot"><button class="mbtn" id="wCancel">キャンセル</button><button class="mbtn go" id="wStart">起点・終点の指定へ</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="helpModal">
+  <div class="modal">
+    <div class="mhead">使い方</div>
+    <div class="mbody helpbox">
+      <h5>基本の流れ</h5>
+      ① 地形図読込 (PDF/画像) → ② <b>縮尺設定</b>(地図上の距離が分かる2点をクリックし実距離を入力) → ③ 規制パターン自動配置 or パレットから手動配置(作業帯・導流帯・コーン列など) → ④ 手直し → ⑤ PNG出力 / 印刷(A4またはA3を選択)
+      <h5>編集操作</h5>
+      クリックで選択、ドラッグで移動。<kbd>R</kbd> で15°回転。<kbd>Delete</kbd> で削除。<kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> で取消/やり直し。線・多角形は選択すると頂点(白い四角)が表示され、ドラッグで変形できます。
+      <h5>画面操作</h5>
+      マウスホイールで拡大縮小、<kbd>Space</kbd>+ドラッグ または 右ドラッグで画面移動。
+      <h5>線を描くツール(作業帯・歩行者通路・コーン列・寸法線)</h5>
+      クリックで点を追加、<b>ダブルクリックまたは Enter で確定</b>、<kbd>Esc</kbd> で中止。
+      <h5>注意</h5>
+      ・縮尺設定を先に行うと、コーン間隔や寸法値が実寸で正しく入ります。<br>
+      ・作業データはブラウザに自動保存されますが、確実な保管には「保存(JSON)」を使用してください。<br>
+      ・本ツールは作図補助です。規制方法・保安施設の要否は所轄警察・道路管理者との協議によります。
+    </div>
+    <div class="mfoot"><button class="mbtn go" id="helpClose">閉じる</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="inputModal">
+  <div class="modal" style="width:340px">
+    <div class="mhead" id="imTitle">入力</div>
+    <div class="mbody">
+      <p id="imMsg" style="font-size:12.5px;color:#5a6a78;margin-bottom:8px;line-height:1.6"></p>
+      <input type="text" id="imField" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:14px;font-family:inherit">
+      <p id="imErr" style="font-size:11.5px;color:var(--red);margin-top:6px;min-height:15px"></p>
+    </div>
+    <div class="mfoot"><button class="mbtn" id="imCancel">キャンセル</button><button class="mbtn go" id="imOk">OK</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="printModal">
+  <div class="modal" style="width:340px">
+    <div class="mhead">印刷</div>
+    <div class="mbody">
+      <label class="radio-card"><input type="radio" name="psize" value="a4" checked><b>A4 横</b><p>提出用の標準サイズ</p></label>
+      <label class="radio-card"><input type="radio" name="psize" value="a3"><b>A3 横</b><p>大きめに印刷したい場合</p></label>
+      <p class="pnote" style="margin-top:6px">印刷ダイアログが開いたら、用紙サイズと余白(「なし」推奨)を確認してください。</p>
+    </div>
+    <div class="mfoot"><button class="mbtn" id="prCancel">キャンセル</button><button class="mbtn go" id="prGo">印刷する</button></div>
+  </div>
+</div>
+
+<iframe id="printFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden"></iframe>
+<script>
+'use strict';
+/* ============================================================
+   作業帯図作成ツール  v1.1
+   単一HTML / Canvas 2D / 依存: PDF.js (PDF読込時のみCDNから遅延ロード)
+   v1.1: 縮尺設定/文字入力を自前モーダル化(prompt廃止)、印刷をiframe方式+A4/A3選択、導流帯を追加
+   ============================================================ */
+
+// ---------- 定数・状態 ----------
+const PAPER = { w: 1587, h: 1122, m: 20, m2: 34 }; // A3横 @96dpi相当, 図枠余白
+const LS_KEY = 'sagyotaizu_v1';
+const state = {
+  objects: [],            // 図形オブジェクト配列
+  settings: {
+    title: '作業帯図1', koshu: '管路工',
+    showLegend: true, showNote: true,
+    symScale: 1.0,
+    mPerPx: 0.05,         // 縮尺 (m/世界px)。既定 1px=5cm (=20px/m)
+    calibrated: false,
+    bgOpacity: 1.0,
+    legendPos: null,      // {x,y} 未設定なら右下自動
+  },
+  bg: null,               // {img, dataURL, x, y, w, h}
+  view: { z: 0.55, ox: 40, oy: 30 },
+  sel: null,              // 選択中オブジェクトid or '_legend'
+  tool: 'select',
+  draft: null,            // 作図中データ
+  undoStack: [], redoStack: [],
+};
+let idSeq = 1;
+const uid = () => 'o' + (idSeq++) + '_' + Date.now().toString(36);
+const pxPerM = () => 1 / state.settings.mPerPx;
+
+// ---------- 記号ライブラリ ----------
+// draw(ctx, p) : 原点中心・上向き基準で描画。p = pxPerM * symScale
+function txtSign(ctx, p, ch, opt = {}) {
+  const s = (opt.size || 1.1) * p;
+  ctx.fillStyle = opt.bg || '#fff';
+  ctx.strokeStyle = opt.border || '#111';
+  ctx.lineWidth = Math.max(0.8, p * 0.06);
+  ctx.beginPath(); ctx.rect(-s / 2, -s / 2, s, s); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = opt.fg || '#111';
+  ctx.font = `bold ${s * 0.62}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(ch, 0, s * 0.03);
+}
+function boardSign(ctx, p, lines, opt = {}) {
+  const w = (opt.w || 1.6) * p, h = (opt.h || 1.1) * p;
+  ctx.fillStyle = opt.bg || '#fff';
+  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.8, p * 0.06);
+  ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = opt.fg || '#111'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const fs = Math.min(w / (Math.max(...lines.map(l => l.length)) * 0.62 + 0.6), h / (lines.length * 1.25));
+  ctx.font = `bold ${fs}px sans-serif`;
+  lines.forEach((l, i) => ctx.fillText(l, 0, (i - (lines.length - 1) / 2) * fs * 1.15));
+}
+const KINDS = {
+  guardman: { name: 'ガードマン', size: 1.0, draw(ctx, p) {
+    const s = p * 1.0;
+    ctx.strokeStyle = '#0a3d62'; ctx.fillStyle = '#0a3d62'; ctx.lineWidth = Math.max(1, s * 0.09);
+    ctx.beginPath(); ctx.arc(0, -s * 0.32, s * 0.15, 0, 7); ctx.fill();             // 頭
+    ctx.fillStyle = '#e17055';
+    ctx.beginPath(); ctx.moveTo(-s * 0.2, -s * 0.42); ctx.lineTo(s * 0.2, -s * 0.42);
+    ctx.lineTo(0, -s * 0.58); ctx.closePath(); ctx.fill();                          // ヘルメット
+    ctx.strokeStyle = '#0a3d62';
+    ctx.beginPath(); ctx.moveTo(0, -s * 0.17); ctx.lineTo(0, s * 0.18);             // 胴
+    ctx.moveTo(0, s * 0.18); ctx.lineTo(-s * 0.16, s * 0.5);
+    ctx.moveTo(0, s * 0.18); ctx.lineTo(s * 0.16, s * 0.5);                          // 脚
+    ctx.moveTo(0, -s * 0.05); ctx.lineTo(-s * 0.25, s * 0.1);                        // 左腕
+    ctx.moveTo(0, -s * 0.05); ctx.lineTo(s * 0.3, -s * 0.3); ctx.stroke();           // 右腕(旗)
+    ctx.fillStyle = '#d63031';
+    ctx.beginPath(); ctx.moveTo(s * 0.3, -s * 0.3); ctx.lineTo(s * 0.52, -s * 0.42);
+    ctx.lineTo(s * 0.52, -s * 0.18); ctx.closePath(); ctx.fill();                    // 旗
+  }},
+  cone: { name: 'カラーコーン', size: 0.45, draw(ctx, p) {
+    const s = p * 0.42;
+    ctx.fillStyle = '#e74c3c'; ctx.strokeStyle = '#7d1a12'; ctx.lineWidth = Math.max(0.7, s * 0.12);
+    ctx.beginPath(); ctx.rect(-s / 2, -s / 2, s, s); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(0, 0, s * 0.16, 0, 7); ctx.fill();
+  }},
+  abarricade: { name: 'A型バリケード', size: 1.8, draw(ctx, p) {
+    const w = p * 1.8, h = p * 0.75;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1, p * 0.07);
+    ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-w / 2, -h / 2); ctx.lineTo(w / 2, h / 2);
+    ctx.moveTo(w / 2, -h / 2); ctx.lineTo(-w / 2, h / 2); ctx.stroke();
+  }},
+  drum: { name: 'クッションドラム', size: 0.7, draw(ctx, p) {
+    const r = p * 0.34;
+    ctx.fillStyle = '#6d1a12'; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#e8c8c4'; ctx.lineWidth = Math.max(1, r * 0.22);
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, 7); ctx.stroke();
+  }},
+  light: { name: '黄色回転灯', size: 0.7, draw(ctx, p) {
+    const s = p * 0.6;
+    ctx.strokeStyle = '#b8860b'; ctx.lineWidth = Math.max(1, s * 0.1);
+    ctx.beginPath(); ctx.moveTo(0, s * 0.5); ctx.lineTo(0, s * 0.05);
+    ctx.moveTo(-s * 0.28, s * 0.5); ctx.lineTo(s * 0.28, s * 0.5); ctx.stroke();
+    ctx.fillStyle = '#f7b500'; ctx.strokeStyle = '#8a6d00';
+    ctx.beginPath(); ctx.arc(0, -s * 0.15, s * 0.24, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#f7b500';
+    for (const a of [-2.3, -1.57, -0.85]) {
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * s * 0.32, -s * 0.15 + Math.sin(a) * s * 0.32);
+      ctx.lineTo(Math.cos(a) * s * 0.5, -s * 0.15 + Math.sin(a) * s * 0.5); ctx.stroke();
+    }
+  }},
+  truck: { name: '作業車', size: 4.6, draw(ctx, p) {
+    const w = p * 1.9, l = p * 4.6;
+    ctx.fillStyle = '#f5d312'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1, p * 0.08);
+    r_round(ctx, -w / 2, -l / 2, w, l, p * 0.25); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-w / 2, -l / 2 + l * 0.26); ctx.lineTo(w / 2, -l / 2 + l * 0.26); ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,.15)';
+    ctx.beginPath(); ctx.rect(-w * 0.32, -l / 2 + l * 0.05, w * 0.64, l * 0.14); ctx.fill();
+  }},
+  arrowboard: { name: '矢印板', size: 1.3, draw(ctx, p) {
+    const w = p * 1.5, h = p * 0.8;
+    ctx.fillStyle = '#1a63b0'; ctx.strokeStyle = '#0c3b6b'; ctx.lineWidth = Math.max(0.8, p * 0.06);
+    ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.36, 0); ctx.lineTo(-w * 0.02, -h * 0.32); ctx.lineTo(-w * 0.02, -h * 0.13);
+    ctx.lineTo(w * 0.36, -h * 0.13); ctx.lineTo(w * 0.36, h * 0.13); ctx.lineTo(-w * 0.02, h * 0.13);
+    ctx.lineTo(-w * 0.02, h * 0.32); ctx.closePath(); ctx.fill();
+  }},
+  sign_katagawa: { name: '片側交互通行標示板', size: 1.1, draw(ctx, p) { txtSign(ctx, p, '片'); }},
+  sign_stop:     { name: '停止位置標示板',     size: 1.1, draw(ctx, p) { txtSign(ctx, p, '停'); }},
+  sign_ukai:     { name: '迂回路標示板',       size: 1.1, draw(ctx, p) { txtSign(ctx, p, '迂'); }},
+  sign_closed:   { name: '通行止め標示板',     size: 1.1, draw(ctx, p) {
+    const r = p * 0.52;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#d63031'; ctx.lineWidth = Math.max(1.2, p * 0.12);
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill(); ctx.stroke();
+    const k = r * 0.55; ctx.beginPath();
+    ctx.moveTo(-k, -k); ctx.lineTo(k, k); ctx.moveTo(k, -k); ctx.lineTo(-k, k); ctx.stroke();
+  }},
+  sign_lane_reduce: { name: '車線減少標示板', size: 1.2, draw(ctx, p) {
+    const s = p * 0.62;
+    ctx.fillStyle = '#f7b500'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1, p * 0.07);
+    ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s, 0); ctx.lineTo(0, s); ctx.lineTo(-s, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1, p * 0.09);
+    ctx.beginPath(); ctx.moveTo(-s * 0.32, s * 0.5); ctx.lineTo(-s * 0.32, -s * 0.5);
+    ctx.moveTo(s * 0.32, s * 0.5); ctx.lineTo(s * 0.32, s * 0.05); ctx.lineTo(-s * 0.28, -s * 0.45);
+    ctx.stroke();
+  }},
+  sign_noentry: { name: '指定方向外進行禁止標識', size: 1.1, draw(ctx, p) {
+    const r = p * 0.5;
+    ctx.fillStyle = '#1a63b0'; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1.2, r * 0.22); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, r * 0.5); ctx.lineTo(0, -r * 0.35); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.beginPath();
+    ctx.moveTo(0, -r * 0.72); ctx.lineTo(-r * 0.28, -r * 0.22); ctx.lineTo(r * 0.28, -r * 0.22);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#d63031'; ctx.lineWidth = Math.max(1.4, r * 0.2);
+    ctx.beginPath(); ctx.moveTo(-r * 0.66, r * 0.66); ctx.lineTo(r * 0.66, -r * 0.66); ctx.stroke();
+    ctx.lineCap = 'butt';
+  }},
+  board_yokoku:   { name: '工事予告標示板', size: 1.6, draw(ctx, p) {
+    const w = p * 2.2, h = p * 0.7;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.8, p * 0.06);
+    ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-w / 6, -h / 2); ctx.lineTo(-w / 6, h / 2);
+    ctx.moveTo(w / 6, -h / 2); ctx.lineTo(w / 6, h / 2); ctx.stroke();
+    ctx.fillStyle = '#111'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `bold ${h * 0.5}px sans-serif`;
+    ctx.fillText('50', -w / 3, 0); ctx.fillText('100', 0, 0); ctx.fillText('200', w / 3, 0);
+  }},
+  board_kenmei:   { name: '工事件名標示板', size: 1.4, draw(ctx, p) {
+    const w = p * 1.7, h = p * 0.85;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.8, p * 0.06);
+    ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h / 2); ctx.lineTo(0, 0); ctx.lineTo(-w / 2, h / 2); ctx.closePath();
+    ctx.moveTo(w / 2, -h / 2); ctx.lineTo(0, 0); ctx.lineTo(w / 2, h / 2); ctx.closePath();
+    ctx.stroke();
+  }},
+  board_hokousha: { name: '歩行者通路標示板', size: 1.4, draw(ctx, p) {
+    boardSign(ctx, p, ['歩行者通路'], { w: 1.9, h: 0.6 });
+  }},
+  board_setsumei: { name: '工事説明看板', size: 1.2, draw(ctx, p) { boardSign(ctx, p, ['説'], { w: 0.9, h: 1.1 }); }},
+  board_kouji:    { name: '工事中看板',   size: 1.2, draw(ctx, p) { boardSign(ctx, p, ['工'], { w: 0.9, h: 1.1 }); }},
+  board_fukuin:   { name: '幅員減少看板', size: 1.2, draw(ctx, p) { boardSign(ctx, p, ['幅'], { w: 0.9, h: 1.1 }); }},
+};
+function r_round(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// ---------- ジオメトリ ----------
+const V = {
+  sub: (a, b) => ({ x: a.x - b.x, y: a.y - b.y }),
+  add: (a, b) => ({ x: a.x + b.x, y: a.y + b.y }),
+  mul: (a, k) => ({ x: a.x * k, y: a.y * k }),
+  len: a => Math.hypot(a.x, a.y),
+  norm(a) { const l = Math.hypot(a.x, a.y) || 1; return { x: a.x / l, y: a.y / l }; },
+  perp: a => ({ x: -a.y, y: a.x }),
+};
+function distToSeg(p, a, b) {
+  const ab = V.sub(b, a), ap = V.sub(p, a);
+  const t = Math.max(0, Math.min(1, (ap.x * ab.x + ap.y * ab.y) / ((ab.x * ab.x + ab.y * ab.y) || 1)));
+  return V.len(V.sub(p, V.add(a, V.mul(ab, t))));
+}
+function ptInPoly(p, pts) {
+  let c = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    if (((pts[i].y > p.y) !== (pts[j].y > p.y)) &&
+        (p.x < (pts[j].x - pts[i].x) * (p.y - pts[i].y) / (pts[j].y - pts[i].y) + pts[i].x)) c = !c;
+  }
+  return c;
+}
+function polyCenter(pts) {
+  let x = 0, y = 0; pts.forEach(p => { x += p.x; y += p.y; });
+  return { x: x / pts.length, y: y / pts.length };
+}
+
+// ---------- 入力モーダル (prompt代替) ----------
+// prompt() はcanvasイベント内でブラウザにブロックされるため自前モーダルを使う
+function askInput({ title = '入力', message = '', value = '', validate = null }) {
+  return new Promise(resolve => {
+    const bg = document.getElementById('inputModal');
+    const field = document.getElementById('imField');
+    const err = document.getElementById('imErr');
+    document.getElementById('imTitle').textContent = title;
+    document.getElementById('imMsg').textContent = message;
+    err.textContent = '';
+    field.value = value;
+    bg.classList.add('show');
+    setTimeout(() => { field.focus(); field.select(); }, 30);
+    const cleanup = () => {
+      bg.classList.remove('show');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      field.removeEventListener('keydown', onKey);
+      bg.removeEventListener('mousedown', onBg);
+    };
+    const onOk = () => {
+      const v = field.value.trim();
+      if (validate) { const msg = validate(v); if (msg) { err.textContent = msg; return; } }
+      cleanup(); resolve(v);
+    };
+    const onCancel = () => { cleanup(); resolve(null); };
+    const onKey = e => { if (e.key === 'Enter') { e.preventDefault(); onOk(); } if (e.key === 'Escape') onCancel(); };
+    const onBg = e => { if (e.target === bg) onCancel(); };
+    const okBtn = document.getElementById('imOk');
+    const cancelBtn = document.getElementById('imCancel');
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    field.addEventListener('keydown', onKey);
+    bg.addEventListener('mousedown', onBg);
+  });
+}
+
+// ---------- キャンバス / ビュー ----------
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+function resize() {
+  const r = cv.parentElement.getBoundingClientRect();
+  cv.width = Math.round(r.width * devicePixelRatio);
+  cv.height = Math.round(r.height * devicePixelRatio);
+  render();
+}
+addEventListener('resize', resize);
+const toWorld = (sx, sy) => ({ x: (sx - state.view.ox) / state.view.z, y: (sy - state.view.oy) / state.view.z });
+const evPos = e => {
+  const r = cv.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return { x: t.clientX - r.left, y: t.clientY - r.top };
+};
+function zoomFit() {
+  const r = cv.parentElement.getBoundingClientRect();
+  const z = Math.min(r.width / (PAPER.w + 80), r.height / (PAPER.h + 80));
+  state.view.z = z;
+  state.view.ox = (r.width - PAPER.w * z) / 2;
+  state.view.oy = (r.height - PAPER.h * z) / 2;
+  render();
+}
+
+// ---------- 描画 ----------
+function render() {
+  const z = state.view.z;
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.translate(state.view.ox, state.view.oy);
+  ctx.scale(z, z);
+  drawSheet(ctx, { screen: true });
+  drawOverlays(ctx);
+}
+// 図面本体 (画面表示にも出力にも使う)
+function drawSheet(c, opt = {}) {
+  // 用紙
+  c.save();
+  if (opt.screen) { c.shadowColor = 'rgba(22,34,46,.25)'; c.shadowBlur = 18 / state.view.z; }
+  c.fillStyle = '#fff';
+  c.fillRect(0, 0, PAPER.w, PAPER.h);
+  c.restore();
+  c.save();
+  c.beginPath(); c.rect(0, 0, PAPER.w, PAPER.h); c.clip();
+
+  // 背景地形図
+  if (state.bg && state.bg.img) {
+    c.globalAlpha = state.settings.bgOpacity;
+    c.drawImage(state.bg.img, state.bg.x, state.bg.y, state.bg.w, state.bg.h);
+    c.globalAlpha = 1;
+  }
+  // オブジェクト (描画順: 通路 → 作業帯 → コーン列 → 記号 → 寸法 → 文字)
+  const order = { pedpath: 0, divzone: 1, zone: 1, conerow: 2, symbol: 3, dim: 4, text: 5 };
+  const objs = [...state.objects].sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9));
+  objs.forEach(o => drawObj(c, o));
+
+  // 凡例・注記
+  if (state.settings.showLegend) drawLegend(c);
+  if (state.settings.showNote) {
+    c.fillStyle = '#111'; c.font = 'bold 15px sans-serif';
+    c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+    c.fillText('※作業帯は可能な限り縮小します。', PAPER.m2 + 12, PAPER.h - PAPER.m2 - 12);
+  }
+  c.restore();
+
+  // 図枠・表題
+  c.strokeStyle = '#111';
+  c.lineWidth = 2.2; c.strokeRect(PAPER.m, PAPER.m, PAPER.w - PAPER.m * 2, PAPER.h - PAPER.m * 2);
+  c.lineWidth = 1; c.strokeRect(PAPER.m2, PAPER.m2, PAPER.w - PAPER.m2 * 2, PAPER.h - PAPER.m2 * 2);
+  c.fillStyle = '#111'; c.textBaseline = 'alphabetic';
+  c.font = 'bold 34px sans-serif'; c.textAlign = 'left';
+  c.fillText(state.settings.title, PAPER.m2 + 14, PAPER.m2 + 44);
+  c.font = 'bold 26px sans-serif'; c.textAlign = 'right';
+  c.fillText(state.settings.koshu, PAPER.w - PAPER.m2 - 14, PAPER.m2 + 38);
+}
+function drawObj(c, o) {
+  const p = pxPerM() * state.settings.symScale * (o.scl || 1);
+  if (o.type === 'symbol') {
+    c.save(); c.translate(o.x, o.y); c.rotate((o.rot || 0) * Math.PI / 180);
+    KINDS[o.kind].draw(c, p); c.restore();
+  } else if (o.type === 'zone') {
+    c.save();
+    c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    c.fillStyle = 'rgba(235,140,150,.42)'; c.fill();
+    c.clip();
+    c.strokeStyle = 'rgba(200,40,50,.55)'; c.lineWidth = 1;
+    const bb = bboxOf(o.pts), step = 14;
+    for (let x = bb.x - bb.h; x < bb.x + bb.w + bb.h; x += step) {
+      c.beginPath(); c.moveTo(x, bb.y); c.lineTo(x + bb.h, bb.y + bb.h); c.stroke();
+    }
+    c.restore();
+    c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    c.strokeStyle = '#c0392b'; c.lineWidth = 2.4; c.stroke();
+  } else if (o.type === 'divzone') {
+    // 導流帯: 外周実線 + 内部ゼブラ斜線 (道路上の路面標示を模す)
+    c.save();
+    c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    if (o.fill !== false) { c.fillStyle = 'rgba(247,181,0,.14)'; c.fill(); }
+    c.clip();
+    const bb = bboxOf(o.pts);
+    const gap = Math.max(9, (o.stripe || 0.6) * pxPerM());
+    c.strokeStyle = o.color || 'rgba(230,160,0,.95)';
+    c.lineWidth = Math.max(2, gap * 0.42);
+    for (let x = bb.x - bb.h; x < bb.x + bb.w + bb.h; x += gap) {
+      c.beginPath(); c.moveTo(x, bb.y); c.lineTo(x + bb.h, bb.y + bb.h); c.stroke();
+    }
+    c.restore();
+    c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    c.strokeStyle = o.color || '#e0a000'; c.lineWidth = 2.6; c.stroke();
+  } else if (o.type === 'pedpath') {
+    c.strokeStyle = 'rgba(90,190,110,.65)';
+    c.lineWidth = Math.max(4, (o.width || 1.5) * pxPerM());
+    c.lineCap = 'butt'; c.lineJoin = 'round';
+    c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.stroke();
+  } else if (o.type === 'conerow') {
+    // コーンバー
+    if (o.bar !== false) {
+      c.lineWidth = Math.max(2, pxPerM() * 0.09);
+      for (let i = 0; i < o.pts.length - 1; i++) {
+        c.strokeStyle = '#f5c211'; c.setLineDash([]);
+        c.beginPath(); c.moveTo(o.pts[i].x, o.pts[i].y); c.lineTo(o.pts[i+1].x, o.pts[i+1].y); c.stroke();
+        c.strokeStyle = '#111'; c.setLineDash([6, 6]);
+        c.beginPath(); c.moveTo(o.pts[i].x, o.pts[i].y); c.lineTo(o.pts[i+1].x, o.pts[i+1].y); c.stroke();
+      }
+      c.setLineDash([]);
+    }
+    conePositions(o).forEach(q => {
+      c.save(); c.translate(q.x, q.y); KINDS.cone.draw(c, pxPerM() * state.settings.symScale); c.restore();
+    });
+  } else if (o.type === 'dim') {
+    drawDim(c, o);
+  } else if (o.type === 'text') {
+    c.save(); c.translate(o.x, o.y); c.rotate((o.rot || 0) * Math.PI / 180);
+    c.fillStyle = '#111'; c.font = `bold ${o.size || 18}px sans-serif`;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(o.text, 0, 0); c.restore();
+  }
+}
+function conePositions(o) {
+  const res = [];
+  const step = Math.max(0.3, o.interval || 2) * pxPerM();
+  for (let i = 0; i < o.pts.length - 1; i++) {
+    const a = o.pts[i], b = o.pts[i + 1];
+    const L = V.len(V.sub(b, a)); if (L < 0.01) continue;
+    const u = V.norm(V.sub(b, a));
+    const n = Math.max(1, Math.round(L / step));
+    for (let k = 0; k <= n; k++) {
+      if (i > 0 && k === 0) continue; // 頂点の重複を避ける
+      res.push(V.add(a, V.mul(u, (L * k) / n)));
+    }
+  }
+  if (res.length === 0 && o.pts.length) res.push(o.pts[0]);
+  return res;
+}
+function drawDim(c, o) {
+  const a = o.a, b = o.b;
+  const u = V.norm(V.sub(b, a)), n = V.perp(u);
+  const off = o.off ?? 16;
+  const A = V.add(a, V.mul(n, off)), B = V.add(b, V.mul(n, off));
+  c.strokeStyle = '#111'; c.lineWidth = 1.4;
+  c.beginPath();
+  c.moveTo(a.x, a.y); c.lineTo(A.x, A.y);
+  c.moveTo(b.x, b.y); c.lineTo(B.x, B.y);
+  c.moveTo(A.x, A.y); c.lineTo(B.x, B.y);
+  c.stroke();
+  const ah = 7;
+  for (const [P, dir] of [[A, 1], [B, -1]]) {
+    c.beginPath();
+    c.moveTo(P.x, P.y);
+    c.lineTo(P.x + u.x * ah * dir - n.x * ah * 0.45, P.y + u.y * ah * dir - n.y * ah * 0.45);
+    c.lineTo(P.x + u.x * ah * dir + n.x * ah * 0.45, P.y + u.y * ah * dir + n.y * ah * 0.45);
+    c.closePath(); c.fillStyle = '#111'; c.fill();
+  }
+  const mid = V.mul(V.add(A, B), 0.5);
+  const meters = V.len(V.sub(b, a)) * state.settings.mPerPx;
+  const label = o.text || meters.toFixed(2);
+  c.save();
+  c.translate(mid.x, mid.y);
+  let ang = Math.atan2(u.y, u.x);
+  if (ang > Math.PI / 2 || ang < -Math.PI / 2) ang += Math.PI;
+  c.rotate(ang);
+  c.fillStyle = '#111'; c.font = 'bold 15px sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'bottom';
+  c.fillText(label, 0, -3);
+  c.restore();
+}
+function bboxOf(pts) {
+  let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
+  pts.forEach(p => { x1 = Math.min(x1, p.x); y1 = Math.min(y1, p.y); x2 = Math.max(x2, p.x); y2 = Math.max(y2, p.y); });
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+}
+
+// ---------- 凡例 ----------
+function usedLegendItems() {
+  const used = new Set();
+  state.objects.forEach(o => {
+    if (o.type === 'symbol') used.add(o.kind);
+    if (o.type === 'conerow') { used.add('cone'); if (o.bar !== false) used.add('_bar'); }
+    if (o.type === 'zone') used.add('_zone');
+    if (o.type === 'divzone') used.add('_divzone');
+    if (o.type === 'pedpath') used.add('_ped');
+  });
+  const items = [];
+  Object.keys(KINDS).forEach(k => { if (used.has(k)) items.push({ kind: k, name: KINDS[k].name }); });
+  if (used.has('_bar')) items.push({ kind: '_bar', name: 'コーンバー' });
+  if (used.has('_zone')) items.push({ kind: '_zone', name: '作業帯 (工事箇所)' });
+  if (used.has('_divzone')) items.push({ kind: '_divzone', name: '導流帯' });
+  if (used.has('_ped')) items.push({ kind: '_ped', name: '歩行者通路' });
+  return items;
+}
+let legendBBox = null;
+function drawLegend(c) {
+  const items = usedLegendItems();
+  if (!items.length) { legendBBox = null; return; }
+  const rowH = 26, colW = 218, headH = 26;
+  const cols = items.length > 9 ? 2 : 1;
+  const rows = Math.ceil(items.length / cols);
+  const W = colW * cols + 10, H = headH + rows * rowH + 8;
+  const pos = state.settings.legendPos ||
+    { x: PAPER.w - PAPER.m2 - W - 10, y: PAPER.h - PAPER.m2 - H - 10 };
+  legendBBox = { x: pos.x, y: pos.y, w: W, h: H };
+  c.save();
+  c.fillStyle = 'rgba(255,255,255,.96)'; c.strokeStyle = '#111'; c.lineWidth = 1.4;
+  c.fillRect(pos.x, pos.y, W, H); c.strokeRect(pos.x, pos.y, W, H);
+  c.fillStyle = '#111'; c.font = 'bold 15px sans-serif';
+  c.textAlign = 'left'; c.textBaseline = 'middle';
+  c.fillText('凡　例', pos.x + 10, pos.y + headH / 2 + 2);
+  c.strokeStyle = '#555'; c.lineWidth = 0.8;
+  c.beginPath(); c.moveTo(pos.x, pos.y + headH); c.lineTo(pos.x + W, pos.y + headH); c.stroke();
+  items.forEach((it, i) => {
+    const col = Math.floor(i / rows), row = i % rows;
+    const ix = pos.x + 8 + col * colW, iy = pos.y + headH + row * rowH + rowH / 2;
+    c.save(); c.translate(ix + 17, iy);
+    drawLegendIcon(c, it.kind); c.restore();
+    c.fillStyle = '#111'; c.font = '12.5px sans-serif';
+    c.textAlign = 'left'; c.textBaseline = 'middle';
+    c.fillText(it.name, ix + 40, iy + 1);
+  });
+  c.restore();
+}
+function drawLegendIcon(c, kind) {
+  if (kind === '_bar') {
+    c.lineWidth = 3.5;
+    c.strokeStyle = '#f5c211'; c.beginPath(); c.moveTo(-15, 0); c.lineTo(15, 0); c.stroke();
+    c.strokeStyle = '#111'; c.setLineDash([4, 4]);
+    c.beginPath(); c.moveTo(-15, 0); c.lineTo(15, 0); c.stroke(); c.setLineDash([]);
+  } else if (kind === '_zone') {
+    c.fillStyle = 'rgba(235,140,150,.5)'; c.strokeStyle = '#c0392b'; c.lineWidth = 1.5;
+    c.fillRect(-15, -8, 30, 16); c.strokeRect(-15, -8, 30, 16);
+  } else if (kind === '_divzone') {
+    c.save();
+    c.beginPath(); c.rect(-15, -8, 30, 16); c.clip();
+    c.strokeStyle = 'rgba(230,160,0,.95)'; c.lineWidth = 2.4;
+    for (let x = -24; x < 22; x += 6) { c.beginPath(); c.moveTo(x, 8); c.lineTo(x + 16, -8); c.stroke(); }
+    c.restore();
+    c.strokeStyle = '#e0a000'; c.lineWidth = 1.6; c.strokeRect(-15, -8, 30, 16);
+  } else if (kind === '_ped') {
+    c.fillStyle = 'rgba(90,190,110,.65)'; c.fillRect(-15, -7, 30, 14);
+  } else {
+    const k = KINDS[kind];
+    const fit = 26 / Math.max(0.7, k.size);
+    k.draw(c, fit);
+  }
+}
+
+// ---------- 選択・作図中オーバーレイ ----------
+function objBBox(o) {
+  const pad = 6 / state.view.z;
+  if (o.type === 'symbol') {
+    const s = KINDS[o.kind].size * pxPerM() * state.settings.symScale * (o.scl || 1);
+    return { x: o.x - s / 2 - pad, y: o.y - s / 2 - pad, w: s + pad * 2, h: s + pad * 2 };
+  }
+  if (o.type === 'text') {
+    const w = (o.text || '').length * (o.size || 18) * 0.95 + 8, h = (o.size || 18) + 8;
+    return { x: o.x - w / 2, y: o.y - h / 2, w, h };
+  }
+  if (o.type === 'dim') return bboxOf([o.a, o.b]);
+  const b = bboxOf(o.pts);
+  return { x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 };
+}
+function objPoints(o) {
+  if (o.pts) return o.pts;
+  if (o.type === 'dim') return [o.a, o.b];
+  return null;
+}
+function drawOverlays(c) {
+  const hz = 1 / state.view.z;
+  const o = state.objects.find(x => x.id === state.sel);
+  if (o) {
+    const b = objBBox(o);
+    c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz; c.setLineDash([6 * hz, 4 * hz]);
+    c.strokeRect(b.x, b.y, b.w, b.h); c.setLineDash([]);
+    const pts = objPoints(o);
+    if (pts) pts.forEach(q => {
+      c.fillStyle = '#fff'; c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz;
+      const s = 5 * hz;
+      c.fillRect(q.x - s, q.y - s, s * 2, s * 2); c.strokeRect(q.x - s, q.y - s, s * 2, s * 2);
+    });
+  } else if (state.sel === '_legend' && legendBBox) {
+    c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz; c.setLineDash([6 * hz, 4 * hz]);
+    c.strokeRect(legendBBox.x, legendBBox.y, legendBBox.w, legendBBox.h); c.setLineDash([]);
+  }
+  // 作図中プレビュー
+  const d = state.draft;
+  if (d && d.pts && d.pts.length) {
+    c.strokeStyle = '#e67e22'; c.lineWidth = 2 * hz; c.setLineDash([7 * hz, 5 * hz]);
+    c.beginPath(); d.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y));
+    if (d.cursor) c.lineTo(d.cursor.x, d.cursor.y);
+    if (d.mode === 'poly:zone' && d.pts.length > 1) c.closePath();
+    c.stroke(); c.setLineDash([]);
+    d.pts.forEach(q => { c.fillStyle = '#e67e22'; c.beginPath(); c.arc(q.x, q.y, 4 * hz, 0, 7); c.fill(); });
+  }
+  if (d && d.mode === 'calib' && d.pts && d.pts.length === 1 && d.cursor) {
+    c.strokeStyle = '#c0392b'; c.lineWidth = 2 * hz;
+    c.beginPath(); c.moveTo(d.pts[0].x, d.pts[0].y); c.lineTo(d.cursor.x, d.cursor.y); c.stroke();
+  }
+}
+
+// ---------- ヒットテスト ----------
+function hitTest(w) {
+  const tol = 7 / state.view.z;
+  // 逆順(上のものから)
+  const order = { pedpath: 0, divzone: 1, zone: 1, conerow: 2, symbol: 3, dim: 4, text: 5 };
+  const objs = [...state.objects].sort((a, b) => (order[b.type] ?? 9) - (order[a.type] ?? 9));
+  for (const o of objs) {
+    if (o.type === 'symbol') {
+      const s = KINDS[o.kind].size * pxPerM() * state.settings.symScale * (o.scl || 1);
+      if (Math.abs(w.x - o.x) <= s / 2 + tol && Math.abs(w.y - o.y) <= s / 2 + tol) return o;
+    } else if (o.type === 'text') {
+      const b = objBBox(o);
+      if (w.x >= b.x && w.x <= b.x + b.w && w.y >= b.y && w.y <= b.y + b.h) return o;
+    } else if (o.type === 'dim') {
+      const u = V.norm(V.sub(o.b, o.a)), n = V.perp(u), off = o.off ?? 16;
+      const A = V.add(o.a, V.mul(n, off)), B = V.add(o.b, V.mul(n, off));
+      if (distToSeg(w, A, B) <= tol || distToSeg(w, o.a, A) <= tol || distToSeg(w, o.b, B) <= tol) return o;
+    } else if (o.type === 'conerow' || o.type === 'pedpath') {
+      const lw = o.type === 'pedpath' ? Math.max(4, (o.width || 1.5) * pxPerM()) / 2 : tol;
+      for (let i = 0; i < o.pts.length - 1; i++)
+        if (distToSeg(w, o.pts[i], o.pts[i + 1]) <= lw + tol / 2) return o;
+    } else if (o.type === 'zone' || o.type === 'divzone') {
+      if (ptInPoly(w, o.pts)) return o;
+      for (let i = 0; i < o.pts.length; i++)
+        if (distToSeg(w, o.pts[i], o.pts[(i + 1) % o.pts.length]) <= tol) return o;
+    }
+  }
+  return null;
+}
+function hitVertex(o, w) {
+  const pts = objPoints(o); if (!pts) return -1;
+  const tol = 8 / state.view.z;
+  for (let i = 0; i < pts.length; i++)
+    if (Math.abs(w.x - pts[i].x) <= tol && Math.abs(w.y - pts[i].y) <= tol) return i;
+  return -1;
+}
+
+// ---------- Undo / Redo / 自動保存 ----------
+function snapshot() {
+  return JSON.stringify({ objects: state.objects, settings: state.settings });
+}
+function pushUndo() {
+  state.undoStack.push(snapshot());
+  if (state.undoStack.length > 60) state.undoStack.shift();
+  state.redoStack.length = 0;
+  autosave();
+}
+function applySnap(s) {
+  try {
+    const d = JSON.parse(s);
+    state.objects = d.objects; Object.assign(state.settings, d.settings);
+    state.sel = null; syncSettingsUI(); renderProps(); render(); autosave();
+  } catch (e) { console.error(e); }
+}
+function undo() { if (!state.undoStack.length) return; state.redoStack.push(snapshot()); applySnap(state.undoStack.pop()); }
+function redo() { if (!state.redoStack.length) return; state.undoStack.push(snapshot()); applySnap(state.redoStack.pop()); }
+let asTimer = null;
+function autosave() {
+  clearTimeout(asTimer);
+  asTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        objects: state.objects, settings: state.settings,
+        bg: state.bg ? { dataURL: state.bg.dataURL, x: state.bg.x, y: state.bg.y, w: state.bg.w, h: state.bg.h } : null,
+      }));
+    } catch (e) { /* 容量超過や制限環境では黙って諦める(JSON保存を案内済み) */ }
+  }, 600);
+}
+
+// ---------- ツール / ヒント ----------
+const hintEl = document.getElementById('hint');
+function setHint(t) { hintEl.textContent = t || ''; hintEl.classList.toggle('show', !!t); }
+function setTool(t, hint) {
+  state.tool = t; state.draft = null;
+  document.querySelectorAll('.palbtn').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
+  const labels = { select: '選択' };
+  document.getElementById('modeLabel').textContent =
+    labels[t] || (t.startsWith('place:') ? KINDS[t.slice(6)].name + ' 配置' :
+    t === 'calib' ? '縮尺設定' : t.startsWith('wizard') ? 'パターン配置' :
+    t === 'dim' ? '寸法線' : t === 'text' ? '文字' :
+    t === 'poly:zone' ? '作業帯 作図' : t === 'poly:divzone' ? '導流帯 作図' : t === 'poly:pedpath' ? '歩行者通路 作図' :
+    t === 'poly:conerow' ? 'コーン列 作図' : t);
+  setHint(hint || '');
+  render();
+}
+
+// ---------- 入力処理 ----------
+let drag = null; // {kind:'move'|'vertex'|'pan'|'legend', ...}
+let spaceDown = false;
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const s = evPos(e);
+  const f = Math.exp(-e.deltaY * 0.0012);
+  const z2 = Math.min(6, Math.max(0.08, state.view.z * f));
+  state.view.ox = s.x - (s.x - state.view.ox) * (z2 / state.view.z);
+  state.view.oy = s.y - (s.y - state.view.oy) * (z2 / state.view.z);
+  state.view.z = z2; render();
+}, { passive: false });
+
+function pointerDown(e) {
+  const s = evPos(e), w = toWorld(s.x, s.y);
+  const rightBtn = e.button === 2;
+  if (rightBtn || spaceDown || e.button === 1) {
+    drag = { kind: 'pan', sx: s.x, sy: s.y, ox: state.view.ox, oy: state.view.oy };
+    return;
+  }
+  const t = state.tool;
+  if (t === 'select') {
+    const selObj = state.objects.find(x => x.id === state.sel);
+    if (selObj) {
+      const vi = hitVertex(selObj, w);
+      if (vi >= 0) {
+        drag = { kind: 'vertex', obj: selObj, vi, pend: snapshot() };
+        return;
+      }
+    }
+    if (state.settings.showLegend && legendBBox &&
+        w.x >= legendBBox.x && w.x <= legendBBox.x + legendBBox.w &&
+        w.y >= legendBBox.y && w.y <= legendBBox.y + legendBBox.h && !hitTest(w)) {
+      state.sel = '_legend';
+      const pos = state.settings.legendPos || { x: legendBBox.x, y: legendBBox.y };
+      state.settings.legendPos = pos;
+      drag = { kind: 'legend', w0: w, p0: { ...pos }, pend: snapshot() };
+      renderProps(); render(); return;
+    }
+    const hit = hitTest(w);
+    state.sel = hit ? hit.id : null;
+    renderProps();
+    if (hit) {
+      drag = { kind: 'move', obj: hit, w0: w, orig: JSON.parse(JSON.stringify(hit)), pend: snapshot() };
+    }
+    render();
+  } else if (t.startsWith('place:')) {
+    pushUndo();
+    state.objects.push({ id: uid(), type: 'symbol', kind: t.slice(6), x: w.x, y: w.y, rot: 0, scl: 1 });
+    render(); autosave();
+  } else if (t === 'text') {
+    askInput({ title: '文字の入力', message: '図面に配置する文字を入力してください。', value: '' }).then(txt => {
+      if (txt) { pushUndo(); state.objects.push({ id: uid(), type: 'text', x: w.x, y: w.y, text: txt, size: 18, rot: 0 }); render(); }
+    });
+  } else if (t === 'dim') {
+    if (!state.draft) state.draft = { mode: 'dim', pts: [w] };
+    else {
+      pushUndo();
+      state.objects.push({ id: uid(), type: 'dim', a: state.draft.pts[0], b: w, off: 16 });
+      state.draft = null; setHint('寸法線: 1点目をクリック'); render();
+    }
+  } else if (t.startsWith('poly:')) {
+    if (!state.draft) state.draft = { mode: t, pts: [] };
+    state.draft.pts.push(w);
+    render();
+  } else if (t === 'calib') {
+    if (!state.draft) state.draft = { mode: 'calib', pts: [w] };
+    else finishCalib(state.draft.pts[0], w);
+    render();
+  } else if (t === 'wizardA') {
+    state.draft = { mode: 'wizard', pts: [w] };
+    setTool('wizardB', '終点をクリックしてください');
+    state.draft = { mode: 'wizard', pts: [w] };
+  } else if (t === 'wizardB') {
+    const a = state.draft.pts[0];
+    runTemplate(a, w);
+    setTool('select');
+  }
+}
+function pointerMove(e) {
+  const s = evPos(e), w = toWorld(s.x, s.y);
+  const mm = state.settings.mPerPx;
+  document.getElementById('coord').textContent =
+    `x ${(w.x * mm).toFixed(2)}m / y ${(w.y * mm).toFixed(2)}m　倍率 ${(state.view.z * 100).toFixed(0)}%`;
+  if (state.draft) { state.draft.cursor = w; render(); }
+  if (!drag) return;
+  if (e.cancelable) e.preventDefault();
+  if (drag.pend) { // 実際に動かした時だけUndo履歴に積む
+    state.undoStack.push(drag.pend);
+    if (state.undoStack.length > 60) state.undoStack.shift();
+    state.redoStack.length = 0;
+    drag.pend = null;
+  }
+  if (drag.kind === 'pan') {
+    state.view.ox = drag.ox + (s.x - drag.sx);
+    state.view.oy = drag.oy + (s.y - drag.sy);
+    render(); return;
+  }
+  if (drag.kind === 'legend') {
+    state.settings.legendPos = { x: drag.p0.x + (w.x - drag.w0.x), y: drag.p0.y + (w.y - drag.w0.y) };
+    render(); return;
+  }
+  if (drag.kind === 'vertex') {
+    const pts = objPoints(drag.obj);
+    pts[drag.vi].x = w.x; pts[drag.vi].y = w.y;
+    render(); return;
+  }
+  if (drag.kind === 'move') {
+    const dx = w.x - drag.w0.x, dy = w.y - drag.w0.y;
+    const o = drag.obj, g = drag.orig;
+    if (o.type === 'symbol' || o.type === 'text') { o.x = g.x + dx; o.y = g.y + dy; }
+    else if (o.type === 'dim') { o.a = { x: g.a.x + dx, y: g.a.y + dy }; o.b = { x: g.b.x + dx, y: g.b.y + dy }; }
+    else o.pts = g.pts.map(q => ({ x: q.x + dx, y: q.y + dy }));
+    render();
+  }
+}
+function pointerUp() { if (drag) { drag = null; autosave(); } }
+cv.addEventListener('mousedown', pointerDown);
+addEventListener('mousemove', pointerMove);
+addEventListener('mouseup', pointerUp);
+cv.addEventListener('touchstart', e => { pointerDown(Object.assign(e, { button: 0 })); }, { passive: true });
+cv.addEventListener('touchmove', e => pointerMove(e), { passive: false });
+cv.addEventListener('touchend', pointerUp);
+cv.addEventListener('dblclick', () => finishDraft());
+function finishDraft() {
+  const d = state.draft;
+  if (!d || !d.mode.startsWith('poly:')) return;
+  // ダブルクリック確定で末尾に重複した点を除去
+  while (d.pts.length >= 2 && V.len(V.sub(d.pts[d.pts.length - 1], d.pts[d.pts.length - 2])) < 2) d.pts.pop();
+  const min = (d.mode === 'poly:zone' || d.mode === 'poly:divzone') ? 3 : 2;
+  if (d.pts.length >= min) {
+    pushUndo();
+    if (d.mode === 'poly:zone') state.objects.push({ id: uid(), type: 'zone', pts: d.pts });
+    if (d.mode === 'poly:divzone') state.objects.push({ id: uid(), type: 'divzone', pts: d.pts, stripe: 0.6, fill: true });
+    if (d.mode === 'poly:pedpath') state.objects.push({ id: uid(), type: 'pedpath', pts: d.pts, width: 1.5 });
+    if (d.mode === 'poly:conerow') state.objects.push({ id: uid(), type: 'conerow', pts: d.pts, interval: 2, bar: true });
+  }
+  state.draft = null; render();
+}
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.code === 'Space') { spaceDown = true; e.preventDefault(); }
+  if (e.key === 'Escape') { state.draft = null; setTool('select'); }
+  if (e.key === 'Enter') finishDraft();
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+  const o = state.objects.find(x => x.id === state.sel);
+  if (o && (e.key === 'Delete' || e.key === 'Backspace')) {
+    pushUndo(); state.objects = state.objects.filter(x => x.id !== o.id);
+    state.sel = null; renderProps(); render();
+  }
+  if (o && (e.key === 'r' || e.key === 'R')) {
+    pushUndo(); o.rot = ((o.rot || 0) + 15) % 360; renderProps(); render();
+  }
+});
+addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; });
+
+// ---------- 縮尺設定 ----------
+async function finishCalib(a, b) {
+  const distPx = V.len(V.sub(b, a));
+  state.draft = null;
+  render();
+  if (distPx < 3) { setHint('2点が近すぎます。もう一度2点をクリックしてください。'); return; }
+  const val = await askInput({
+    title: '縮尺の設定',
+    message: 'クリックした2点間の「実際の距離」をメートルで入力してください（例：道路幅や図面の寸法記載値）。',
+    value: '',
+    validate: v => {
+      const m = parseFloat(v);
+      return (!isFinite(m) || m <= 0) ? '正の数値を入力してください。' : '';
+    },
+  });
+  if (val === null) { setTool('select'); return; }
+  const m = parseFloat(val);
+  pushUndo();
+  state.settings.mPerPx = m / distPx;
+  state.settings.calibrated = true;
+  updateScaleBadge();
+  setTool('select');
+  setHint(`縮尺を設定しました（1m ＝ ${(1 / state.settings.mPerPx).toFixed(1)}px）`);
+  setTimeout(() => setHint(''), 3000);
+  render();
+}
+function updateScaleBadge() {
+  const el = document.getElementById('scaleBadge');
+  if (state.settings.calibrated) {
+    el.textContent = `縮尺設定済 (1m = ${(1 / state.settings.mPerPx).toFixed(1)}px)`;
+    el.classList.add('ok');
+  } else { el.textContent = '縮尺 未設定'; el.classList.remove('ok'); }
+}
+
+// ---------- 規制パターン自動配置 ----------
+let wizardParams = null;
+function runTemplate(A, B) {
+  const P = wizardParams; if (!P) return;
+  const ppm = pxPerM();
+  const u = V.norm(V.sub(B, A));           // 起点→終点
+  const n = V.mul(V.perp(u), P.side);      // 作業帯側
+  const w = P.width * ppm;
+  const at = (base, du, dn) => V.add(V.add(base, V.mul(u, du * ppm)), V.mul(n, dn * ppm));
+  const objs = [];
+  const sym = (kind, pos, rotAlong = true, extraRot = 0) => objs.push({
+    id: uid(), type: 'symbol', kind, x: pos.x, y: pos.y,
+    rot: (rotAlong ? Math.atan2(u.y, u.x) * 180 / Math.PI + 90 : 0) + extraRot, scl: 1,
+  });
+  pushUndo();
+
+  if (P.pattern === 'katagawa' || P.pattern === 'shasen') {
+    // 作業帯 (道路端=起点終点ラインから幅wぶん作業帯側へ)
+    const z = [A, B, V.add(B, V.mul(n, w)), V.add(A, V.mul(n, w))];
+    objs.push({ id: uid(), type: 'zone', pts: z });
+    // コーン列: 交通側の長辺+両端小口
+    objs.push({ id: uid(), type: 'conerow', bar: true, interval: P.cone,
+      pts: [V.add(A, V.mul(n, w)), A, B, V.add(B, V.mul(n, w))] });
+    if (P.pattern === 'shasen') {
+      // 進行方向手前にテーパー(すり付け)
+      objs.push({ id: uid(), type: 'conerow', bar: true, interval: P.cone,
+        pts: [at(A, -P.taper, P.width), A] });
+      sym('sign_lane_reduce', at(A, -(P.taper + 5), P.width * 0.5), false);
+      sym('board_fukuin', at(A, -(P.taper + 9), P.width * 0.5), false);
+      sym('arrowboard', at(A, -3, P.width * 0.5), true);
+    } else {
+      // 片側交互通行: 両端に片・ガードマン・矢印板
+      sym('sign_katagawa', at(A, -6, P.width * 0.6), false);
+      sym('sign_katagawa', at(B, 6, P.width * 0.6), false);
+      sym('arrowboard', at(A, -3, P.width * 0.5), true);
+      sym('arrowboard', at(B, 3, P.width * 0.5), true, 180);
+      sym('sign_stop', at(A, -9, P.width * 0.6), false);
+      sym('sign_stop', at(B, 9, P.width * 0.6), false);
+    }
+    sym('guardman', at(A, -1.5, P.width * 0.5), false);
+    sym('guardman', at(B, 1.5, P.width * 0.5), false);
+    sym('board_kouji', at(A, -4.5, P.width + 1.2), false);
+    sym('board_kenmei', at(B, 4.5, P.width + 1.2), false);
+    sym('truck', V.add(polyCenter([A, B]), V.mul(n, w * 0.5)), true);
+  } else if (P.pattern === 'tome') {
+    // 通行止め: 全幅閉鎖
+    const z = [A, B, V.add(B, V.mul(n, w)), V.add(A, V.mul(n, w))];
+    objs.push({ id: uid(), type: 'zone', pts: z });
+    for (const [E, dir] of [[A, -1], [B, 1]]) {
+      // 端部にA型バリケード3基を横断配置
+      for (let k = 0; k <= 2; k++)
+        sym('abarricade', at(E, dir * 1.0, P.width * (0.17 + k * 0.33)), true);
+      sym('sign_closed', at(E, dir * 4, P.width * 0.5), false);
+      sym('sign_ukai',   at(E, dir * 7, P.width * 0.5), false);
+      sym('guardman',    at(E, dir * 2.5, P.width * 0.85), false);
+      sym('board_kouji', at(E, dir * 5.5, P.width + 1.2), false);
+    }
+  }
+  state.objects.push(...objs);
+  setHint('生成しました。各部材はドラッグ・R回転・Deleteで自由に調整できます。');
+  setTimeout(() => setHint(''), 4000);
+  render(); autosave();
+}
+
+// ---------- パレット構築 ----------
+const PALETTE = [
+  { title: '規制部材', items: [
+    ['place:cone', 'cone'], ['poly:conerow', null, 'コーン列＋バー', 'conerow'],
+    ['place:abarricade', 'abarricade'], ['place:drum', 'drum'], ['place:light', 'light'],
+  ]},
+  { title: '人・車両', items: [['place:guardman', 'guardman'], ['place:truck', 'truck']] },
+  { title: '標示板・標識', items: [
+    ['place:arrowboard', 'arrowboard'], ['place:sign_katagawa', 'sign_katagawa'],
+    ['place:sign_stop', 'sign_stop'], ['place:sign_ukai', 'sign_ukai'],
+    ['place:sign_closed', 'sign_closed'], ['place:sign_lane_reduce', 'sign_lane_reduce'],
+    ['place:sign_noentry', 'sign_noentry'], ['place:board_yokoku', 'board_yokoku'],
+    ['place:board_kenmei', 'board_kenmei'], ['place:board_hokousha', 'board_hokousha'],
+  ]},
+  { title: '看板', items: [
+    ['place:board_setsumei', 'board_setsumei'], ['place:board_kouji', 'board_kouji'],
+    ['place:board_fukuin', 'board_fukuin'],
+  ]},
+  { title: '作図', items: [
+    ['poly:zone', null, '作業帯 (多角形)', 'zone'],
+    ['poly:divzone', null, '導流帯', 'divzone'],
+    ['poly:pedpath', null, '歩行者通路', 'ped'],
+    ['dim', null, '寸法線', 'dim'], ['text', null, '文字', 'text'],
+  ]},
+];
+function buildPalette() {
+  const root = document.getElementById('palette');
+  const selBtn = document.createElement('button');
+  selBtn.className = 'palbtn wide active'; selBtn.dataset.tool = 'select';
+  selBtn.innerHTML = '<span style="font-size:15px">↖</span><span>選択・移動</span>';
+  selBtn.onclick = () => setTool('select');
+  root.appendChild(selBtn);
+  PALETTE.forEach(g => {
+    const gd = document.createElement('div'); gd.className = 'pgroup';
+    gd.innerHTML = `<h4>${g.title}</h4>`;
+    const pal = document.createElement('div'); pal.className = 'pal';
+    g.items.forEach(([tool, kind, label, icon]) => {
+      const b = document.createElement('button');
+      b.className = 'palbtn'; b.dataset.tool = tool;
+      const ic = document.createElement('canvas'); ic.width = 60; ic.height = 60;
+      const c2 = ic.getContext('2d'); c2.setTransform(2, 0, 0, 2, 30, 30);
+      if (kind) { KINDS[kind].draw(c2, 24 / Math.max(0.7, KINDS[kind].size)); }
+      else drawToolIcon(c2, icon);
+      const sp = document.createElement('span');
+      sp.textContent = label || KINDS[kind].name;
+      b.appendChild(ic); b.appendChild(sp);
+      b.onclick = () => {
+        const hints = {
+          'poly:zone': '作業帯: 頂点をクリック → ダブルクリック/Enterで確定',
+          'poly:divzone': '導流帯: 頂点をクリック → ダブルクリック/Enterで確定 (通常は三角形/台形)',
+          'poly:pedpath': '歩行者通路: 通路の中心線をクリック → ダブルクリック/Enterで確定',
+          'poly:conerow': 'コーン列: 経路をクリック → ダブルクリック/Enterで確定',
+          'dim': '寸法線: 1点目 → 2点目をクリック',
+          'text': '文字を置く位置をクリック',
+        };
+        setTool(tool, hints[tool] || (kind ? KINDS[kind].name + ': 配置する位置をクリック (Escで終了)' : ''));
+      };
+      pal.appendChild(b);
+    });
+    gd.appendChild(pal); root.appendChild(gd);
+  });
+}
+function drawToolIcon(c, icon) {
+  c.lineWidth = 2;
+  if (icon === 'conerow') {
+    c.strokeStyle = '#f5c211'; c.beginPath(); c.moveTo(-12, 4); c.lineTo(12, -4); c.stroke();
+    c.strokeStyle = '#111'; c.setLineDash([3, 3]);
+    c.beginPath(); c.moveTo(-12, 4); c.lineTo(12, -4); c.stroke(); c.setLineDash([]);
+    for (const [x, y] of [[-12, 4], [0, 0], [12, -4]]) {
+      c.fillStyle = '#e74c3c'; c.fillRect(x - 3.5, y - 3.5, 7, 7);
+    }
+  } else if (icon === 'divzone') {
+    c.save();
+    c.beginPath(); c.moveTo(-12, 9); c.lineTo(12, 9); c.lineTo(6, -9); c.lineTo(-6, -9); c.closePath(); c.clip();
+    c.strokeStyle = 'rgba(230,160,0,.95)'; c.lineWidth = 2.2;
+    for (let x = -22; x < 20; x += 5) { c.beginPath(); c.moveTo(x, 10); c.lineTo(x + 20, -10); c.stroke(); }
+    c.restore();
+    c.strokeStyle = '#e0a000'; c.lineWidth = 1.6;
+    c.beginPath(); c.moveTo(-12, 9); c.lineTo(12, 9); c.lineTo(6, -9); c.lineTo(-6, -9); c.closePath(); c.stroke();
+  } else if (icon === 'zone') {
+    c.fillStyle = 'rgba(235,140,150,.5)'; c.strokeStyle = '#c0392b';
+    c.beginPath(); c.moveTo(-12, -8); c.lineTo(12, -10); c.lineTo(10, 10); c.lineTo(-10, 8);
+    c.closePath(); c.fill(); c.stroke();
+  } else if (icon === 'ped') {
+    c.strokeStyle = 'rgba(90,190,110,.9)'; c.lineWidth = 8; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(-11, 8); c.lineTo(0, 0); c.lineTo(11, 4); c.stroke(); c.lineCap = 'butt';
+  } else if (icon === 'dim') {
+    c.strokeStyle = '#111';
+    c.beginPath(); c.moveTo(-12, 0); c.lineTo(12, 0);
+    c.moveTo(-12, -5); c.lineTo(-12, 5); c.moveTo(12, -5); c.lineTo(12, 5); c.stroke();
+    c.font = 'bold 8px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#111';
+    c.fillText('3.5', 0, -3);
+  } else if (icon === 'text') {
+    c.font = 'bold 18px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = '#111'; c.fillText('あ', 0, 1);
+  }
+}
+
+// ---------- プロパティパネル ----------
+function renderProps() {
+  const root = document.getElementById('objProps');
+  const o = state.objects.find(x => x.id === state.sel);
+  document.getElementById('selLabel').textContent = o
+    ? '選択中: ' + (o.type === 'symbol' ? KINDS[o.kind].name : ({ zone: '作業帯', divzone: '導流帯', pedpath: '歩行者通路', conerow: 'コーン列', dim: '寸法線', text: '文字' })[o.type])
+    : (state.sel === '_legend' ? '選択中: 凡例' : '');
+  if (!o) {
+    root.innerHTML = state.sel === '_legend'
+      ? '<div class="pempty">凡例を選択中。ドラッグで位置を移動できます。</div>'
+      : '<div class="pempty">オブジェクトを選択すると、ここで回転・寸法・ラベル等を編集できます。<br><br>左のパレットから記号を選んで図面をクリックすると配置できます。</div>';
+    return;
+  }
+  let html = '';
+  const num = (id, label, val, step = 0.5, min = 0.1) =>
+    `<div class="prow"><label>${label}</label><input type="number" id="${id}" value="${val}" step="${step}" min="${min}"></div>`;
+  if (o.type === 'symbol' || o.type === 'text') {
+    html += `<div class="prow"><label>回転 (°)</label><input type="range" id="pRot" min="0" max="359" value="${Math.round(o.rot || 0)}"><span class="val" id="pRotV">${Math.round(o.rot || 0)}</span></div>`;
+  }
+  if (o.type === 'symbol') html += `<div class="prow"><label>大きさ</label><input type="range" id="pScl" min="30" max="300" value="${Math.round((o.scl || 1) * 100)}"><span class="val" id="pSclV">${(o.scl || 1).toFixed(1)}</span></div>`;
+  if (o.type === 'conerow') {
+    html += num('pInterval', 'コーン間隔 (m)', o.interval || 2);
+    html += `<div class="prow"><label>コーンバー</label><input type="checkbox" id="pBar" ${o.bar !== false ? 'checked' : ''}></div>`;
+  }
+  if (o.type === 'pedpath') html += num('pWidth', '通路幅 (m)', o.width || 1.5);
+  if (o.type === 'divzone') {
+    html += num('pStripe', '斜線間隔 (m)', o.stripe || 0.6, 0.1, 0.1);
+    html += `<div class="prow"><label>内部を薄く塗る</label><input type="checkbox" id="pFill" ${o.fill !== false ? 'checked' : ''}></div>`;
+  }
+  if (o.type === 'dim') {
+    const descD = (o.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    html += `<div class="prow"><label>表示値</label><input type="text" id="pDimText" value="${descD}" placeholder="空欄=自動 (実測値)"></div>`;
+    html += `<div class="prow"><label>引出し量</label><input type="range" id="pOff" min="-60" max="60" value="${o.off ?? 16}"><span class="val" id="pOffV">${o.off ?? 16}</span></div>`;
+  }
+  if (o.type === 'text') {
+    const esc = (o.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    html += `<div class="prow"><label>内容</label><input type="text" id="pText" value="${esc}"></div>`;
+    html += `<div class="prow"><label>大きさ</label><input type="range" id="pTSize" min="10" max="60" value="${o.size || 18}"><span class="val" id="pTSizeV">${o.size || 18}</span></div>`;
+  }
+  if (o.pts || o.type === 'dim') html += `<p class="pnote">白い四角(頂点)をドラッグすると形を変えられます。</p>`;
+  html += `<div class="pbtnrow"><button class="pbtn" id="pDup">複製</button><button class="pbtn danger" id="pDel">削除</button></div>`;
+  root.innerHTML = html;
+
+  const bind = (id, fn, ev = 'input') => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  bind('pRot', e => { o.rot = +e.target.value; document.getElementById('pRotV').textContent = e.target.value; render(); autosave(); });
+  bind('pScl', e => { o.scl = +e.target.value / 100; document.getElementById('pSclV').textContent = o.scl.toFixed(1); render(); autosave(); });
+  bind('pInterval', e => { const v = parseFloat(e.target.value); if (v > 0) { o.interval = v; render(); autosave(); } });
+  bind('pBar', e => { o.bar = e.target.checked; render(); autosave(); });
+  bind('pWidth', e => { const v = parseFloat(e.target.value); if (v > 0) { o.width = v; render(); autosave(); } });
+  bind('pStripe', e => { const v = parseFloat(e.target.value); if (v > 0) { o.stripe = v; render(); autosave(); } });
+  bind('pFill', e => { o.fill = e.target.checked; render(); autosave(); });
+  bind('pDimText', e => { o.text = e.target.value || null; render(); autosave(); });
+  bind('pOff', e => { o.off = +e.target.value; document.getElementById('pOffV').textContent = e.target.value; render(); autosave(); });
+  bind('pText', e => { o.text = e.target.value; render(); autosave(); });
+  bind('pTSize', e => { o.size = +e.target.value; document.getElementById('pTSizeV').textContent = e.target.value; render(); autosave(); });
+  bind('pDel', () => { pushUndo(); state.objects = state.objects.filter(x => x.id !== o.id); state.sel = null; renderProps(); render(); }, 'click');
+  bind('pDup', () => {
+    pushUndo();
+    const cp = JSON.parse(JSON.stringify(o)); cp.id = uid();
+    const sh = 24;
+    if (cp.pts) cp.pts = cp.pts.map(q => ({ x: q.x + sh, y: q.y + sh }));
+    else if (cp.type === 'dim') { cp.a.x += sh; cp.a.y += sh; cp.b.x += sh; cp.b.y += sh; }
+    else { cp.x += sh; cp.y += sh; }
+    state.objects.push(cp); state.sel = cp.id; renderProps(); render();
+  }, 'click');
+}
+
+// ---------- 背景読込 (PDF/画像) ----------
+async function ensurePdfJs() {
+  if (window.pdfjsLib) return;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = res; s.onerror = () => rej(new Error('cdn'));
+    document.head.appendChild(s);
+  });
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+async function loadBackground(file) {
+  try {
+    let dataURL;
+    if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+      setHint('PDFを読み込み中…');
+      try { await ensurePdfJs(); }
+      catch (e) {
+        setHint('');
+        alert('PDF表示ライブラリの読込に失敗しました(インターネット接続が必要です)。\nオフライン環境では、PDFをスクリーンショット等で画像(PNG/JPG)にしてから読み込んでください。');
+        return;
+      }
+      const buf = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+      const page = await pdf.getPage(1);
+      const vp1 = page.getViewport({ scale: 1 });
+      const scale = Math.min(3, 2400 / vp1.width);
+      const vp = page.getViewport({ scale });
+      const oc = document.createElement('canvas');
+      oc.width = Math.round(vp.width); oc.height = Math.round(vp.height);
+      await page.render({ canvasContext: oc.getContext('2d'), viewport: vp }).promise;
+      dataURL = oc.toDataURL('image/png');
+      if (pdf.numPages > 1) setHint(`PDFの1ページ目を読み込みました (全${pdf.numPages}ページ)`);
+      else setHint('');
+    } else if (file.type.startsWith('image/')) {
+      dataURL = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result); r.onerror = () => rej(new Error('read'));
+        r.readAsDataURL(file);
+      });
+    } else {
+      alert('PDFまたは画像ファイル(PNG/JPG等)を選択してください。'); return;
+    }
+    await setBgFromDataURL(dataURL);
+    pushUndo(); render(); autosave();
+    setTimeout(() => setHint(''), 3000);
+  } catch (e) {
+    console.error(e); setHint('');
+    alert('ファイルの読み込みに失敗しました。別のファイルでお試しください。\n' + (e.message || ''));
+  }
+}
+function setBgFromDataURL(dataURL) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const availW = PAPER.w - PAPER.m2 * 2 - 8, availH = PAPER.h - PAPER.m2 * 2 - 8;
+      const k = Math.min(availW / img.width, availH / img.height);
+      const w = img.width * k, h = img.height * k;
+      state.bg = { img, dataURL, x: (PAPER.w - w) / 2, y: (PAPER.h - h) / 2, w, h };
+      res();
+    };
+    img.onerror = () => rej(new Error('画像を展開できませんでした'));
+    img.src = dataURL;
+  });
+}
+
+// ---------- 保存 / 読込 / 出力 ----------
+function download(name, blobOrURL) {
+  const a = document.createElement('a');
+  a.href = typeof blobOrURL === 'string' ? blobOrURL : URL.createObjectURL(blobOrURL);
+  a.download = name; a.click();
+  if (typeof blobOrURL !== 'string') setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function saveJson() {
+  const data = {
+    app: 'sagyotaizu', version: 1, savedAt: new Date().toISOString(),
+    settings: state.settings, objects: state.objects,
+    bg: state.bg ? { dataURL: state.bg.dataURL, x: state.bg.x, y: state.bg.y, w: state.bg.w, h: state.bg.h } : null,
+  };
+  download((state.settings.title || '作業帯図') + '.json',
+    new Blob([JSON.stringify(data)], { type: 'application/json' }));
+}
+async function loadJson(file) {
+  try {
+    const text = await file.text();
+    const d = JSON.parse(text);
+    if (d.app !== 'sagyotaizu' || !Array.isArray(d.objects)) throw new Error('このツールの保存ファイルではありません');
+    pushUndo();
+    state.objects = d.objects;
+    Object.assign(state.settings, d.settings || {});
+    state.bg = null;
+    if (d.bg && d.bg.dataURL) {
+      await setBgFromDataURL(d.bg.dataURL);
+      Object.assign(state.bg, { x: d.bg.x, y: d.bg.y, w: d.bg.w, h: d.bg.h });
+    }
+    state.sel = null;
+    syncSettingsUI(); updateScaleBadge(); renderProps(); render(); autosave();
+  } catch (e) {
+    alert('読み込みに失敗しました: ' + (e.message || '不明なエラー'));
+  }
+}
+function renderExportCanvas(scale = 2) {
+  const oc = document.createElement('canvas');
+  oc.width = PAPER.w * scale; oc.height = PAPER.h * scale;
+  const c = oc.getContext('2d');
+  c.scale(scale, scale);
+  const selBak = state.sel; state.sel = null;
+  drawSheet(c, { screen: false });
+  state.sel = selBak;
+  return oc;
+}
+function exportPng() {
+  try {
+    const oc = renderExportCanvas(2);
+    oc.toBlob(b => {
+      if (!b) { alert('PNGの生成に失敗しました。'); return; }
+      download((state.settings.title || '作業帯図') + '.png', b);
+    }, 'image/png');
+  } catch (e) { alert('PNG出力に失敗しました: ' + e.message); }
+}
+function doPrint(size) {
+  try {
+    const url = renderExportCanvas(2).toDataURL('image/png');
+    const frame = document.getElementById('printFrame');
+    const doc = frame.contentWindow.document;
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${state.settings.title}</title>
+      <style>
+        @page{size:${size} landscape;margin:0}
+        html,body{margin:0;padding:0}
+        img{width:100%;height:100%;object-fit:contain;display:block}
+      </style></head><body><img src="${url}"></body></html>`);
+    doc.close();
+    const img = doc.querySelector('img');
+    const fire = () => { try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e) { alert('印刷の起動に失敗しました: ' + e.message); } };
+    if (img && !img.complete) img.onload = () => setTimeout(fire, 120);
+    else setTimeout(fire, 150);
+  } catch (e) { alert('印刷用データの生成に失敗しました: ' + e.message); }
+}
+
+// ---------- UIバインド ----------
+function syncSettingsUI() {
+  document.getElementById('setTitle').value = state.settings.title;
+  document.getElementById('setKoshu').value = state.settings.koshu;
+  document.getElementById('setLegend').checked = state.settings.showLegend;
+  document.getElementById('setNote').checked = state.settings.showNote;
+  document.getElementById('setSymScale').value = Math.round(state.settings.symScale * 100);
+  document.getElementById('setSymScaleV').textContent = state.settings.symScale.toFixed(1);
+  document.getElementById('bgOpacity').value = Math.round(state.settings.bgOpacity * 100);
+}
+function bindUI() {
+  const $ = id => document.getElementById(id);
+  $('btnBg').onclick = () => $('fileBg').click();
+  $('fileBg').onchange = e => { if (e.target.files[0]) loadBackground(e.target.files[0]); e.target.value = ''; };
+  $('btnLoad').onclick = () => $('fileJson').click();
+  $('fileJson').onchange = e => { if (e.target.files[0]) loadJson(e.target.files[0]); e.target.value = ''; };
+  $('btnSave').onclick = saveJson;
+  $('btnPng').onclick = exportPng;
+  $('btnPrint').onclick = () => $('printModal').classList.add('show');
+  $('prCancel').onclick = () => $('printModal').classList.remove('show');
+  $('prGo').onclick = () => {
+    const size = document.querySelector('input[name=psize]:checked').value === 'a3' ? 'A3' : 'A4';
+    $('printModal').classList.remove('show');
+    setTimeout(() => doPrint(size), 150);
+  };
+  $('btnUndo').onclick = undo;
+  $('btnRedo').onclick = redo;
+  const zoomAtCenter = f => {
+    const r = cv.getBoundingClientRect();
+    const cx = r.width / 2, cy = r.height / 2;
+    const z2 = Math.min(6, Math.max(0.08, state.view.z * f));
+    state.view.ox = cx - (cx - state.view.ox) * (z2 / state.view.z);
+    state.view.oy = cy - (cy - state.view.oy) * (z2 / state.view.z);
+    state.view.z = z2; render();
+  };
+  $('btnZoomIn').onclick = () => zoomAtCenter(1.25);
+  $('btnZoomOut').onclick = () => zoomAtCenter(1 / 1.25);
+  $('btnZoomFit').onclick = zoomFit;
+  $('btnCalib').onclick = () => setTool('calib', '縮尺設定: 地図上で距離の分かる2点を順にクリックしてください (寸法記載箇所・道路幅など)');
+  $('bgOpacity').oninput = e => { state.settings.bgOpacity = +e.target.value / 100; render(); autosave(); };
+  $('setTitle').oninput = e => { state.settings.title = e.target.value; render(); autosave(); };
+  $('setKoshu').oninput = e => { state.settings.koshu = e.target.value; render(); autosave(); };
+  $('setLegend').onchange = e => { state.settings.showLegend = e.target.checked; render(); autosave(); };
+  $('setNote').onchange = e => { state.settings.showNote = e.target.checked; render(); autosave(); };
+  $('setSymScale').oninput = e => {
+    state.settings.symScale = +e.target.value / 100;
+    $('setSymScaleV').textContent = state.settings.symScale.toFixed(1);
+    render(); autosave();
+  };
+  // ウィザード
+  $('btnWizard').onclick = () => $('wizardModal').classList.add('show');
+  $('wCancel').onclick = () => $('wizardModal').classList.remove('show');
+  document.querySelectorAll('input[name=wpat]').forEach(r => r.onchange = () => {
+    $('wTaperWrap').style.display = document.querySelector('input[name=wpat]:checked').value === 'shasen' ? '' : 'none';
+  });
+  $('wTaperWrap').style.display = 'none';
+  $('wStart').onclick = () => {
+    const width = parseFloat($('wWidth').value), cone = parseFloat($('wCone').value), taper = parseFloat($('wTaper').value);
+    if (!(width > 0) || !(cone > 0)) { alert('幅とコーン間隔には正の数値を入力してください。'); return; }
+    wizardParams = {
+      pattern: document.querySelector('input[name=wpat]:checked').value,
+      width, cone, taper: taper > 0 ? taper : 10,
+      side: +$('wSide').value,
+    };
+    $('wizardModal').classList.remove('show');
+    const warn = state.settings.calibrated ? '' : '【縮尺未設定のため既定値(1m=20px)で配置します】 ';
+    setTool('wizardA', warn + '規制区間の起点をクリックしてください');
+  };
+  $('btnHelp').onclick = () => $('helpModal').classList.add('show');
+  $('helpClose').onclick = () => $('helpModal').classList.remove('show');
+  document.querySelectorAll('.modal-bg').forEach(m => m.addEventListener('click', e => {
+    if (e.target === m) m.classList.remove('show');
+  }));
+}
+
+// ---------- 初期化 ----------
+async function init() {
+  buildPalette(); bindUI(); resize();
+  // 自動保存の復元
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (Array.isArray(d.objects)) {
+        state.objects = d.objects;
+        Object.assign(state.settings, d.settings || {});
+        if (d.bg && d.bg.dataURL) {
+          await setBgFromDataURL(d.bg.dataURL);
+          Object.assign(state.bg, { x: d.bg.x, y: d.bg.y, w: d.bg.w, h: d.bg.h });
+        }
+      }
+    }
+  } catch (e) { /* 復元不可でも新規として起動 */ }
+  syncSettingsUI(); updateScaleBadge(); renderProps();
+  zoomFit();
+}
+init();
+</script>
+</body>
+</html>
