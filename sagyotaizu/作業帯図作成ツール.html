@@ -268,6 +268,8 @@ footer b{color:#fff; font-weight:600;}
       <b>出力範囲</b>: 「範囲を指定」で親図面上に対角2点をクリックすると、そのパターンの出力範囲(用紙比に自動調整)を設定できます。PNG出力・印刷時は、この範囲を用紙いっぱいに拡大して出力します（範囲未指定なら親図面全体）。図枠・表題・凡例・スケールバーは用紙側に固定表示されます。
       <h5>編集操作</h5>
       クリックで選択、ドラッグで移動。<kbd>R</kbd> で15°回転。<kbd>Delete</kbd> で削除。<kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> で取消/やり直し。線・多角形は選択すると頂点(白い四角)が表示され、ドラッグで変形できます。
+      <h5>複数選択（まとめて移動）</h5>
+      何もない所から<b>ドラッグで矩形を描くと、触れたオブジェクトをまとめて選択</b>できます（CAD の窓選択）。<kbd>Shift</kbd>+クリックで選択に個別追加/解除、<kbd>Ctrl+A</kbd> で全選択。複数選択したまま<b>ドラッグでまとめて移動</b>、<kbd>Delete</kbd>でまとめて削除、右パネルの「まとめて複製」で一括複製できます。頂点編集・寸法/ラベル等の個別編集は1つだけ選択したときに有効です。
       <h5>記号のラベル・引き出し線</h5>
       記号を選択して右パネルの「ラベル」に文字(工事件名・連絡先など)を入れると、引き出し線付きで表示されます。「引出し向き」「引出し長さ」で位置を調整できます。
       <h5>画面操作</h5>
@@ -351,6 +353,9 @@ footer b{color:#fff; font-weight:600;}
          パターンごとにobjects/図面名/凡例位置/出力範囲枠を保持。drawSheetを
          地図レイヤ(クロップ可)+用紙クローム(枠/表題/凡例)に分離し、範囲枠つき
          パターンの出力は枠を用紙全体へ拡大。保存形式v2(v1は自動移行)
+   v2.1: 複数選択。空所からのドラッグで矩形(窓)選択、Shift+クリックで増減、Ctrl+A全選択。
+         選択物をまとめて移動/削除/複製。state.selを配列化(selIds)、頂点編集・詳細
+         プロパティは単一選択時のみ (R7)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -374,7 +379,8 @@ const state = {
   patterns: [],           // 工事内の複数パターン。各: {id,name,title,objects,legendPos,frame}
   activePattern: 0,       // 編集中パターンの添字。state.objectsは常にこのパターンのobjectsを指す
   view: { z: 0.55, ox: 40, oy: 30 },
-  sel: null,              // 選択中オブジェクトid or '_legend'
+  selIds: [],             // 選択中オブジェクトidの配列(複数選択)。単一選択時のみsel=そのid
+  sel: null,              // '_legend' or 単一選択id or null。頂点編集/詳細プロパティは単一選択時のみ
   tool: 'select',
   draft: null,            // 作図中データ
   undoStack: [], redoStack: [],
@@ -408,7 +414,7 @@ function loadActivePattern() {
   state.objects = p.objects;
   state.settings.title = p.title;
   state.settings.legendPos = p.legendPos || null;
-  state.sel = null; state.draft = null;
+  state.selIds = []; state.sel = null; state.draft = null;
   state.undoStack.length = 0; state.redoStack.length = 0; // Undoはパターン内に限定
 }
 function activatePattern(i) {
@@ -1072,22 +1078,63 @@ function objPoints(o) {
   if (o.type === 'dim') return [o.a, o.b];
   return null;
 }
+// ---------- 選択(複数対応) ----------
+function selectedObjs() {
+  const byId = new Map(state.objects.map(o => [o.id, o]));
+  return state.selIds.map(id => byId.get(id)).filter(Boolean);
+}
+function isSel(id) { return state.selIds.indexOf(id) >= 0; }
+function setSel(ids) {
+  const exist = new Set(state.objects.map(o => o.id));
+  const seen = new Set(), out = [];
+  for (const id of ids) if (exist.has(id) && !seen.has(id)) { seen.add(id); out.push(id); }
+  state.selIds = out;
+  state.sel = out.length === 1 ? out[0] : null; // 単一選択時のみ頂点編集/詳細プロパティを有効化
+}
+function toggleSel(id) { setSel(isSel(id) ? state.selIds.filter(x => x !== id) : [...state.selIds, id]); }
+function clearSel() { state.selIds = []; state.sel = null; }
+function selectLegend() { state.selIds = []; state.sel = '_legend'; }
+function normRect(a, b) { return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) }; }
+function rectsIntersect(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+function objsInRect(rect) { return state.objects.filter(o => rectsIntersect(objBBox(o), rect)).map(o => o.id); }
+function moveObjBy(o, g, dx, dy) {
+  if (o.type === 'symbol' || o.type === 'text') { o.x = g.x + dx; o.y = g.y + dy; }
+  else if (o.type === 'dim') { o.a = { x: g.a.x + dx, y: g.a.y + dy }; o.b = { x: g.b.x + dx, y: g.b.y + dy }; }
+  else o.pts = g.pts.map(q => ({ x: q.x + dx, y: q.y + dy }));
+}
+function shiftObj(cp, sh) {
+  if (cp.pts) cp.pts = cp.pts.map(q => ({ x: q.x + sh, y: q.y + sh }));
+  else if (cp.type === 'dim') { cp.a.x += sh; cp.a.y += sh; cp.b.x += sh; cp.b.y += sh; }
+  else { cp.x += sh; cp.y += sh; }
+}
+
 function drawOverlays(c) {
   const hz = 1 / state.view.z;
-  const o = state.objects.find(x => x.id === state.sel);
-  if (o) {
+  const sels = selectedObjs();
+  const single = sels.length === 1;
+  sels.forEach(o => {
     const b = objBBox(o);
     c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz; c.setLineDash([6 * hz, 4 * hz]);
     c.strokeRect(b.x, b.y, b.w, b.h); c.setLineDash([]);
-    const pts = objPoints(o);
-    if (pts) pts.forEach(q => {
-      c.fillStyle = '#fff'; c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz;
-      const s = 5 * hz;
-      c.fillRect(q.x - s, q.y - s, s * 2, s * 2); c.strokeRect(q.x - s, q.y - s, s * 2, s * 2);
-    });
-  } else if (state.sel === '_legend' && legendBBox) {
+    if (single) { // 頂点ハンドルは単一選択時のみ
+      const pts = objPoints(o);
+      if (pts) pts.forEach(q => {
+        c.fillStyle = '#fff'; c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz;
+        const s = 5 * hz;
+        c.fillRect(q.x - s, q.y - s, s * 2, s * 2); c.strokeRect(q.x - s, q.y - s, s * 2, s * 2);
+      });
+    }
+  });
+  if (state.sel === '_legend' && legendBBox) {
     c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz; c.setLineDash([6 * hz, 4 * hz]);
     c.strokeRect(legendBBox.x, legendBBox.y, legendBBox.w, legendBBox.h); c.setLineDash([]);
+  }
+  // マーキー選択の矩形
+  if (drag && drag.kind === 'marquee' && drag.cur) {
+    const r = normRect(drag.w0, drag.cur);
+    c.fillStyle = 'rgba(31,95,139,.10)'; c.fillRect(r.x, r.y, r.w, r.h);
+    c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.4 * hz; c.setLineDash([5 * hz, 4 * hz]);
+    c.strokeRect(r.x, r.y, r.w, r.h); c.setLineDash([]);
   }
   // 出力範囲枠 (アクティブパターン): 編集画面では親図面上にガイド表示
   const ap = activePat();
@@ -1177,7 +1224,7 @@ function applySnap(s) {
     const d = JSON.parse(s);
     state.objects = d.objects; Object.assign(state.settings, d.settings);
     syncActivePattern(); // 取消/やり直しの結果をアクティブパターンへ反映
-    state.sel = null; syncSettingsUI(); renderProps(); render(); autosave();
+    clearSel(); syncSettingsUI(); renderProps(); render(); autosave();
   } catch (e) { console.error(e); }
 }
 function undo() { if (!state.undoStack.length) return; state.redoStack.push(snapshot()); applySnap(state.undoStack.pop()); }
@@ -1257,30 +1304,39 @@ function pointerDown(e) {
   }
   const t = state.tool;
   if (t === 'select') {
-    const selObj = state.objects.find(x => x.id === state.sel);
-    if (selObj) {
-      const vi = hitVertex(selObj, w);
-      if (vi >= 0) {
-        drag = { kind: 'vertex', obj: selObj, vi, pend: snapshot() };
-        return;
+    // 頂点編集は単一選択時のみ
+    if (state.selIds.length === 1) {
+      const selObj = state.objects.find(x => x.id === state.selIds[0]);
+      if (selObj) {
+        const vi = hitVertex(selObj, w);
+        if (vi >= 0) { drag = { kind: 'vertex', obj: selObj, vi, pend: snapshot() }; return; }
       }
     }
+    // 凡例(選択物にヒットしていない場合のみ)
     if (state.settings.showLegend && legendBBox &&
         w.x >= legendBBox.x && w.x <= legendBBox.x + legendBBox.w &&
         w.y >= legendBBox.y && w.y <= legendBBox.y + legendBBox.h && !hitTest(w)) {
-      state.sel = '_legend';
+      selectLegend();
       const pos = state.settings.legendPos || { x: legendBBox.x, y: legendBBox.y };
       state.settings.legendPos = pos;
       drag = { kind: 'legend', w0: w, p0: { ...pos }, pend: snapshot() };
       renderProps(); render(); return;
     }
     const hit = hitTest(w);
-    state.sel = hit ? hit.id : null;
-    renderProps();
     if (hit) {
-      drag = { kind: 'move', obj: hit, w0: w, orig: JSON.parse(JSON.stringify(hit)), pend: snapshot() };
+      if (e.shiftKey) { toggleSel(hit.id); renderProps(); render(); return; } // Shift=選択に増減
+      if (!isSel(hit.id)) setSel([hit.id]); // 未選択物→単独選択。選択済みならグループを維持
+      renderProps();
+      // 選択中の全オブジェクトをまとめて移動
+      const items = selectedObjs().map(o => ({ o, orig: JSON.parse(JSON.stringify(o)) }));
+      drag = { kind: 'move', items, w0: w, pend: snapshot() };
+      render();
+    } else {
+      // 空クリック → 矩形ドラッグ選択(マーキー)開始
+      if (!e.shiftKey) { clearSel(); renderProps(); }
+      drag = { kind: 'marquee', w0: w, cur: w, base: [...state.selIds], shift: !!e.shiftKey };
+      render();
     }
-    render();
   } else if (t.startsWith('place:')) {
     pushUndo();
     state.objects.push({ id: uid(), type: 'symbol', kind: t.slice(6), x: w.x, y: w.y, rot: 0, scl: 1 });
@@ -1340,6 +1396,7 @@ function pointerMove(e) {
     state.redoStack.length = 0;
     drag.pend = null;
   }
+  if (drag.kind === 'marquee') { drag.cur = w; render(); return; }
   if (drag.kind === 'pan') {
     state.view.ox = drag.ox + (s.x - drag.sx);
     state.view.oy = drag.oy + (s.y - drag.sy);
@@ -1356,14 +1413,24 @@ function pointerMove(e) {
   }
   if (drag.kind === 'move') {
     const dx = w.x - drag.w0.x, dy = w.y - drag.w0.y;
-    const o = drag.obj, g = drag.orig;
-    if (o.type === 'symbol' || o.type === 'text') { o.x = g.x + dx; o.y = g.y + dy; }
-    else if (o.type === 'dim') { o.a = { x: g.a.x + dx, y: g.a.y + dy }; o.b = { x: g.b.x + dx, y: g.b.y + dy }; }
-    else o.pts = g.pts.map(q => ({ x: q.x + dx, y: q.y + dy }));
+    drag.items.forEach(({ o, orig }) => moveObjBy(o, orig, dx, dy)); // グループまとめて移動
     render();
   }
 }
-function pointerUp() { if (drag) { drag = null; autosave(); } }
+function pointerUp() {
+  if (!drag) return;
+  if (drag.kind === 'marquee') {
+    const r = normRect(drag.w0, drag.cur || drag.w0);
+    const tiny = r.w < 3 / state.view.z && r.h < 3 / state.view.z; // ほぼクリック(=範囲選択でない)
+    if (!tiny) {
+      const hits = objsInRect(r);
+      setSel(drag.shift ? [...drag.base, ...hits] : hits);
+      renderProps(); render();
+    }
+    drag = null; return; // 選択操作なので自動保存は不要
+  }
+  drag = null; autosave();
+}
 cv.addEventListener('mousedown', pointerDown);
 addEventListener('mousemove', pointerMove);
 addEventListener('mouseup', pointerUp);
@@ -1389,17 +1456,24 @@ function finishDraft() {
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
   if (e.code === 'Space') { spaceDown = true; e.preventDefault(); }
-  if (e.key === 'Escape') { state.draft = null; setTool('select'); }
+  if (e.key === 'Escape') { state.draft = null; clearSel(); setTool('select'); renderProps(); }
   if (e.key === 'Enter') finishDraft();
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') { // Ctrl+A で全選択
+    if (state.tool === 'select' && state.objects.length) { e.preventDefault(); setSel(state.objects.map(o => o.id)); renderProps(); render(); }
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
-  const o = state.objects.find(x => x.id === state.sel);
-  if (o && (e.key === 'Delete' || e.key === 'Backspace')) {
-    pushUndo(); state.objects = state.objects.filter(x => x.id !== o.id);
-    state.sel = null; renderProps(); render();
+  const sels = selectedObjs();
+  if (sels.length && (e.key === 'Delete' || e.key === 'Backspace')) {
+    pushUndo();
+    const ids = new Set(state.selIds);
+    state.objects = state.objects.filter(x => !ids.has(x.id));
+    clearSel(); renderProps(); render();
   }
-  if (o && (e.key === 'r' || e.key === 'R')) {
-    pushUndo(); o.rot = ((o.rot || 0) + 15) % 360; renderProps(); render();
+  if (sels.length && (e.key === 'r' || e.key === 'R')) {
+    pushUndo();
+    sels.forEach(o => { if (o.type === 'symbol' || o.type === 'text') o.rot = ((o.rot || 0) + 15) % 360; });
+    renderProps(); render();
   }
 });
 addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; });
@@ -1650,6 +1724,26 @@ function renderPatternBar() {
 // ---------- プロパティパネル ----------
 function renderProps() {
   const root = document.getElementById('objProps');
+  const sels = selectedObjs();
+  if (sels.length >= 2) { // 複数選択: グループ操作パネル
+    document.getElementById('selLabel').textContent = `選択中: ${sels.length}個`;
+    root.innerHTML =
+      `<div class="pempty">${sels.length}個のオブジェクトを選択中。<br>ドラッグでまとめて移動、<b>R</b>で記号/文字を回転、<b>Delete</b>で削除できます。<br><br>個別の寸法・ラベル編集は1つだけ選択したときに表示されます。</div>` +
+      `<div class="pbtnrow"><button class="pbtn" id="pgDup">まとめて複製</button><button class="pbtn danger" id="pgDel">まとめて削除</button></div>`;
+    document.getElementById('pgDel').addEventListener('click', () => {
+      pushUndo();
+      const ids = new Set(state.selIds);
+      state.objects = state.objects.filter(x => !ids.has(x.id));
+      clearSel(); renderProps(); render();
+    });
+    document.getElementById('pgDup').addEventListener('click', () => {
+      pushUndo();
+      const newIds = [];
+      selectedObjs().forEach(o => { const cp = JSON.parse(JSON.stringify(o)); cp.id = uid(); shiftObj(cp, 24); state.objects.push(cp); newIds.push(cp.id); });
+      setSel(newIds); renderProps(); render();
+    });
+    return;
+  }
   const o = state.objects.find(x => x.id === state.sel);
   document.getElementById('selLabel').textContent = o
     ? '選択中: ' + (o.type === 'symbol' ? KINDS[o.kind].name : ({ zone: '作業帯', divzone: '導流帯', pedpath: '歩行者通路', conerow: 'コーン列', dim: '寸法線', text: '文字' })[o.type])
@@ -1713,15 +1807,12 @@ function renderProps() {
   bind('pOff', e => { o.off = +e.target.value; document.getElementById('pOffV').textContent = e.target.value; render(); autosave(); });
   bind('pText', e => { o.text = e.target.value; render(); autosave(); });
   bind('pTSize', e => { o.size = +e.target.value; document.getElementById('pTSizeV').textContent = e.target.value; render(); autosave(); });
-  bind('pDel', () => { pushUndo(); state.objects = state.objects.filter(x => x.id !== o.id); state.sel = null; renderProps(); render(); }, 'click');
+  bind('pDel', () => { pushUndo(); state.objects = state.objects.filter(x => x.id !== o.id); clearSel(); renderProps(); render(); }, 'click');
   bind('pDup', () => {
     pushUndo();
     const cp = JSON.parse(JSON.stringify(o)); cp.id = uid();
-    const sh = 24;
-    if (cp.pts) cp.pts = cp.pts.map(q => ({ x: q.x + sh, y: q.y + sh }));
-    else if (cp.type === 'dim') { cp.a.x += sh; cp.a.y += sh; cp.b.x += sh; cp.b.y += sh; }
-    else { cp.x += sh; cp.y += sh; }
-    state.objects.push(cp); state.sel = cp.id; renderProps(); render();
+    shiftObj(cp, 24);
+    state.objects.push(cp); setSel([cp.id]); renderProps(); render();
   }, 'click');
 }
 
