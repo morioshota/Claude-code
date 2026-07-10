@@ -83,6 +83,17 @@ aside{background:var(--panel); overflow-y:auto;}
 }
 #hint.show{display:block;}
 
+/* ── トースト(自動保存の警告など) ── */
+#toast{
+  position:fixed; left:50%; bottom:44px; transform:translateX(-50%);
+  background:rgba(22,34,46,.96); color:#fff; padding:10px 16px; border-radius:8px;
+  font-size:12.5px; line-height:1.5; max-width:90%; text-align:center; z-index:60;
+  box-shadow:0 4px 16px rgba(0,0,0,.3); border:1px solid var(--amber);
+  opacity:0; pointer-events:none; transition:opacity .25s;
+}
+#toast.show{opacity:1;}
+#toast.warn{border-color:var(--red);}
+
 /* ── 右パネル ── */
 #props h3{font-size:12px; color:#5a6a78; letter-spacing:.1em; margin-bottom:8px;
   border-bottom:2px solid var(--amber); padding-bottom:4px;}
@@ -185,6 +196,8 @@ footer b{color:#fff; font-weight:600;}
   <span id="selLabel"></span>
   <span id="coord"></span>
 </footer>
+
+<div id="toast"></div>
 
 <input type="file" id="fileBg" accept=".pdf,image/*" hidden>
 <input type="file" id="fileJson" accept=".json,application/json" hidden>
@@ -295,6 +308,8 @@ footer b{color:#fff; font-weight:600;}
    v1.2: 縮尺を分母直接入力(1/500等)でも設定可、用紙左下スケールバー、縮尺バッジに分母表示 (R1)
    v1.3: 記号にラベル(引き出し線+テキスト箱)を追加。向き・長さ調整、選択枠/クリック判定も対応 (R2)
    v1.4: 複数ページPDFのページ選択に対応(2ページ以上でページ番号を確認して読込) (R3)
+   v1.5: 自動保存を堅牢化。背景は縮小+JPEG圧縮して保存、容量超過時は背景を外して
+         最低限を保存しトーストでJSON保存を案内(元画像は表示/JSON書出しに保持) (R4)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -1006,21 +1021,43 @@ function applySnap(s) {
 function undo() { if (!state.undoStack.length) return; state.redoStack.push(snapshot()); applySnap(state.undoStack.pop()); }
 function redo() { if (!state.redoStack.length) return; state.undoStack.push(snapshot()); applySnap(state.redoStack.pop()); }
 let asTimer = null;
+let saveWarned = false; // 容量警告トーストの多重表示を防ぐ(1セッション1回)
 function autosave() {
   clearTimeout(asTimer);
   asTimer = setTimeout(() => {
+    const bgRect = state.bg ? { x: state.bg.x, y: state.bg.y, w: state.bg.w, h: state.bg.h } : null;
+    // ① 圧縮背景つきで保存を試みる
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
         objects: state.objects, settings: state.settings,
-        bg: state.bg ? { dataURL: state.bg.dataURL, x: state.bg.x, y: state.bg.y, w: state.bg.w, h: state.bg.h } : null,
+        bg: state.bg ? Object.assign({ dataURL: state.bg.saveURL || state.bg.dataURL }, bgRect) : null,
       }));
-    } catch (e) { /* 容量超過や制限環境では黙って諦める(JSON保存を案内済み) */ }
+      saveWarned = false; // 成功したら次回また警告できるようにする
+      return;
+    } catch (e) { /* 多くは QuotaExceededError。②へ */ }
+    // ② 背景を除いて最低限(オブジェクト・設定)だけでも保存を試みる
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ objects: state.objects, settings: state.settings, bg: null }));
+    } catch (e2) { /* それも不可(容量ゼロ/無効環境)なら諦める */ }
+    if (!saveWarned) {
+      saveWarned = true;
+      showToast('自動保存の容量制限に達しました（背景画像が大きい可能性があります）。確実な保管には「保存(JSON)」をお使いください。', true);
+    }
   }, 600);
 }
 
 // ---------- ツール / ヒント ----------
 const hintEl = document.getElementById('hint');
 function setHint(t) { hintEl.textContent = t || ''; hintEl.classList.toggle('show', !!t); }
+let toastTimer = null;
+function showToast(msg, warn) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.toggle('warn', !!warn);
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 6500);
+}
 function setTool(t, hint) {
   state.tool = t; state.draft = null;
   document.querySelectorAll('.palbtn').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
@@ -1559,6 +1596,20 @@ async function loadBackground(file) {
     alert('ファイルの読み込みに失敗しました。別のファイルでお試しください。\n' + (e.message || ''));
   }
 }
+// 自動保存(localStorage)用に、背景画像を縮小+JPEG圧縮した軽量dataURLを生成する。
+// 表示・JSON書き出しには元のdataURL(高品質)を使い、localStorageの容量圧迫だけを避ける。
+function makeSaveURL(img) {
+  try {
+    const maxDim = 1800; // 長辺の上限px
+    const k = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const cw = Math.max(1, Math.round(img.width * k)), ch = Math.max(1, Math.round(img.height * k));
+    const oc = document.createElement('canvas'); oc.width = cw; oc.height = ch;
+    const c = oc.getContext('2d');
+    c.fillStyle = '#fff'; c.fillRect(0, 0, cw, ch); // JPEGは透過不可のため白地を敷く
+    c.drawImage(img, 0, 0, cw, ch);
+    return oc.toDataURL('image/jpeg', 0.7);
+  } catch (e) { return null; }
+}
 function setBgFromDataURL(dataURL) {
   return new Promise((res, rej) => {
     const img = new Image();
@@ -1566,7 +1617,7 @@ function setBgFromDataURL(dataURL) {
       const availW = PAPER.w - PAPER.m2 * 2 - 8, availH = PAPER.h - PAPER.m2 * 2 - 8;
       const k = Math.min(availW / img.width, availH / img.height);
       const w = img.width * k, h = img.height * k;
-      state.bg = { img, dataURL, x: (PAPER.w - w) / 2, y: (PAPER.h - h) / 2, w, h };
+      state.bg = { img, dataURL, saveURL: makeSaveURL(img) || dataURL, x: (PAPER.w - w) / 2, y: (PAPER.h - h) / 2, w, h };
       res();
     };
     img.onerror = () => rej(new Error('画像を展開できませんでした'));
