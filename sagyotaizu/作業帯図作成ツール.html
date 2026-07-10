@@ -218,6 +218,8 @@ footer b{color:#fff; font-weight:600;}
       縮尺設定の「縮尺分母を直接入力」タブは<b>A3横(420mm)で出力する前提</b>で用紙寸法から逆算します。図面設定の「スケールバー」をオンにすると、用紙左下に実寸の目盛りバーを表示できます（バーの長さは常に実寸に連動）。
       <h5>編集操作</h5>
       クリックで選択、ドラッグで移動。<kbd>R</kbd> で15°回転。<kbd>Delete</kbd> で削除。<kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> で取消/やり直し。線・多角形は選択すると頂点(白い四角)が表示され、ドラッグで変形できます。
+      <h5>記号のラベル・引き出し線</h5>
+      記号を選択して右パネルの「ラベル」に文字(工事件名・連絡先など)を入れると、引き出し線付きで表示されます。「引出し向き」「引出し長さ」で位置を調整できます。
       <h5>画面操作</h5>
       マウスホイールで拡大縮小、<kbd>Space</kbd>+ドラッグ または 右ドラッグで画面移動。
       <h5>線を描くツール(作業帯・歩行者通路・コーン列・寸法線)</h5>
@@ -291,6 +293,7 @@ footer b{color:#fff; font-weight:600;}
    単一HTML / Canvas 2D / 依存: PDF.js (PDF読込時のみCDNから遅延ロード)
    v1.1: 縮尺設定/文字入力を自前モーダル化(prompt廃止)、印刷をiframe方式+A4/A3選択、導流帯を追加
    v1.2: 縮尺を分母直接入力(1/500等)でも設定可、用紙左下スケールバー、縮尺バッジに分母表示 (R1)
+   v1.3: 記号にラベル(引き出し線+テキスト箱)を追加。向き・長さ調整、選択枠/クリック判定も対応 (R2)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -550,6 +553,37 @@ function askInput({ title = '入力', message = '', value = '', validate = null 
 // ---------- キャンバス / ビュー ----------
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
+const measCtx = document.createElement('canvas').getContext('2d'); // 文字幅の計測専用(描画に影響しない)
+const LABEL_FONT = 'bold 14px sans-serif';
+function measureLabel(text) { measCtx.font = LABEL_FONT; return measCtx.measureText(text || '').width; }
+// 記号ラベル(引き出し線+テキスト箱)の幾何。ラベル無しなら null
+function symbolLabelGeom(o) {
+  if (o.type !== 'symbol' || !o.label) return null;
+  const ang = (o.labelAngle ?? -40) * Math.PI / 180;
+  const dist = o.labelDist ?? 46;
+  const half = KINDS[o.kind].size * pxPerM() * state.settings.symScale * (o.scl || 1) / 2;
+  const dir = { x: Math.cos(ang), y: Math.sin(ang) };
+  const start = { x: o.x + dir.x * half, y: o.y + dir.y * half };            // 記号の縁
+  const knee = { x: o.x + dir.x * (half + dist), y: o.y + dir.y * (half + dist) };
+  const onRight = dir.x >= 0;
+  const anchor = { x: knee.x + (onRight ? 12 : -12), y: knee.y };            // 水平の肩の先
+  const padX = 5, boxH = 20;
+  const w = measureLabel(o.label) + padX * 2;
+  const box = { x: onRight ? anchor.x : anchor.x - w, y: anchor.y - boxH / 2, w, h: boxH };
+  return { start, knee, anchor, onRight, box, padX };
+}
+function drawSymbolLabel(c, o) {
+  const g = symbolLabelGeom(o); if (!g) return;
+  c.save();
+  c.strokeStyle = '#111'; c.lineWidth = 1.2; c.setLineDash([]);
+  c.beginPath(); c.moveTo(g.start.x, g.start.y); c.lineTo(g.knee.x, g.knee.y); c.lineTo(g.anchor.x, g.anchor.y); c.stroke();
+  c.fillStyle = '#fff'; c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 0.8;
+  c.fillRect(g.box.x, g.box.y, g.box.w, g.box.h); c.strokeRect(g.box.x, g.box.y, g.box.w, g.box.h);
+  c.fillStyle = '#111'; c.font = LABEL_FONT; c.textBaseline = 'middle';
+  c.textAlign = g.onRight ? 'left' : 'right';
+  c.fillText(o.label, g.onRight ? g.box.x + g.padX : g.box.x + g.box.w - g.padX, g.anchor.y);
+  c.restore();
+}
 function resize() {
   const r = cv.parentElement.getBoundingClientRect();
   cv.width = Math.round(r.width * devicePixelRatio);
@@ -629,6 +663,7 @@ function drawObj(c, o) {
   if (o.type === 'symbol') {
     c.save(); c.translate(o.x, o.y); c.rotate((o.rot || 0) * Math.PI / 180);
     KINDS[o.kind].draw(c, p); c.restore();
+    if (o.label) drawSymbolLabel(c, o); // ラベルは記号の回転に関係なく水平描画
   } else if (o.type === 'zone') {
     c.save();
     c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
@@ -855,7 +890,14 @@ function objBBox(o) {
   const pad = 6 / state.view.z;
   if (o.type === 'symbol') {
     const s = KINDS[o.kind].size * pxPerM() * state.settings.symScale * (o.scl || 1);
-    return { x: o.x - s / 2 - pad, y: o.y - s / 2 - pad, w: s + pad * 2, h: s + pad * 2 };
+    let bx = { x: o.x - s / 2 - pad, y: o.y - s / 2 - pad, w: s + pad * 2, h: s + pad * 2 };
+    const g = symbolLabelGeom(o);
+    if (g) { // 選択枠にラベル箱も含める
+      const x1 = Math.min(bx.x, g.box.x), y1 = Math.min(bx.y, g.box.y);
+      const x2 = Math.max(bx.x + bx.w, g.box.x + g.box.w), y2 = Math.max(bx.y + bx.h, g.box.y + g.box.h);
+      bx = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    }
+    return bx;
   }
   if (o.type === 'text') {
     const w = (o.text || '').length * (o.size || 18) * 0.95 + 8, h = (o.size || 18) + 8;
@@ -913,6 +955,9 @@ function hitTest(w) {
     if (o.type === 'symbol') {
       const s = KINDS[o.kind].size * pxPerM() * state.settings.symScale * (o.scl || 1);
       if (Math.abs(w.x - o.x) <= s / 2 + tol && Math.abs(w.y - o.y) <= s / 2 + tol) return o;
+      const g = symbolLabelGeom(o); // ラベル箱のクリックでも記号を選択
+      if (g && w.x >= g.box.x - tol && w.x <= g.box.x + g.box.w + tol &&
+          w.y >= g.box.y - tol && w.y <= g.box.y + g.box.h + tol) return o;
     } else if (o.type === 'text') {
       const b = objBBox(o);
       if (w.x >= b.x && w.x <= b.x + b.w && w.y >= b.y && w.y <= b.y + b.h) return o;
@@ -1388,6 +1433,14 @@ function renderProps() {
     html += `<div class="prow"><label>回転 (°)</label><input type="range" id="pRot" min="0" max="359" value="${Math.round(o.rot || 0)}"><span class="val" id="pRotV">${Math.round(o.rot || 0)}</span></div>`;
   }
   if (o.type === 'symbol') html += `<div class="prow"><label>大きさ</label><input type="range" id="pScl" min="30" max="300" value="${Math.round((o.scl || 1) * 100)}"><span class="val" id="pSclV">${(o.scl || 1).toFixed(1)}</span></div>`;
+  if (o.type === 'symbol') {
+    const escL = (o.label || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const ang = Math.round((((o.labelAngle ?? -40) % 360) + 360) % 360);
+    const dist = Math.round(o.labelDist ?? 46);
+    html += `<div class="prow"><label>ラベル</label><input type="text" id="pLabel" value="${escL}" placeholder="例: 工事件名・連絡先"></div>`;
+    html += `<div class="prow"><label>引出し向き</label><input type="range" id="pLabelAng" min="0" max="359" value="${ang}"><span class="val" id="pLabelAngV">${ang}</span></div>`;
+    html += `<div class="prow"><label>引出し長さ</label><input type="range" id="pLabelDist" min="10" max="160" value="${dist}"><span class="val" id="pLabelDistV">${dist}</span></div>`;
+  }
   if (o.type === 'conerow') {
     html += num('pInterval', 'コーン間隔 (m)', o.interval || 2);
     html += `<div class="prow"><label>コーンバー</label><input type="checkbox" id="pBar" ${o.bar !== false ? 'checked' : ''}></div>`;
@@ -1414,6 +1467,9 @@ function renderProps() {
   const bind = (id, fn, ev = 'input') => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   bind('pRot', e => { o.rot = +e.target.value; document.getElementById('pRotV').textContent = e.target.value; render(); autosave(); });
   bind('pScl', e => { o.scl = +e.target.value / 100; document.getElementById('pSclV').textContent = o.scl.toFixed(1); render(); autosave(); });
+  bind('pLabel', e => { o.label = e.target.value || null; render(); autosave(); });
+  bind('pLabelAng', e => { o.labelAngle = +e.target.value; document.getElementById('pLabelAngV').textContent = e.target.value; render(); autosave(); });
+  bind('pLabelDist', e => { o.labelDist = +e.target.value; document.getElementById('pLabelDistV').textContent = e.target.value; render(); autosave(); });
   bind('pInterval', e => { const v = parseFloat(e.target.value); if (v > 0) { o.interval = v; render(); autosave(); } });
   bind('pBar', e => { o.bar = e.target.checked; render(); autosave(); });
   bind('pWidth', e => { const v = parseFloat(e.target.value); if (v > 0) { o.width = v; render(); autosave(); } });
