@@ -294,6 +294,7 @@ footer b{color:#fff; font-weight:600;}
    v1.1: 縮尺設定/文字入力を自前モーダル化(prompt廃止)、印刷をiframe方式+A4/A3選択、導流帯を追加
    v1.2: 縮尺を分母直接入力(1/500等)でも設定可、用紙左下スケールバー、縮尺バッジに分母表示 (R1)
    v1.3: 記号にラベル(引き出し線+テキスト箱)を追加。向き・長さ調整、選択枠/クリック判定も対応 (R2)
+   v1.4: 複数ページPDFのページ選択に対応(2ページ以上でページ番号を確認して読込) (R3)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -1516,7 +1517,23 @@ async function loadBackground(file) {
       }
       const buf = await file.arrayBuffer();
       const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
-      const page = await pdf.getPage(1);
+      let pageNum = 1;
+      if (pdf.numPages > 1) {
+        setHint('');
+        const ans = await askInput({
+          title: 'PDFのページ選択',
+          message: `このPDFは全${pdf.numPages}ページあります。背景に使うページ番号(1〜${pdf.numPages})を入力してください。`,
+          value: '1',
+          validate: v => {
+            const n = parseInt(v, 10);
+            return (!Number.isInteger(n) || n < 1 || n > pdf.numPages) ? `1〜${pdf.numPages} の整数を入力してください。` : '';
+          },
+        });
+        if (ans === null) { setHint(''); return; } // キャンセル: 背景は変更しない
+        pageNum = parseInt(ans, 10);
+        setHint('PDFを読み込み中…');
+      }
+      const page = await pdf.getPage(pageNum);
       const vp1 = page.getViewport({ scale: 1 });
       const scale = Math.min(3, 2400 / vp1.width);
       const vp = page.getViewport({ scale });
@@ -1524,8 +1541,7 @@ async function loadBackground(file) {
       oc.width = Math.round(vp.width); oc.height = Math.round(vp.height);
       await page.render({ canvasContext: oc.getContext('2d'), viewport: vp }).promise;
       dataURL = oc.toDataURL('image/png');
-      if (pdf.numPages > 1) setHint(`PDFの1ページ目を読み込みました (全${pdf.numPages}ページ)`);
-      else setHint('');
+      setHint(pdf.numPages > 1 ? `PDFの ${pageNum}/${pdf.numPages} ページを読み込みました` : '');
     } else if (file.type.startsWith('image/')) {
       dataURL = await new Promise((res, rej) => {
         const r = new FileReader();
