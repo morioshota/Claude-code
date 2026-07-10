@@ -2,7 +2,7 @@
 
 道路使用許可申請用の「作業帯図」を、地形図(PDF/画像)を背景に半自動で作図し、手直し・出力できる単一 HTML ツール。
 
-- **現行バージョン**: v1.1
+- **現行バージョン**: v2.0（v1.2〜v2.0 の変更点は `ROADMAP.md` の「対応済み」を参照）
 - **成果物**: `作業帯図作成ツール.html`（単一ファイル・ビルド不要）
 - **想定利用者**: 土木施工管理の実務者（正太）。社内 PC + デスクトップブラウザで使用。
 - **設計上の絶対制約**: 外部ランタイム依存なしの単一 HTML。外部ライブラリ（PDF.js）は PDF 読込時のみ CDN から遅延ロード。ビルドステップ・サーバー不要でそのまま開ける。
@@ -59,26 +59,34 @@
 
 ```
 state = {
+  // objects は「アクティブパターンの objects」への参照。編集は常にこの配列に対して行う
   objects: [ ...図形オブジェクト ],
-  settings: {
-    title, koshu,            // 図面名・工種
+  settings: {   // ★ settings と bg は全パターンで共有（1工事＝1親図面）
+    title, koshu,            // 図面名(パターンごと)・工種(共有)
     showLegend, showNote,    // 凡例・注記の表示
+    showScaleBar,            // スケールバー表示（v1.2）
     symScale,                // 記号の全体倍率
     mPerPx,                  // 縮尺: 1世界px あたりのメートル数（既定 0.05 = 1px:5cm）
     calibrated,              // 縮尺設定済みフラグ
+    scaleDenominator,        // 縮尺分母(1/500 等)。直接入力時のみ厳密値、2点実測は null（v1.2）
     bgOpacity,               // 背景透明度
-    legendPos,               // 凡例の位置（null=右下自動）
+    legendPos,               // 凡例の位置（null=右下自動。実体はパターンごと）
   },
-  bg: { img, dataURL, x, y, w, h } | null,   // 背景地図（保存時は dataURL と矩形のみ）
+  bg: { img, dataURL, saveURL, x, y, w, h } | null,  // 親図面(共有)。saveURL=自動保存用の圧縮版（v1.5）
+  patterns: [ { id, name, title, objects:[...], legendPos, frame } ],  // 複数パターン（v2.0）
+  activePattern: 0,          // 編集中パターンの添字。objects はここの objects を指す
   view: { z, ox, oy },       // 画面のズーム・平行移動（保存対象外）
-  sel, tool, draft, undoStack, redoStack,    // 実行時状態
+  sel, tool, draft, undoStack, redoStack,    // 実行時状態（Undo はパターン内に限定）
 }
 ```
+
+- **パターン（v2.0）**: `patterns[]` の各要素が 1 枚の作業帯図。`bg`(親図面)・縮尺・表示設定は共有。`frame`（出力範囲枠 `{x,y,w,h}`、用紙比 √2:1 に固定）を持つパターンは、PNG/印刷時に枠を用紙全体へ拡大して出力する。`syncActivePattern`/`loadActivePattern` で `state.objects` とアクティブパターンを同期。
+- **保存形式**: JSON/自動保存は **v2**（`patterns` 配列）。旧 **v1**（単一 `objects`）ファイル・自動保存は読込時にパターン1へ自動移行（`wrapAsPattern`）。
 
 ### オブジェクト型（`objects[]` の要素）
 | type | 内容 | 主なプロパティ |
 |---|---|---|
-| `symbol` | 記号 1 個 | `kind`(KINDS のキー), `x, y, rot, scl` |
+| `symbol` | 記号 1 個 | `kind`(KINDS のキー), `x, y, rot, scl`, `label`/`labelAngle`/`labelDist`（引き出しラベル・v1.3） |
 | `zone` | 作業帯（工事箇所） | `pts[]`（多角形頂点） |
 | `divzone` | **導流帯**（v1.1 追加） | `pts[]`, `stripe`(斜線間隔 m), `fill`(内部薄塗り), `color` |
 | `pedpath` | 歩行者通路 | `pts[]`, `width`(m) |

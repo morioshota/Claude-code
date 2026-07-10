@@ -12,31 +12,24 @@
 - [x] A4 印刷対応（A4/A3 を印刷モーダルで選択）
 - [x] 導流帯（ゼブラ斜線＋実線外周）の追加
 
+## 対応済み（v1.2〜v2.0：Claude Code）
+- [x] **R1** 縮尺分母の直接入力（1/500 等。A3=420mm 基準で `mPerPx` 逆算）＋用紙左下スケールバー。`mPerPxFromDenom`/`denomFromMPerPx`/`drawScaleBar`、`settings.scaleDenominator`/`showScaleBar` (v1.2)
+- [x] **R2** 記号ラベル・引き出し線。`symbol` に `label`/`labelAngle`/`labelDist`、`symbolLabelGeom` に幾何集約（描画・選択枠・当たり判定を一元化） (v1.3)
+- [x] **R3** 複数ページ PDF のページ選択（`loadBackground` で 2 ページ以上ならページ番号を確認） (v1.4)
+- [x] **R4** 自動保存の堅牢化。背景を縮小+JPEG 圧縮して保存（`makeSaveURL`→`bg.saveURL`）、容量超過時は背景を外して最低限を保存＋トースト案内。元画像は表示/JSON 書出しに保持 (v1.5)
+- [x] **複数パターン**（1 工事＝親図面共有＋複数図面）。上部タブで切替、パターンごとに objects/図面名/凡例位置/出力範囲枠。`drawSheet` を地図レイヤ(クロップ可)+用紙クロームに分離。保存形式 v2（v1 は自動移行） (v2.0)
+
 ---
 
 ## 優先度 高（次にやると効く）
 
-### R1. 縮尺の実務精度アップ：縮尺バー / 縮尺値の直接入力
-現状は 2 点+実距離のみ。図面に「1/500」等の縮尺表記で入れたい場面がある。
-- 縮尺設定モーダルに「縮尺分母を直接入力（例 500）」タブを追加。用紙の物理寸法(A3=420mm 横)と PAPER.w から `mPerPx` を逆算。
-- 図面枠内に**スケールバー**（0–5–10m 目盛）を描画するオプション。
-- **触る箇所**: `finishCalib` 周辺、`drawSheet`（スケールバー描画追加）、`settings` に `scaleDenominator`。
+### H1. 全パターンの一括出力
+- 現状は「アクティブなパターン」を PNG/印刷する。工事内の全パターンを連番 PNG や複数ページ印刷でまとめて出力したい。
+- **触る箇所**: `exportPng`/`doPrint` をパターン走査（`syncActivePattern`→各パターンを一時 activate→`renderExportCanvas`）に拡張。印刷は複数 `<img>`＋`page-break`。
 
-### R2. 記号ラベル・引き出し線
-標示板や看板に「工事件名」「連絡先」等の文字を紐づけたい。
-- `symbol` に `label` を持たせ、任意方向へ引き出し線＋テキストを描画。
-- **触る箇所**: `drawObj` の symbol 分岐、`renderProps`（label 入力欄）、データモデル。
-
-### R3. 複数ページ PDF 対応 / ページ選択
-現状は PDF の 1 ページ目固定。
-- `loadBackground` でページ数を取得し、2 ページ以上ならページ選択モーダルを表示。
-- **触る箇所**: `ensurePdfJs`/`loadBackground`、簡易ページ選択 UI。
-
-### R4. 自動保存の堅牢化（背景画像の肥大対策）
-背景 dataURL が大きいと localStorage 上限に当たり自動保存が黙って失敗する。
-- 背景画像を JPEG 圧縮（画質 0.7 程度）してから保存、または IndexedDB へ退避。
-- 保存失敗時に「JSON 保存を推奨」トーストを明示表示。
-- **触る箇所**: `autosave`、`setBgFromDataURL`（保存用に圧縮 dataURL を別途生成）。
+### H2. 出力範囲枠の編集（移動・リサイズ）
+- 現状は指定し直し/クリアのみ。枠をドラッグ移動・ハンドルでリサイズ（用紙比固定）できると微調整が楽。
+- **触る箇所**: `drawOverlays`（ハンドル描画）、`pointerDown/Move`（frame の hit/drag）。
 
 ---
 
