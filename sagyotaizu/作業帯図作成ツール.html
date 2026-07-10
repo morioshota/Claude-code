@@ -132,6 +132,9 @@ footer b{color:#fff; font-weight:600;}
 .helpbox{font-size:12px; line-height:1.9; color:var(--ink2);}
 .helpbox h5{margin:10px 0 3px; font-size:12.5px; color:var(--ink); border-left:3px solid var(--amber); padding-left:6px;}
 .helpbox kbd{background:#eef1f4; border:1px solid var(--line); border-radius:3px; padding:0 5px; font-size:11px;}
+.tabrow{display:flex; gap:4px; border-bottom:1px solid var(--line); margin:2px 0 4px;}
+.tabbtn{background:none; border:none; padding:7px 11px; font-size:12.5px; color:#5a6a78; border-bottom:2px solid transparent; margin-bottom:-1px;}
+.tabbtn.active{color:var(--ink); border-bottom-color:var(--amber); font-weight:700;}
 @media (max-width:900px){ #palette{width:120px;} #props{width:190px;} .palbtn span{font-size:8.5px;} }
 </style>
 </head>
@@ -170,6 +173,7 @@ footer b{color:#fff; font-weight:600;}
     <div class="prow"><label>工種</label><input type="text" id="setKoshu" value="管路工"></div>
     <div class="prow"><label>凡例を表示</label><input type="checkbox" id="setLegend" checked></div>
     <div class="prow"><label>注記を表示</label><input type="checkbox" id="setNote" checked></div>
+    <div class="prow"><label>スケールバー</label><input type="checkbox" id="setScaleBar"></div>
     <div class="prow"><label>記号の倍率</label><input type="range" id="setSymScale" min="50" max="300" value="100"><span class="val" id="setSymScaleV">1.0</span></div>
     <div class="pdivider"></div>
     <h3>選択中のオブジェクト</h3>
@@ -209,7 +213,9 @@ footer b{color:#fff; font-weight:600;}
     <div class="mhead">使い方</div>
     <div class="mbody helpbox">
       <h5>基本の流れ</h5>
-      ① 地形図読込 (PDF/画像) → ② <b>縮尺設定</b>(地図上の距離が分かる2点をクリックし実距離を入力) → ③ 規制パターン自動配置 or パレットから手動配置(作業帯・導流帯・コーン列など) → ④ 手直し → ⑤ PNG出力 / 印刷(A4またはA3を選択)
+      ① 地形図読込 (PDF/画像) → ② <b>縮尺設定</b>(2点＋実距離、または「1/500」等の縮尺分母を直接入力) → ③ 規制パターン自動配置 or パレットから手動配置(作業帯・導流帯・コーン列など) → ④ 手直し → ⑤ PNG出力 / 印刷(A4またはA3を選択)
+      <h5>縮尺・スケールバー</h5>
+      縮尺設定の「縮尺分母を直接入力」タブは<b>A3横(420mm)で出力する前提</b>で用紙寸法から逆算します。図面設定の「スケールバー」をオンにすると、用紙左下に実寸の目盛りバーを表示できます（バーの長さは常に実寸に連動）。
       <h5>編集操作</h5>
       クリックで選択、ドラッグで移動。<kbd>R</kbd> で15°回転。<kbd>Delete</kbd> で削除。<kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> で取消/やり直し。線・多角形は選択すると頂点(白い四角)が表示され、ドラッグで変形できます。
       <h5>画面操作</h5>
@@ -249,17 +255,47 @@ footer b{color:#fff; font-weight:600;}
   </div>
 </div>
 
+<div class="modal-bg" id="calibModal">
+  <div class="modal" style="width:390px">
+    <div class="mhead">縮尺の設定</div>
+    <div class="mbody">
+      <div class="tabrow">
+        <button class="tabbtn active" data-ctab="two">2点＋実距離</button>
+        <button class="tabbtn" data-ctab="denom">縮尺分母を直接入力</button>
+      </div>
+      <div id="ctabTwo">
+        <p class="pnote" style="margin:8px 2px 12px;line-height:1.8">地図上で距離の分かる2点をクリックし、その実距離(m)を入力して縮尺を決めます。図面の寸法記載箇所や道路幅などを使うと正確です。</p>
+        <button class="mbtn go" id="cbStartTwo" style="width:100%">地図上で2点をクリックして設定</button>
+      </div>
+      <div id="ctabDenom" style="display:none">
+        <p class="pnote" style="margin:8px 2px 10px;line-height:1.8">図面に「1/500」などの縮尺で入れたい場合に使います。<b>A3横(420mm)で出力する前提</b>で、用紙寸法から縮尺を逆算します（A4出力時は実寸が約0.71倍になります）。</p>
+        <div class="prow" style="justify-content:flex-start;gap:8px;margin:2px 2px 0">
+          <label style="font-size:14px;font-weight:700">1 /</label>
+          <input type="number" id="cbDenom" value="500" step="50" min="1" style="width:120px;padding:6px 8px;border:1px solid var(--line);border-radius:5px;font-size:14px;font-family:inherit">
+        </div>
+        <p class="pnote" id="cbDenomPreview" style="margin:10px 2px 0;line-height:1.7"></p>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="mbtn" id="cbCancel">キャンセル</button>
+      <button class="mbtn go" id="cbApply" style="display:none">この縮尺にする</button>
+    </div>
+  </div>
+</div>
+
 <iframe id="printFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden"></iframe>
 <script>
 'use strict';
 /* ============================================================
-   作業帯図作成ツール  v1.1
+   作業帯図作成ツール  v1.2
    単一HTML / Canvas 2D / 依存: PDF.js (PDF読込時のみCDNから遅延ロード)
    v1.1: 縮尺設定/文字入力を自前モーダル化(prompt廃止)、印刷をiframe方式+A4/A3選択、導流帯を追加
+   v1.2: 縮尺を分母直接入力(1/500等)でも設定可、用紙左下スケールバー、縮尺バッジに分母表示 (R1)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
 const PAPER = { w: 1587, h: 1122, m: 20, m2: 34 }; // A3横 @96dpi相当, 図枠余白
+const A3_WIDTH_MM = 420; // A3横の用紙幅(mm)。縮尺分母↔mPerPx換算の基準(A3出力前提)
 const LS_KEY = 'sagyotaizu_v1';
 const state = {
   objects: [],            // 図形オブジェクト配列
@@ -269,6 +305,8 @@ const state = {
     symScale: 1.0,
     mPerPx: 0.05,         // 縮尺 (m/世界px)。既定 1px=5cm (=20px/m)
     calibrated: false,
+    scaleDenominator: null, // 縮尺分母(例500=1/500)。直接入力時のみ厳密値。2点設定ではnull(表示は近似)
+    showScaleBar: false,  // 図面枠内のスケールバー表示
     bgOpacity: 1.0,
     legendPos: null,      // {x,y} 未設定なら右下自動
   },
@@ -282,6 +320,9 @@ const state = {
 let idSeq = 1;
 const uid = () => 'o' + (idSeq++) + '_' + Date.now().toString(36);
 const pxPerM = () => 1 / state.settings.mPerPx;
+// 縮尺分母 ↔ mPerPx の相互変換 (A3=420mm幅で出力する前提)
+const mPerPxFromDenom = D => (A3_WIDTH_MM / 1000) * D / PAPER.w;
+const denomFromMPerPx = m => m * PAPER.w / (A3_WIDTH_MM / 1000);
 
 // ---------- 記号ライブラリ ----------
 // draw(ctx, p) : 原点中心・上向き基準で描画。p = pxPerM * symScale
@@ -563,8 +604,9 @@ function drawSheet(c, opt = {}) {
   const objs = [...state.objects].sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9));
   objs.forEach(o => drawObj(c, o));
 
-  // 凡例・注記
+  // 凡例・注記・スケールバー
   if (state.settings.showLegend) drawLegend(c);
+  if (state.settings.showScaleBar) drawScaleBar(c);
   if (state.settings.showNote) {
     c.fillStyle = '#111'; c.font = 'bold 15px sans-serif';
     c.textAlign = 'left'; c.textBaseline = 'alphabetic';
@@ -770,6 +812,42 @@ function drawLegendIcon(c, kind) {
     const fit = 26 / Math.max(0.7, k.size);
     k.draw(c, fit);
   }
+}
+
+// ---------- スケールバー ----------
+// 用紙左下に「0–(中間)–(全長)m」目盛のバーを描画。実長はpxPerM()基準で常に正確。
+function niceBarMeters() {
+  const target = 220; // 用紙px上での目標バー長
+  const cand = [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+  const ppm = pxPerM();
+  let best = cand[0];
+  for (const t of cand) if (Math.abs(t * ppm - target) < Math.abs(best * ppm - target)) best = t;
+  return best;
+}
+function fmtMeters(m) { return Number.isInteger(m) ? String(m) : String(+m.toFixed(1)); }
+function drawScaleBar(c) {
+  const ppm = pxPerM();
+  if (!isFinite(ppm) || ppm <= 0) return;
+  const T = niceBarMeters();
+  const wpx = T * ppm;
+  if (!(wpx > 20 && wpx < PAPER.w * 0.6)) return;
+  const segs = 4, h = 9;
+  const x0 = PAPER.m2 + 16;
+  const y0 = PAPER.h - PAPER.m2 - 34 - h;
+  c.save();
+  c.lineWidth = 1.2; c.strokeStyle = '#111';
+  for (let i = 0; i < segs; i++) {
+    c.fillStyle = i % 2 ? '#fff' : '#111';
+    c.fillRect(x0 + wpx * i / segs, y0, wpx / segs, h);
+    c.strokeRect(x0 + wpx * i / segs, y0, wpx / segs, h);
+  }
+  c.strokeRect(x0, y0, wpx, h);
+  c.fillStyle = '#111'; c.font = 'bold 13px sans-serif';
+  c.textBaseline = 'alphabetic'; c.textAlign = 'center';
+  c.fillText('0', x0, y0 - 4);
+  c.fillText(fmtMeters(T / 2), x0 + wpx / 2, y0 - 4);
+  c.fillText(fmtMeters(T) + ' m', x0 + wpx, y0 - 4);
+  c.restore();
 }
 
 // ---------- 選択・作図中オーバーレイ ----------
@@ -1088,6 +1166,7 @@ async function finishCalib(a, b) {
   const m = parseFloat(val);
   pushUndo();
   state.settings.mPerPx = m / distPx;
+  state.settings.scaleDenominator = null; // 実測設定なので厳密な分母は持たない(バッジは近似表示)
   state.settings.calibrated = true;
   updateScaleBadge();
   setTool('select');
@@ -1095,12 +1174,36 @@ async function finishCalib(a, b) {
   setTimeout(() => setHint(''), 3000);
   render();
 }
+function niceDenom(D) {
+  // 表示用に近い「きりのよい」縮尺分母へ丸める
+  const cand = [50, 100, 150, 200, 250, 300, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000, 5000];
+  let best = cand[0];
+  for (const c of cand) if (Math.abs(c - D) < Math.abs(best - D)) best = c;
+  return best;
+}
 function updateScaleBadge() {
   const el = document.getElementById('scaleBadge');
-  if (state.settings.calibrated) {
-    el.textContent = `縮尺設定済 (1m = ${(1 / state.settings.mPerPx).toFixed(1)}px)`;
+  const s = state.settings;
+  if (s.calibrated) {
+    const px = (1 / s.mPerPx).toFixed(1);
+    if (s.scaleDenominator) {
+      el.textContent = `縮尺 1/${s.scaleDenominator}`;
+      el.title = `A3横出力時 1/${s.scaleDenominator}（1m = ${px}px）`;
+    } else {
+      const D = niceDenom(denomFromMPerPx(s.mPerPx));
+      el.textContent = `縮尺 ≈1/${D}`;
+      el.title = `2点実測から算出（A3横出力時のおよその縮尺）。1m = ${px}px`;
+    }
     el.classList.add('ok');
-  } else { el.textContent = '縮尺 未設定'; el.classList.remove('ok'); }
+  } else { el.textContent = '縮尺 未設定'; el.title = ''; el.classList.remove('ok'); }
+}
+function openCalibModal() {
+  const s = state.settings;
+  const D = s.scaleDenominator || (s.calibrated ? niceDenom(denomFromMPerPx(s.mPerPx)) : 500);
+  document.getElementById('cbDenom').value = D;
+  document.getElementById('calibModal').classList.add('show');
+  // 既定タブ=「2点＋実距離」。タブ切替ハンドラ(bindUI内)を発火させて表示を初期化
+  document.querySelector('#calibModal .tabbtn[data-ctab="two"]').click();
 }
 
 // ---------- 規制パターン自動配置 ----------
@@ -1479,6 +1582,7 @@ function syncSettingsUI() {
   document.getElementById('setKoshu').value = state.settings.koshu;
   document.getElementById('setLegend').checked = state.settings.showLegend;
   document.getElementById('setNote').checked = state.settings.showNote;
+  document.getElementById('setScaleBar').checked = !!state.settings.showScaleBar;
   document.getElementById('setSymScale').value = Math.round(state.settings.symScale * 100);
   document.getElementById('setSymScaleV').textContent = state.settings.symScale.toFixed(1);
   document.getElementById('bgOpacity').value = Math.round(state.settings.bgOpacity * 100);
@@ -1511,7 +1615,8 @@ function bindUI() {
   $('btnZoomIn').onclick = () => zoomAtCenter(1.25);
   $('btnZoomOut').onclick = () => zoomAtCenter(1 / 1.25);
   $('btnZoomFit').onclick = zoomFit;
-  $('btnCalib').onclick = () => setTool('calib', '縮尺設定: 地図上で距離の分かる2点を順にクリックしてください (寸法記載箇所・道路幅など)');
+  $('btnCalib').onclick = openCalibModal;
+  $('setScaleBar').onchange = e => { state.settings.showScaleBar = e.target.checked; render(); autosave(); };
   $('bgOpacity').oninput = e => { state.settings.bgOpacity = +e.target.value / 100; render(); autosave(); };
   $('setTitle').oninput = e => { state.settings.title = e.target.value; render(); autosave(); };
   $('setKoshu').oninput = e => { state.settings.koshu = e.target.value; render(); autosave(); };
@@ -1540,6 +1645,41 @@ function bindUI() {
     $('wizardModal').classList.remove('show');
     const warn = state.settings.calibrated ? '' : '【縮尺未設定のため既定値(1m=20px)で配置します】 ';
     setTool('wizardA', warn + '規制区間の起点をクリックしてください');
+  };
+  // 縮尺モーダル
+  const setCalibTab = tab => {
+    document.querySelectorAll('#calibModal .tabbtn').forEach(b => b.classList.toggle('active', b.dataset.ctab === tab));
+    $('ctabTwo').style.display = tab === 'two' ? '' : 'none';
+    $('ctabDenom').style.display = tab === 'denom' ? '' : 'none';
+    $('cbApply').style.display = tab === 'denom' ? '' : 'none';
+    if (tab === 'denom') updateDenomPreview();
+  };
+  const updateDenomPreview = () => {
+    const D = parseFloat($('cbDenom').value);
+    const el = $('cbDenomPreview');
+    if (!(D > 0)) { el.textContent = '正の数値を入力してください。'; return; }
+    const mpp = mPerPxFromDenom(D);
+    const realW = (PAPER.w * mpp).toFixed(1);
+    el.innerHTML = `この縮尺だと、図面の横幅で実寸 <b>約${realW}m</b> を表します（1m ＝ ${(1 / mpp).toFixed(1)}px）。`;
+  };
+  document.querySelectorAll('#calibModal .tabbtn').forEach(b => b.onclick = () => setCalibTab(b.dataset.ctab));
+  $('cbDenom').oninput = updateDenomPreview;
+  $('cbCancel').onclick = () => $('calibModal').classList.remove('show');
+  $('cbStartTwo').onclick = () => {
+    $('calibModal').classList.remove('show');
+    setTool('calib', '縮尺設定: 地図上で距離の分かる2点を順にクリックしてください (寸法記載箇所・道路幅など)');
+  };
+  $('cbApply').onclick = () => {
+    const D = parseFloat($('cbDenom').value);
+    if (!(D > 0)) { updateDenomPreview(); return; }
+    pushUndo();
+    state.settings.mPerPx = mPerPxFromDenom(D);
+    state.settings.scaleDenominator = D;
+    state.settings.calibrated = true;
+    $('calibModal').classList.remove('show');
+    updateScaleBadge(); render(); autosave();
+    setHint(`縮尺を 1/${D} に設定しました（A3横出力時）`);
+    setTimeout(() => setHint(''), 3000);
   };
   $('btnHelp').onclick = () => $('helpModal').classList.add('show');
   $('helpClose').onclick = () => $('helpModal').classList.remove('show');
