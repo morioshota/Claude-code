@@ -13,12 +13,18 @@ import { storage } from "./lib/storage.js";
 import { AiAssistant } from "./components/AiAssistant.jsx";
 import { DetailModal } from "./components/DetailModal.jsx";
 import { DexCard } from "./components/DexCard.jsx";
+import { Heatmap } from "./components/Heatmap.jsx";
 import { RanchView } from "./components/Ranch.jsx";
 import { StockForm } from "./components/StockForm.jsx";
+import { TriggerCheckModal, dueForCheck } from "./components/TriggerCheck.jsx";
+import { FxLayer, EvoCeremony, ShinyCeremony, burstConfetti } from "./components/fx.jsx";
 import { PartyModal, BadgeModal, DataPortModal } from "./components/modals.jsx";
 import { NoteEditor } from "./components/notes.jsx";
 import { btnStyle, FilterChip, pageStyle } from "./components/ui.jsx";
 import { STORAGE_KEY, noteKey, TYPES, STATUSES, ACHIEVEMENTS, SEED, BACKUP_FORMAT } from "./data/constants.js";
+import { evoPoolFor, rollEvoFx } from "./data/evolution.js";
+import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/activity.js";
+import { sfx, soundEnabled, setSoundEnabled } from "./lib/sound.js";
 import { calcLevel, stageOf, freshInfo, evalAchievements } from "./lib/stock.js";
 import { today, uid } from "./lib/util.js";
 
@@ -34,8 +40,14 @@ export default function KabuDex() {
   const [search, setSearch] = useState("");
   const [saveState, setSaveState] = useState("");
   const [getFlash, setGetFlash] = useState(null);
-  const [evoFlash, setEvoFlash] = useState(null); // {name, stage}
+  const [evoFlash, setEvoFlash] = useState(null); // {stock, stage, tier} 進化セレモニー
+  const [shinyFlash, setShinyFlash] = useState(null); // 色違い当選セレモニー(進化と重なったら後で表示)
   const [view, setView] = useState("dex"); // 'dex'|'ranch'
+  const [activity, setActivity] = useState(null); // 草カレンダー用 {days, seeded}
+  const [soundOn, setSoundOn] = useState(soundEnabled());
+  const [checkNagDismissed, setCheckNagDismissed] = useState(() => {
+    try { return localStorage.getItem("kabu-checknag") === today(); } catch (e) { return false; }
+  });
 
   /* 読み込み(初回のみ。1回リトライ。失敗時は既存データを守るため上書きしない) */
   useEffect(() => {
@@ -66,6 +78,12 @@ export default function KabuDex() {
         noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s,
       }));
       setStocks(migrated);
+      // 草カレンダー: 初回のみ既存のメモ・記録の日付から過去の活動を復元
+      const act = await seedActivity(migrated, async (id) => {
+        const res = await storage.get(noteKey(id));
+        return res && res.value ? JSON.parse(res.value) : [];
+      });
+      setActivity(act);
     })();
   }, []);
 
@@ -81,16 +99,27 @@ export default function KabuDex() {
     setTimeout(() => setSaveState(""), 2000);
   };
 
-  /* ステージ跨ぎ検知つきの銘柄更新 */
+  /* ステージ跨ぎ検知つきの銘柄更新。進化の瞬間に:
+     1) 進化タイプをセクター別プールから抽選して永久保存(姿の決定論は保存で維持)
+     2) 演出ガチャ(超レア5%/レア25%/通常70%)を抽選。最高レアは実績用に保存 */
   const persistWithEvoCheck = (next, id) => {
     const before = stocks.find((s) => s.id === id);
-    const after = next.find((s) => s.id === id);
+    let after = next.find((s) => s.id === id);
     if (before && after) {
       const s1 = stageOf(calcLevel(before)).no;
       const s2 = stageOf(calcLevel(after)).no;
       if (s2 > s1) {
-        setEvoFlash({ name: after.name, stage: stageOf(calcLevel(after)) });
-        setTimeout(() => setEvoFlash(null), 2600);
+        let evoPattern = after.evoPattern;
+        if (!evoPattern) {
+          const pool = evoPoolFor(after.type);
+          evoPattern = pool[Math.floor(Math.random() * pool.length)];
+        }
+        const tier = rollEvoFx();
+        const rank = { normal: 0, rare: 1, ultra: 2 };
+        const evoFxBest = rank[tier] > (rank[after.evoFxBest] ?? -1) ? tier : after.evoFxBest;
+        after = { ...after, evoPattern, evoFxBest };
+        next = next.map((s) => (s.id === id ? after : s));
+        setEvoFlash({ stock: after, stage: stageOf(calcLevel(after)), tier });
       }
     }
     persist(next);
@@ -102,6 +131,9 @@ export default function KabuDex() {
     persist([...stocks, ns]);
     setFormMode(null);
     setGetFlash(ns.name);
+    sfx("get");
+    burstConfetti(30);
+    recordActivity().then(setActivity);
     setTimeout(() => setGetFlash(null), 2000);
   };
 
@@ -125,6 +157,19 @@ export default function KabuDex() {
   const addLogEntry = (id, text) => {
     const next = stocks.map((s) => (s.id === id ? { ...s, logs: [...s.logs, { date: today(), text }], lastResearch: today() } : s));
     persistWithEvoCheck(next, id);
+    sfx("levelup");
+    recordActivity().then(setActivity);
+  };
+
+  /* トリガー点検の回答: ✓無事は点検日のみ更新(鮮度は触らない=不変条件3)。
+     ⚠崩れたかもはメモをクイック記録として残す(こちらは調査なので鮮度も更新) */
+  const answerTriggerCheck = (id, result, text) => {
+    let next = stocks.map((s) => (s.id === id ? { ...s, lastTriggerCheck: today() } : s));
+    if (result === "warn" && text) {
+      next = next.map((s) => (s.id === id ? { ...s, logs: [...s.logs, { date: today(), text }], lastResearch: today() } : s));
+    }
+    persistWithEvoCheck(next, id);
+    recordActivity().then(setActivity);
   };
 
   /* ---- 生態調査記録の読み書き ---- */
@@ -154,10 +199,22 @@ export default function KabuDex() {
       return false;
     }
     // touch=true(記録の追加)のときだけ鮮度(最終調査日)を更新。削除では更新しない
-    const next = stocks.map((s) => (s.id === stockId
-      ? { ...s, noteCount: notes.length, lastResearch: touch ? today() : s.lastResearch }
-      : s));
+    // 色違い抽選: 記録の追加ごとに5%。当選は永久保存(削除では抽選しない)
+    let wonShiny = false;
+    const next = stocks.map((s) => {
+      if (s.id !== stockId) return s;
+      let ns = { ...s, noteCount: notes.length, lastResearch: touch ? today() : s.lastResearch };
+      if (touch && !s.shiny && Math.random() < 0.05) {
+        ns = { ...ns, shiny: true, shinyAt: today() };
+        wonShiny = true;
+      }
+      return ns;
+    });
     persistWithEvoCheck(next, stockId);
+    if (touch) {
+      recordActivity().then(setActivity);
+      if (wonShiny) setShinyFlash(next.find((s) => s.id === stockId));
+    }
     return true;
   };
 
@@ -193,7 +250,22 @@ export default function KabuDex() {
         }
       } catch (e) { /* 壊れた記録キーはアプリ本体でも読めないためスキップ */ }
     }
-    return { app: "kabu-dex", format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), stocks, notes };
+    const act = await loadActivity(); // 草カレンダーの活動履歴も含める(format 2)
+    return { app: "kabu-dex", format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), stocks, notes, activity: act };
+  };
+
+  /* 草カレンダーの取り込み: replaceは上書き、mergeは日ごとに大きい方を採用(二重加算を防ぐ) */
+  const importActivity = async (data, mode) => {
+    const src = data.activity && typeof data.activity.days === "object" ? data.activity : null;
+    if (!src) return;
+    const cur = await loadActivity();
+    const days = mode === "replace" ? { ...src.days } : { ...cur.days };
+    if (mode !== "replace") {
+      for (const [d, n] of Object.entries(src.days)) days[d] = Math.max(days[d] || 0, n);
+    }
+    const merged = { days, seeded: true };
+    try { await storage.set(ACTIVITY_KEY, JSON.stringify(merged)); } catch (e) { /* 草は派生データなので失敗しても本体に影響なし */ }
+    setActivity(merged);
   };
 
   const importAll = async (data, mode) => {
@@ -224,6 +296,7 @@ export default function KabuDex() {
       setStocks(nextStocks);
       setNotesCache(nextNotes);
       setSelectedId(null);
+      await importActivity(data, mode);
       return { stockCount: nextStocks.length, noteCount: countNotes(nextNotes), skipped: 0 };
     }
 
@@ -249,6 +322,7 @@ export default function KabuDex() {
     await storage.set(STORAGE_KEY, JSON.stringify({ stocks: next }));
     setStocks(next);
     setNotesCache((c) => ({ ...c, ...addedNotes }));
+    await importActivity(data, mode);
     return { stockCount: added.length, noteCount: countNotes(addedNotes), skipped };
   };
 
@@ -269,6 +343,7 @@ export default function KabuDex() {
     (search === "" || s.name.includes(search) || String(s.code).toUpperCase().includes(search.toUpperCase()))
   );
 
+  const due = dueForCheck(stocks);
   const holdCount = stocks.filter((s) => s.status === "hold").length;
   const watchCount = stocks.filter((s) => s.status === "watch").length;
   const totalLv = stocks.reduce((a, s) => a + calcLevel(s), 0);
@@ -287,9 +362,16 @@ export default function KabuDex() {
         @keyframes kzHolo { 0%{background-position:0% 50%} 100%{background-position:300% 50%} }
         @keyframes kzAura { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
         @keyframes kzHop { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
+        @keyframes kzShiny { 0%,100%{ filter: drop-shadow(0 0 3px #f0abfc) } 50%{ filter: drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 14px #f0abfc) } }
+        @keyframes kzSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes kzShake { 0%,100%{transform:translate(0,0)} 20%{transform:translate(-7px,3px)} 40%{transform:translate(6px,-4px)} 60%{transform:translate(-5px,-2px)} 80%{transform:translate(4px,3px)} }
+        body.kz-shake { animation: kzShake .55s ease; }
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
         ::placeholder { color: #4a5170; }
       `}</style>
+
+      {/* パーティクルの受け皿(紙吹雪・星・フラッシュ) */}
+      <FxLayer />
 
       {/* ゲット演出 */}
       {getFlash && (
@@ -299,17 +381,10 @@ export default function KabuDex() {
         </div>
       )}
 
-      {/* 進化演出 */}
-      {evoFlash && (
-        <div style={{ position: "fixed", top: "40%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 100, background: "#0e1122", borderRadius: 16, padding: 2, backgroundImage: "linear-gradient(#0e1122,#0e1122), linear-gradient(120deg,#f0abfc,#ffd166,#4ade80,#60a5fa,#f0abfc)", backgroundOrigin: "border-box", backgroundClip: "padding-box, border-box", border: "2px solid transparent", boxShadow: "0 0 50px rgba(240,171,252,.4)", animation: "kzPop 2.6s ease forwards", pointerEvents: "none" }}>
-          <div style={{ padding: "18px 28px", textAlign: "center" }}>
-            <div style={{ fontSize: 34 }}>✨</div>
-            <div style={{ fontFamily: "'DotGothic16', monospace", color: "#f0abfc", fontSize: 16, marginTop: 4 }}>
-              シンカ！ {evoFlash.name} は<br />STAGE {evoFlash.stage.no}「{evoFlash.stage.name}」になった！
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 進化セレモニー(演出ガチャ) */}
+      {evoFlash && <EvoCeremony evo={evoFlash} onDone={() => setEvoFlash(null)} />}
+      {/* 色違いセレモニー(進化と重なった場合は進化のあとに表示) */}
+      {shinyFlash && !evoFlash && <ShinyCeremony stock={shinyFlash} onDone={() => setShinyFlash(null)} />}
 
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "20px 14px 60px" }}>
         {/* ヘッダー */}
@@ -345,8 +420,26 @@ export default function KabuDex() {
           )}
         </div>
 
+        {/* 研究活動の草カレンダー */}
+        {activity && <Heatmap activity={activity} />}
+
+        {/* トリガー点検の案内(30日経過銘柄があるとき、1日1回) */}
+        {due.length > 0 && !checkNagDismissed && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#2e230e", border: "1.5px solid #fbbf2466", borderRadius: 12, padding: "10px 14px", marginBottom: 12 }}>
+            <span style={{ fontSize: 20 }}>🔔</span>
+            <span style={{ flex: 1, fontSize: 12.5, color: "#fcd34d", lineHeight: 1.5 }}>
+              点検の時間です！ 前提のチェックが30日以上あいた銘柄が<b>{due.length}件</b>あります
+            </span>
+            <button onClick={() => setPanel("check")} style={{ all: "unset", cursor: "pointer", background: "#fbbf24", color: "#221a00", fontWeight: 800, fontSize: 12, borderRadius: 8, padding: "7px 12px", whiteSpace: "nowrap" }}>点検する</button>
+            <button onClick={() => {
+              setCheckNagDismissed(true);
+              try { localStorage.setItem("kabu-checknag", today()); } catch (e) { /* 保存できなくても今セッションは消える */ }
+            }} style={{ all: "unset", cursor: "pointer", color: "#8b93b8", fontSize: 16, padding: 4 }}>✕</button>
+          </div>
+        )}
+
         {/* ビュー切り替え */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
           {[["dex", "📕 図鑑"], ["ranch", "🏞 ぼくじょう"]].map(([k, label]) => (
             <button key={k} onClick={() => setView(k)} style={{
               all: "unset", cursor: "pointer", padding: "8px 18px", borderRadius: 10,
@@ -356,6 +449,12 @@ export default function KabuDex() {
               color: view === k ? "#ffd166" : "#5b6284",
             }}>{label}</button>
           ))}
+          <button
+            onClick={() => { const next = !soundOn; setSoundOn(next); setSoundEnabled(next); if (next) sfx("sparkle"); }}
+            title={soundOn ? "効果音オン" : "効果音オフ"}
+            style={{ all: "unset", cursor: "pointer", marginLeft: "auto", fontSize: 17, padding: "6px 10px", borderRadius: 10, border: "1.5px solid #252b48", opacity: soundOn ? 1 : 0.45 }}>
+            {soundOn ? "🔊" : "🔇"}
+          </button>
         </div>
 
         {view === "ranch" && <RanchView stocks={stocks} onSelect={openDetail} />}
@@ -368,6 +467,9 @@ export default function KabuDex() {
           </button>
           <button onClick={() => setPanel("party")} style={{ ...btnStyle("#60a5fa"), padding: "8px 13px" }}>📊 パーティ分析</button>
           <button onClick={() => setPanel("badges")} style={{ ...btnStyle("#ffd166"), padding: "8px 13px" }}>🎖 実績 {unlockedCount}/{ACHIEVEMENTS.length}</button>
+          <button onClick={() => setPanel("check")} style={{ ...btnStyle("#fbbf24"), padding: "8px 13px" }}>
+            🔔 点検{due.length > 0 && <span style={{ background: "#f87171", color: "#fff", borderRadius: 999, fontSize: 10, padding: "1px 6px", marginLeft: 4 }}>{due.length}</span>}
+          </button>
           <button onClick={() => setPanel("data")} style={{ ...btnStyle("#4ade80"), padding: "8px 13px" }}>💾 バックアップ</button>
           <input
             value={search} onChange={(e) => setSearch(e.target.value)}
@@ -437,6 +539,7 @@ export default function KabuDex() {
       {panel === "party" && <PartyModal stocks={stocks} onClose={() => setPanel(null)} />}
       {panel === "badges" && <BadgeModal stocks={stocks} onClose={() => setPanel(null)} />}
       {panel === "data" && <DataPortModal stocks={stocks} onExport={exportAll} onImport={importAll} onClose={() => setPanel(null)} />}
+      {panel === "check" && <TriggerCheckModal due={due} onAnswer={answerTriggerCheck} onClose={() => setPanel(null)} />}
     </div>
   );
 }

@@ -53,6 +53,9 @@ const ACHIEVEMENTS = [
   { id: "stage4",  icon: "👑", name: "マスター調査員",     desc: "1銘柄をステージ4まで育成" },
   { id: "risk",    icon: "🛡️", name: "リスクマネージャー", desc: "保有全銘柄に「にげるタイミング」を設定" },
   { id: "fresh",   icon: "🌿", name: "鮮度キーパー",       desc: "保有全銘柄を45日以内に調査済みに保つ" },
+  { id: "shiny1",   icon: "✨", name: "いろちがいハンター", desc: "色違いの銘柄を手に入れる（記録保存ごとに5%）" },
+  { id: "ultraEvo", icon: "🌈", name: "ゴッドえんしゅつ",   desc: "超レア進化演出（5%）を引き当てる" },
+  { id: "check1",   icon: "🔔", name: "てんけんたい",       desc: "トリガー点検をおこなう" },
 ];
 
 const SEED = [
@@ -120,6 +123,6 @@ const MEMO_TEMPLATE = `# 投資メモ: [銘柄名]([コード])
 ## 次に調べること
 -`;
 
-const BACKUP_FORMAT = 1;
+const BACKUP_FORMAT = 2; // 2: activity(草カレンダー)を含む。1のファイルも読み込み可
 
 export { STORAGE_KEY, noteKey, TYPES, RARITIES, STATUSES, STAGES, ACHIEVEMENTS, SEED, MEMO_TEMPLATE, BACKUP_FORMAT };

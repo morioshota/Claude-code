@@ -2,7 +2,9 @@
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+// 乱数+時刻に加えプロセス内連番を足す: 同一ミリ秒に複数発行しても衝突しない
+let uidSeq = 0;
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36) + (uidSeq++).toString(36);
 
 const daysSince = (dateStr) => {
   if (!dateStr) return null;
@@ -31,6 +33,25 @@ const shade = (hex, f) => {
   return `rgb(${r},${g},${b})`;
 };
 
-/* タイプごとの配色(体色3種＋腹＋アクセント) */
+/* 色相をdeg度回す(hex→hex)。色違い(シャイニー)の配色替えに使用 */
+const hueShift = (hex, deg) => {
+  const n = parseInt(hex.slice(1), 16);
+  let r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0; const l = (max + min) / 2;
+  const d = max - min;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  h = (h + deg + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+  let [r2, g2, b2] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  const to = (v) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+  return `#${to(r2)}${to(g2)}${to(b2)}`;
+};
 
-export { today, uid, daysSince, hashStr, mulberry32, shade };
+export { today, uid, daysSince, hashStr, mulberry32, shade, hueShift };

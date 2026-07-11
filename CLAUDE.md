@@ -24,8 +24,11 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 - `src/lib/util.js` — 日付/ID生成/ハッシュ/擬似乱数/色
 - `src/lib/stock.js` — 銘柄の派生値（Lv/CP/ステージ/鮮度/実績判定）
 - `src/lib/quotes.js` — 参考株価の取得・キャッシュ（`api/quote.js` 経由）
-- `src/lib/sprites.js` — ドット絵のピクセル生成（決定論的抽選）
-- `src/components/` — UI部品（`ui.jsx` 共通部品 / `DexCard` / `DetailModal` / `StockForm` / `notes` / `AiAssistant` / `modals`（パーティ・実績・バックアップ）/ `Ranch`（3D牧場））
+- `src/lib/sprites.js` — ドット絵のピクセル生成（決定論的抽選＋進化装飾＋色違い）
+- `src/lib/sound.js` — レトロ効果音（Web Audioで自前生成。`kabu-sound` キーでミュート永続化）
+- `src/lib/activity.js` — 研究活動の記録（草カレンダー用。`kabu-activity-v1` キー）
+- `src/data/evolution.js` — 進化パターンのタイプ別プールと演出ガチャの確率
+- `src/components/` — UI部品（`ui.jsx` 共通部品 / `DexCard` / `DetailModal` / `StockForm` / `notes` / `AiAssistant` / `modals`（パーティ・実績・バックアップ）/ `Ranch`（3D牧場）/ `Heatmap`（草カレンダー）/ `TriggerCheck`（トリガー点検）/ `fx`（演出レイヤー・セレモニー））
 - `src/main.jsx` / `index.html` — エントリポイント
 
 ## データモデル
@@ -38,9 +41,17 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
   "status": "hold | watch | sold",
   "hypothesis": "マクロ仮説", "bullets": ["強気材料"], "risks": ["リスク"],
   "triggers": ["前提が崩れる条件"], "logs": [{"date":"YYYY-MM-DD","text":"クイック記録"}],
-  "noteCount": 0, "lastResearch": "YYYY-MM-DD"
+  "noteCount": 0, "lastResearch": "YYYY-MM-DD",
+  "shiny": false, "shinyAt": "当選日(任意)",
+  "evoPattern": "進化装飾のkind(初進化時に抽選し永久保存。evolution.js参照)",
+  "evoFxBest": "normal|rare|ultra (引いた進化演出の最高レア。実績用)",
+  "lastTriggerCheck": "YYYY-MM-DD (トリガー点検の最終実施日)"
 } ] }
 ```
+
+### storage key: `kabu-activity-v1`
+草カレンダー用の日別活動回数。`{ "days": {"YYYY-MM-DD": 回数}, "seeded": true }`。
+初回のみ既存のメモ・記録の日付から復元(seed)する。バックアップ(format 2)に含まれる。
 
 ### storage key: `kabu-notes:{stockId}`
 生態調査記録（投資メモ全文）の配列。銘柄ごとに独立キー。
@@ -54,6 +65,8 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 2. **種族システム**: `SPECIES_POOL` はタイプごと3種族×10タイプ=30種族のドット絵（12px幅の文字列グリッド）。文字は `.bsaoweyE` のうち `.bsaowye` のみ許可
 3. **鮮度と動き**: `lastResearch` からの経過日数で 0-14日=跳ねる / -45日=歩く / -90日=のんびり / 90日超=眠る。**記録の削除では鮮度を更新しない**（touch フラグ）
 4. **保存失敗時の保護**: 読み込み失敗時は既存データを上書きしない。保存失敗時はキャッシュを巻き戻して入力を保持する
+5. **運は研究行動にだけ紐づく**: 色違い(記録保存ごと5%)・進化パターン・演出ガチャの抽選トリガーは調査記録・メモ・点検などの研究行動のみ。株価・市場の動きを抽選や演出に絡めてはいけない
+6. **抽選結果は永久保存**: `shiny`・`evoPattern` は一度当選したらstockに保存され変わらない（開くたびに変わる姿はNG＝不変条件1の延長）。色違いの再抽選や取り消しをしない
 
 ## 開発コマンド
 
@@ -83,6 +96,15 @@ npm run build    # 本番ビルド(dist/)
 - 取得失敗・未対応銘柄・未デプロイ環境では行ごと非表示（アプリ本体に影響を出さない）
 - シンボル変換: 数字始まり4桁（1721 / 186A）→ 東証 `.T`、英字ティッカー（RKLB / BRK.B）→ そのまま（`.`は`-`に）
 - ⚠ Yahoo Financeは非公式エンドポイント。個人利用・表示目的にとどめる（商用再配信は規約上不可の可能性）
+
+## あそびシステム（草・点検・ガチャ・演出）
+
+- **草カレンダー**: `Heatmap.jsx`＋`lib/activity.js`。調査記録・メモ・銘柄登録・点検で+1。連続日数(🔥)表示
+- **トリガー点検**: `TriggerCheck.jsx`。triggersが登録済みで30日以上未点検の銘柄が対象。✓無事=点検日のみ更新(鮮度は触らない)、⚠崩れたかも=メモをクイック記録として保存(鮮度も更新)。起動時バナーは1日1回(`kabu-checknag`)
+- **色違い(シャイニー)**: 記録保存(touch)ごとに5%抽選→`shiny:true`永久保存。配色を色相150度回転＋きらめきドット
+- **進化ビジュアル**: ステージ2以上で進化装飾が育つ。初進化時にタイプ別プール(`evolution.js`)から抽選→`evoPattern`永久保存。ステージ4は王冠
+- **進化演出ガチャ**: 進化の瞬間に 通常70%/レア25%/超レア5%(`fx.jsx`のEvoCeremony)。最高レアは`evoFxBest`に保存(実績用)
+- **効果音**: `lib/sound.js`。🔊ボタンでミュート(永続)。`prefers-reduced-motion`ではパーティクル等の演出を自動オフ
 
 ## バックログ（優先度順の提案）
 

@@ -65,7 +65,7 @@ function MdView({ text }) {
 
 function Creature({ stock, size = 64, sleeping = false }) {
   const { grid, w, h } = buildPixels(stock, sleeping);
-  return (
+  const svg = (
     <svg width={size} height={Math.round(size * (h / w))} viewBox={`0 0 ${w} ${h}`}
       shapeRendering="crispEdges" style={{ display: "block", imageRendering: "pixelated" }}>
       {grid.map((row, y) => row.map((c, x) => (
@@ -73,6 +73,9 @@ function Creature({ stock, size = 64, sleeping = false }) {
       )))}
     </svg>
   );
+  if (!stock.shiny) return svg;
+  // 色違いはきらめきのオーラをまとう(動きを減らす設定では@media側でアニメ停止)
+  return <div style={{ animation: "kzShiny 2.2s ease-in-out infinite" }}>{svg}</div>;
 }
 
 /* 3D用: canvasテクスチャ(名前ラベル・💤入り)を生成 */

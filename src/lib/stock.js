@@ -43,6 +43,9 @@ const evalAchievements = (stocks) => {
   if (stocks.some((s) => stageOf(calcLevel(s)).no === 4)) unlocked.add("stage4");
   if (holds.length > 0 && holds.every((s) => (s.triggers || []).length > 0)) unlocked.add("risk");
   if (holds.length > 0 && holds.every((s) => { const d = daysSince(s.lastResearch); return d !== null && d <= 45; })) unlocked.add("fresh");
+  if (stocks.some((s) => s.shiny)) unlocked.add("shiny1");
+  if (stocks.some((s) => s.evoFxBest === "ultra")) unlocked.add("ultraEvo");
+  if (stocks.some((s) => s.lastTriggerCheck)) unlocked.add("check1");
   return unlocked;
 };
 

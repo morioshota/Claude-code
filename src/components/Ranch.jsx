@@ -31,7 +31,7 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
   // メンバー・ステータス・睡眠・ステージが変わったときだけシーンを作り直す
   const sceneKey = stocks
     .filter((s) => s.status !== "sold")
-    .map((s) => `${s.id}:${s.status}:${moveTierOf(s) === 3 ? "z" : "a"}:${stageOf(calcLevel(s)).no}`)
+    .map((s) => `${s.id}:${s.status}:${moveTierOf(s) === 3 ? "z" : "a"}:${stageOf(calcLevel(s)).no}:${s.shiny ? "S" : ""}:${s.evoPattern || ""}`)
     .join("|");
 
   useEffect(() => {
