@@ -12,7 +12,7 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 ## 技術スタック
 
 - Vite + React 18（JSX、単一コンポーネントファイル構成）
-- three.js 0.128（3D牧場。カメラ操作は公式OrbitControls＝慣性つき。タップ選択は自前実装で、7px以上のドラッグ後や2本指操作では選択しない）
+- three.js 0.128（3D牧場。カメラ操作は公式OrbitControls＝慣性つき。タップ選択は自前実装で、7px以上のドラッグ後や2本指操作では選択しない。HD-2D風演出: UnrealBloomPassの光のにじみ・Fogの空気遠近・足元のブロブシャドウ。コンポーザー生成に失敗したら素のレンダラーへフォールバック）
 - 永続化: `src/lib/storage.js` のアダプタ経由（現在はlocalStorage）
 
 ## ファイル構成
@@ -24,7 +24,7 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 - `src/lib/util.js` — 日付/ID生成/ハッシュ/擬似乱数/色
 - `src/lib/stock.js` — 銘柄の派生値（Lv/CP/ステージ/鮮度/実績判定）
 - `src/lib/quotes.js` — 参考株価の取得・キャッシュ（`api/quote.js` 経由）
-- `src/lib/sprites.js` — ドット絵のピクセル生成（決定論的抽選＋進化装飾＋色違い）
+- `src/lib/sprites.js` — ドット絵のピクセル生成（決定論的抽選＋進化装飾＋色違い＋GBA風仕上げ: EPX2倍拡大→3トーン陰影→アウトライン。すべて決定論的な画像処理）
 - `src/lib/sound.js` — レトロ効果音（Web Audioで自前生成。`kabu-sound` キーでミュート永続化）
 - `src/lib/activity.js` — 研究活動の記録（草カレンダー用。`kabu-activity-v1` キー）
 - `src/data/evolution.js` — 進化パターンのタイプ別プールと演出ガチャの確率

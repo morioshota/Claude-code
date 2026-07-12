@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { Creature } from "./ui.jsx";
 import { spriteCanvasFor } from "../lib/sprites.js";
 import { calcLevel, stageOf, moveTierOf } from "../lib/stock.js";
@@ -72,6 +75,15 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
     controls.maxPolarAngle = 1.35;
     controls.update();
 
+    // HD-2D風ポストプロセス: 光のにじみ(ブルーム)。非対応環境では素のレンダラーに落とす
+    let composer = null;
+    try {
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+      composer.addPass(new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.42, 0.65, 0.72));
+      composer.setSize(W(), H());
+    } catch (e) { composer = null; }
+
     // ライト(時間帯で変化)
     const amb = new THREE.AmbientLight(0xffffff, 0.7);
     const sun = new THREE.DirectionalLight(0xfff4e0, 0.8);
@@ -134,6 +146,7 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
     const applyTime = () => {
       const p = PHASE_INFO[dayPhase()];
       scene.background = new THREE.Color(p.sky);
+      scene.fog = new THREE.Fog(new THREE.Color(p.sky), 30, 100); // HD-2D風の空気遠近
       amb.intensity = p.amb;
       sun.intensity = p.sun;
       stars.material.opacity = p.stars;
@@ -161,7 +174,16 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
       st.tx = st.x; st.tz = st.z; st.hop = Math.random() * 6;
       sp.position.set(st.x, hgt / 2, st.z);
       scene.add(sp);
-      members.set(s.id, { sp, st, tex, hgt, tier });
+      // 足元の柔らかい落とし影(HD-2D風)。ジャンプ中は小さく薄くなる
+      const sh = new THREE.Mesh(
+        new THREE.CircleGeometry(1, 18),
+        new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.26, depthWrite: false })
+      );
+      sh.rotation.x = -Math.PI / 2;
+      sh.scale.set(1.15, 0.72, 1);
+      sh.position.set(st.x, 0.03, st.z + 0.15);
+      scene.add(sh);
+      members.set(s.id, { sp, sh, st, tex, hgt, tier });
     });
 
     // 徘徊(鮮度で速さ・頻度が変化)
@@ -201,9 +223,14 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
         const moving = Math.hypot(o.st.tx - p.x, o.st.tz - p.z) > 0.35;
         const hopY = o.tier === 0 && moving && !reduced ? Math.abs(Math.sin(t * 6 + o.st.hop)) * 0.5 : 0;
         p.y = o.hgt / 2 + hopY;
+        // 影はキャラの真下。ジャンプの高さに応じて小さく・薄く
+        const k = 1 - hopY * 0.35;
+        o.sh.position.set(p.x, 0.03, p.z + 0.15);
+        o.sh.scale.set(1.15 * k, 0.72 * k, 1);
+        o.sh.material.opacity = 0.26 - hopY * 0.12;
       });
       controls.update(); // 慣性(damping)の反映
-      renderer.render(scene, camera);
+      if (composer) composer.render(); else renderer.render(scene, camera);
     };
     loop();
 
@@ -240,6 +267,7 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
       camera.aspect = W() / H();
       camera.updateProjectionMatrix();
       renderer.setSize(W(), H());
+      if (composer) composer.setSize(W(), H());
     });
     ro.observe(mount);
 
@@ -252,8 +280,12 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointerup", onUp);
       el.removeEventListener("pointercancel", onCancel);
-      members.forEach((o) => { o.tex.dispose(); o.sp.material.dispose(); });
+      members.forEach((o) => {
+        o.tex.dispose(); o.sp.material.dispose();
+        o.sh.geometry.dispose(); o.sh.material.dispose();
+      });
       starGeo.dispose();
+      if (composer) { composer.renderTarget1.dispose(); composer.renderTarget2.dispose(); }
       renderer.dispose();
       if (el.parentNode === mount) mount.removeChild(el);
     };

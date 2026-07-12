@@ -9,6 +9,85 @@ import { hashStr, mulberry32, shade, hueShift } from "./util.js";
 
 const GOLD = "#ffd166", WHITE = "#ffffff";
 
+/* ---- GBA風仕上げ(すべて決定論的な画像処理なので不変条件1は維持される) ----
+   1) EPX/Scale2x で2倍拡大: 斜め線がなめらかにつながり24ドット相当の密度になる
+   2) 3トーン陰影: 左上光源。上面・左面はハイライト、下面・右面と下半身は影
+   3) アウトライン: シルエット外周に暗い縁取り(GBAスプライトの定番) */
+
+const parseCol = (c) => {
+  if (c[0] === "#") {
+    const n = parseInt(c.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const m = c.match(/rgb\((\d+),(\d+),(\d+)\)/);
+  return m ? [+m[1], +m[2], +m[3]] : [128, 128, 128];
+};
+const mixCol = (c, target, f) => {
+  const a = parseCol(c);
+  const v = a.map((x, i) => Math.round(x + (target[i] - x) * f));
+  return `rgb(${v[0]},${v[1]},${v[2]})`;
+};
+const lum = (c) => { const [r, g, b] = parseCol(c); return (r * 3 + g * 6 + b) / 2550; };
+
+const epx2 = (g) => {
+  const h = g.length, w = g[0].length;
+  const out = Array.from({ length: h * 2 }, () => new Array(w * 2).fill(null));
+  const at = (y, x) => (y >= 0 && y < h && x >= 0 && x < w ? g[y][x] : null);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const P = g[y][x], A = at(y - 1, x), B = at(y, x + 1), C = at(y, x - 1), D = at(y + 1, x);
+      out[y * 2][x * 2]         = C === A && C !== D && A !== B ? A : P;
+      out[y * 2][x * 2 + 1]     = A === B && A !== C && B !== D ? B : P;
+      out[y * 2 + 1][x * 2]     = D === C && D !== B && C !== A ? C : P;
+      out[y * 2 + 1][x * 2 + 1] = B === D && B !== A && D !== C ? D : P;
+    }
+  }
+  return out;
+};
+
+const shadeGrid = (g) => {
+  const h = g.length, w = g[0].length;
+  const at = (y, x) => (y >= 0 && y < h && x >= 0 && x < w ? g[y][x] : null);
+  let top = h, bot = -1;
+  g.forEach((row, y) => { if (row.some(Boolean)) { if (y < top) top = y; if (y > bot) bot = y; } });
+  const span = Math.max(1, bot - top);
+  const out = g.map((row) => [...row]);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const c = g[y][x];
+      if (!c || lum(c) < 0.16) continue; // 目などの暗色はいじらない(潰れ防止)
+      const openU = !at(y - 1, x), openL = !at(y, x - 1), openD = !at(y + 1, x), openR = !at(y, x + 1);
+      let f = 0;
+      if (openU) f += 0.30;
+      if (openL) f += 0.13;
+      if (openU && openL) f += 0.12; // 左上角のスペキュラ
+      if (f > 0) { out[y][x] = mixCol(c, [255, 255, 255], Math.min(f, 0.5)); continue; }
+      let d = 0;
+      if (openD) d += 0.28;
+      if (openR) d += 0.12;
+      const rel = (y - top) / span;
+      if (rel > 0.6) d += 0.18 * ((rel - 0.6) / 0.4); // 下半身は暗めにして丸みを出す
+      if (d > 0) out[y][x] = mixCol(c, [10, 12, 24], Math.min(d, 0.45));
+    }
+  }
+  return out;
+};
+
+const OUTLINE = "#10131f";
+const outlineGrid = (grid) => {
+  const g = padGrid(grid, 1, 1);
+  const h = g.length, w = g[0].length;
+  const src = g.map((r) => [...r]);
+  const at = (y, x) => (y >= 0 && y < h && x >= 0 && x < w ? src[y][x] : null);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (src[y][x]) continue;
+      if (at(y - 1, x) || at(y + 1, x) || at(y, x - 1) || at(y, x + 1)) g[y][x] = OUTLINE;
+    }
+  }
+  return g;
+};
+
 const put = (g, y, x, col) => {
   if (y >= 0 && y < g.length && x >= 0 && x < g[0].length) g[y][x] = col;
 };
@@ -188,6 +267,8 @@ function buildPixels(stock, sleeping) {
     put(grid, b2 - 1, (rowBounds(grid[b2]) || tb)[0] - 1, WHITE);
   }
   grid = trimGrid(grid);
+  // GBA風仕上げ: 2倍拡大 → 陰影 → アウトライン(順序重要: 輪郭は陰影の後)
+  grid = outlineGrid(shadeGrid(epx2(grid)));
   return { grid, w: grid[0].length, h: grid.length, speciesName: species.name };
 }
 
@@ -195,7 +276,7 @@ function buildPixels(stock, sleeping) {
 
 function spriteCanvasFor(stock, sleeping) {
   const { grid, w, h } = buildPixels(stock, sleeping);
-  const S = 9, W = Math.max(132, w * S + 12), labelH = 20;
+  const S = 5, W = Math.max(132, w * S + 12), labelH = 20; // 2倍密度グリッドに合わせてセルを縮小(見かけの大きさは維持)
   const cv = document.createElement("canvas");
   cv.width = W; cv.height = h * S + labelH;
   const ctx = cv.getContext("2d");

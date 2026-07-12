@@ -63,19 +63,32 @@ function MdView({ text }) {
   return <div>{out}</div>;
 }
 
-function Creature({ stock, size = 64, sleeping = false }) {
+function Creature({ stock, size = 64, sleeping = false, shadow = true }) {
   const { grid, w, h } = buildPixels(stock, sleeping);
   const svg = (
     <svg width={size} height={Math.round(size * (h / w))} viewBox={`0 0 ${w} ${h}`}
-      shapeRendering="crispEdges" style={{ display: "block", imageRendering: "pixelated" }}>
+      shapeRendering="crispEdges" style={{ display: "block", imageRendering: "pixelated", position: "relative", zIndex: 1 }}>
       {grid.map((row, y) => row.map((c, x) => (
         c ? <rect key={`${x}-${y}`} x={x} y={y} width="1.02" height="1.02" fill={c} /> : null
       )))}
     </svg>
   );
-  if (!stock.shiny) return svg;
+  // HD-2D風の足元の落とし影(柔らかい楕円)。地面に立っている立体感を出す
+  const withShadow = (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      {shadow && (
+        <div style={{
+          position: "absolute", left: "12%", right: "12%", bottom: "-4%", height: "14%",
+          background: "radial-gradient(ellipse at center, rgba(0,0,0,.42) 0%, rgba(0,0,0,0) 68%)",
+          zIndex: 0, pointerEvents: "none",
+        }} />
+      )}
+      {svg}
+    </div>
+  );
+  if (!stock.shiny) return withShadow;
   // 色違いはきらめきのオーラをまとう(動きを減らす設定では@media側でアニメ停止)
-  return <div style={{ animation: "kzShiny 2.2s ease-in-out infinite" }}>{svg}</div>;
+  return <div style={{ animation: "kzShiny 2.2s ease-in-out infinite", display: "inline-block" }}>{withShadow}</div>;
 }
 
 /* 3D用: canvasテクスチャ(名前ラベル・💤入り)を生成 */
