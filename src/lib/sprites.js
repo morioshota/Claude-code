@@ -237,10 +237,12 @@ function buildPixels(stock, sleeping) {
   // 進化装飾: ステージ2以上で成長。パターンは進化時に抽選されstockに保存済み。
   // 保存がない(旧データ・インポート)場合はコードから決定論的にフォールバック
   const stageNo = stageOf(calcLevel(stock)).no;
+  let evoKind = null;
   if (stageNo >= 2) {
     const evoPool = evoPoolFor(stock.type);
-    const kind = stock.evoPattern || evoPool[hashStr(seedSrc + ":evo") % evoPool.length];
-    grid = applyEvoPattern(grid, kind, Math.min(stageNo - 1, 3), accent, body);
+    evoKind = stock.evoPattern || evoPool[hashStr(seedSrc + ":evo") % evoPool.length];
+    // オーラ系はここでは描かない: 光の粒はGBA仕上げの後に✦で描く(下記)
+    if (evoKind !== "aura") grid = applyEvoPattern(grid, evoKind, Math.min(stageNo - 1, 3), accent, body);
   }
   // ステージ4は王冠を頭上に(体の中心=最も幅の広い行の中央に載せる)
   if (stageNo >= 4) {
@@ -261,19 +263,38 @@ function buildPixels(stock, sleeping) {
   grid = trimGrid(grid);
   // GBA風仕上げ: 2倍拡大 → 陰影 → アウトライン(順序重要: 輪郭は陰影の後)
   grid = outlineGrid(shadeGrid(epx2(grid)));
-  // 色違いのきらめきは仕上げの後に✦(ダイヤ型)で描く:
-  // 輪郭処理を通さないことで「浮いた四角」ではなく「光の粒」に見える
+
+  // ---- 光の粒(オーラ・色違い)は仕上げの後に✦(ダイヤ型)で描く:
+  //      輪郭処理を通さないことで「浮いた四角」ではなく「光」に見える ----
+  const sparkle = (g, y, x, core, arm) => {
+    put(g, y, x, core);
+    [[y - 1, x], [y + 1, x], [y, x - 1], [y, x + 1]].forEach(([yy, xx]) => put(g, yy, xx, arm));
+  };
+  if (evoKind === "aura") {
+    grid = padGrid(grid, 4, 4);
+    const t = topRow(grid), b2 = bottomRow(grid);
+    const tb = rowBounds(grid[t]) || [0, grid[0].length - 1];
+    const bb = rowBounds(grid[b2]) || tb;
+    const midY = Math.round((t + b2) / 2);
+    const cx = Math.round((tb[0] + tb[1]) / 2);
+    const level = Math.min(stageNo - 1, 3);
+    const spots = [
+      [t - 1, tb[1] + 3], [b2 - 1, bb[0] - 2], [midY - 2, bb[0] - 3], [t - 2, tb[0] - 1],
+      [midY, tb[1] + 4], [b2 + 1, bb[1] + 2], [t - 3, cx],
+      [midY + 2, bb[0] - 4], [t, tb[0] - 3], [b2 - 3, bb[1] + 3],
+    ];
+    const n = level === 1 ? 4 : level === 2 ? 7 : 10;
+    spots.slice(0, n).forEach(([y, x], i) =>
+      sparkle(grid, y, x, i % 2 ? WHITE : GOLD, i % 2 ? "#e9d5ff" : "#fde68a"));
+    grid = trimGrid(grid);
+  }
   if (shiny) {
-    const sparkle = (g, y, x) => {
-      put(g, y, x, WHITE);
-      [[y - 1, x], [y + 1, x], [y, x - 1], [y, x + 1]].forEach(([yy, xx]) => put(g, yy, xx, "#e9d5ff"));
-    };
     grid = padGrid(grid, 2, 2);
     const t = topRow(grid), b2 = bottomRow(grid);
     const tb = rowBounds(grid[t]) || [0, grid[0].length - 1];
     const bb = rowBounds(grid[b2]) || tb;
-    sparkle(grid, t + 1, tb[1] + 2);
-    sparkle(grid, b2 - 2, bb[0] - 1);
+    sparkle(grid, t + 1, tb[1] + 2, WHITE, "#e9d5ff");
+    sparkle(grid, b2 - 2, bb[0] - 1, WHITE, "#e9d5ff");
     grid = trimGrid(grid);
   }
   return { grid, w: grid[0].length, h: grid.length, speciesName: species.name };

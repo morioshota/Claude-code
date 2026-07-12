@@ -36,7 +36,7 @@ function DexCard({ stock, onClick }) {
         filter: sold ? "none" : `drop-shadow(0 0 ${6 + stage.no * 3}px ${t.color}${stage.no >= 3 ? "aa" : "66"})`,
         animation: stage.no >= 4 && !sold ? "kzAura 2.4s ease-in-out infinite" : "none",
       }}>
-        <Creature stock={stock} size={stage.iconSize + 28} sleeping={!!(fresh && fresh.days !== null && fresh.days > 90)} />
+        <Creature stock={stock} size={stage.iconSize + 38} sleeping={!!(fresh && fresh.days !== null && fresh.days > 90)} />
       </div>
       <div style={{ textAlign: "center", marginBottom: 4 }}>
         <span style={{

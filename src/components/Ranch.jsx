@@ -76,13 +76,16 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
     controls.update();
 
     // HD-2D風ポストプロセス: 光のにじみ(ブルーム)。非対応環境では素のレンダラーに落とす
-    let composer = null;
+    // ⚠ 強度・しきい値は時間帯で変える(applyTime参照)。昼の明るい空に強いブルームを
+    //   掛けると画面全体が白飛びするため、昼は控えめ・夜はしっかり光らせる
+    let composer = null, bloomPass = null;
     try {
       composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
-      composer.addPass(new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.85, 0.85, 0.5));
+      bloomPass = new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.3, 0.7, 0.9);
+      composer.addPass(bloomPass);
       composer.setSize(W(), H());
-    } catch (e) { composer = null; }
+    } catch (e) { composer = null; bloomPass = null; }
 
     // ライト(時間帯で変化)
     const amb = new THREE.AmbientLight(0xffffff, 0.7);
@@ -144,12 +147,19 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
 
     // 実時間の昼夜(1分ごとに再判定)
     const applyTime = () => {
-      const p = PHASE_INFO[dayPhase()];
+      const phase = dayPhase();
+      const p = PHASE_INFO[phase];
       scene.background = new THREE.Color(p.sky);
       scene.fog = new THREE.Fog(new THREE.Color(p.sky), 30, 100); // HD-2D風の空気遠近
       amb.intensity = p.amb;
       sun.intensity = p.sun;
       stars.material.opacity = p.stars;
+      if (bloomPass) {
+        // 昼: 空が明るいのでほぼ光らせない / 夕方: ほどほど / 夜: しっかり発光
+        const b = phase === "day" ? { s: 0.22, t: 0.92 } : phase === "dusk" ? { s: 0.5, t: 0.75 } : { s: 0.85, t: 0.55 };
+        bloomPass.strength = b.s;
+        bloomPass.threshold = b.t;
+      }
     };
     applyTime();
     const timeIv = setInterval(applyTime, 60000);
