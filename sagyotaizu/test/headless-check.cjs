@@ -27,6 +27,7 @@ function makeEl(id){
     getBoundingClientRect(){return {width:800,height:600,left:0,top:0}},
     focus(){}, select(){}, click(){ if(this.onclick) this.onclick(); },
     toDataURL(){return 'data:,'}, toBlob(cb){cb({});} };
+  e.contentWindow = { document:{ open(){}, write(){}, close(){}, querySelector(){return null}, querySelectorAll(){return []} }, focus(){}, print(){} };
   e.parentElement = e; return e;
 }
 global.document = {
@@ -38,6 +39,7 @@ global.window = global; global.devicePixelRatio = 1; global.addEventListener = (
 global.localStorage = { getItem:()=>null, setItem:()=>{}, removeItem:()=>{} };
 global.alert = ()=>{}; global.Blob = class{}; global.Image = class{ set src(v){} };
 global.setTimeout = (fn)=>{ if(typeof fn==='function') fn(); return 0; }; global.clearTimeout = ()=>{};
+global.URL = { createObjectURL:()=>'blob:x', revokeObjectURL:()=>{} };
 
 const fs = require('fs');
 const htmlPath = process.argv[2] || require('path').join(__dirname, '..', '作業帯図作成ツール.html');
@@ -219,6 +221,28 @@ const tests = `
   var legacy={type:'conerow',pts:[{x:0,y:0},{x:40,y:0}],interval:2,bar:true};
   var threwL=null; try{ drawObj(makeCtx(), legacy); }catch(e){ threwL=e; }
   ok(!threwL, 'legacy conerow (no kind) still draws'+(threwL?': '+threwL.message:''));
+
+  // ---- BATCH OUTPUT (all patterns) ----
+  state.patterns=[]; state.activePattern=0;
+  var pa=makePattern(); pa.name='区間A'; pa.title='図A'; pa.objects=[{id:'pa1',type:'text',x:1,y:1,text:'a'}];
+  var pb=makePattern(); pb.name='区間B'; pb.title='図B'; pb.objects=[]; pb.frame={x:10,y:10,w:200,h:141.4};
+  state.patterns=[pa,pb]; state.activePattern=0; loadActivePattern();
+  // renderPatternCanvas restores editing state
+  var before={o:state.objects,t:state.settings.title,a:state.activePattern};
+  var oc=renderPatternCanvas(pb,2);
+  ok(oc && oc.width===PAPER.w*2 && oc.height===PAPER.h*2, 'export canvas has A3*2 dims');
+  ok(state.objects===before.o && state.settings.title===before.t && state.activePattern===before.a, 'renderPatternCanvas restores active state');
+  // exportPng(true) writes one numbered file per pattern
+  var names=[]; var bakDownload=download; download=(name)=>{ names.push(name); };
+  exportPng(true);
+  download=bakDownload;
+  ok(names.length===2, 'exportPng(all) writes one file per pattern (got '+names.length+')');
+  ok(/_01_/.test(names[0]) && /_02_/.test(names[1]) && names.join(' ').includes('区間A') && names.join(' ').includes('区間B'), 'batch PNG names are numbered+named ('+names.join(', ')+')');
+  // doPrint all-patterns: builds pages, no throw
+  var threwP=null; try{ doPrint('A4', true); }catch(e){ threwP=e; }
+  ok(!threwP, 'doPrint(all) no-throw'+(threwP?': '+threwP.message:''));
+  var threwP1=null; try{ doPrint('A3', false); }catch(e){ threwP1=e; }
+  ok(!threwP1, 'doPrint(one) no-throw'+(threwP1?': '+threwP1.message:''));
   console.log(fails? ('\\n'+fails+' FAILURES') : '\\nALL PASS ('+(0)+')');
   return fails;
 })();

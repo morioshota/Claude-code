@@ -206,6 +206,8 @@ footer b{color:#fff; font-weight:600;}
   <span class="pbLabel">出力範囲</span>
   <button class="pbtn2" id="pbFrame">範囲を指定</button>
   <button class="pbtn2" id="pbFrameClear">クリア</button>
+  <span class="pbsep"></span>
+  <button class="pbtn2" id="pbPngAll" title="全パターンを連番PNGで書き出し">全パターンPNG</button>
   <span class="pbHint" id="pbHint"></span>
 </div>
 <main>
@@ -265,6 +267,7 @@ footer b{color:#fff; font-weight:600;}
       <h5>複数パターン（1工事＝親図面＋複数図面）</h5>
       背景の地形図(親図面)・縮尺・表示設定は<b>全パターンで共有</b>し、上部の「パターン」タブで図面を切り替えます。パターンごとに規制の配置・図面名・凡例位置・出力範囲を個別に持てます（例: 場所や区間の違い、施工フェーズ、規制方法の代替案）。<br>
       「＋追加」で新規、「複製」で現在のパターンをコピー、「名前変更」でタブ名を編集（タブのダブルクリックでも可）。<br>
+      <b>一括出力</b>: パターンバーの「全パターンPNG」で連番PNGをまとめて書き出し、印刷モーダルの「全パターン」で複数ページ連続印刷ができます（工事の提出セット作成用）。<br>
       <b>出力範囲</b>: 「範囲を指定」で親図面上に対角2点をクリックすると、そのパターンの出力範囲(用紙比に自動調整)を設定できます。PNG出力・印刷時は、この範囲を用紙いっぱいに拡大して出力します（範囲未指定なら親図面全体）。図枠・表題・凡例・スケールバーは用紙側に固定表示されます。
       <h5>編集操作</h5>
       クリックで選択、ドラッグで移動。<kbd>R</kbd> で15°回転。<kbd>Delete</kbd> で削除。<kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> で取消/やり直し。線・多角形は選択すると頂点(白い四角)が表示され、ドラッグで変形できます。
@@ -303,6 +306,10 @@ footer b{color:#fff; font-weight:600;}
     <div class="mbody">
       <label class="radio-card"><input type="radio" name="psize" value="a4" checked><b>A4 横</b><p>提出用の標準サイズ</p></label>
       <label class="radio-card"><input type="radio" name="psize" value="a3"><b>A3 横</b><p>大きめに印刷したい場合</p></label>
+      <div id="prTargetWrap" style="margin-top:4px">
+        <label class="radio-card"><input type="radio" name="ptarget" value="one" checked><b>このパターンのみ</b><p>表示中のパターンを1枚印刷</p></label>
+        <label class="radio-card"><input type="radio" name="ptarget" value="all"><b>全パターン</b><p>工事内の全パターンを複数ページで連続印刷</p></label>
+      </div>
       <p class="pnote" style="margin-top:6px">印刷ダイアログが開いたら、用紙サイズと余白(「なし」推奨)を確認してください。</p>
     </div>
     <div class="mfoot"><button class="mbtn" id="prCancel">キャンセル</button><button class="mbtn go" id="prGo">印刷する</button></div>
@@ -359,6 +366,8 @@ footer b{color:#fff; font-weight:600;}
    v2.2: コーン列(conerow)に「並べる記号」kindを追加(cone/abarricade/drum)。A型バリケードを
          経路方向に連続配置できる専用ツール「A型バリケード列」と、後から記号を切替できる
          右パネルのセレクタ。バリケード等は経路の向きに合わせて回転(conePositionsがangを返す)
+   v2.3: 全パターン一括出力。全パターンPNG(連番)＋印刷モーダルの「全パターン(複数ページ)」。
+         renderPatternCanvasで各パターンを一時描画(編集中の選択/Undoに非干渉) (H1)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -1741,6 +1750,8 @@ function renderPatternBar() {
   if (clr) clr.disabled = !(p && p.frame);
   const del = document.getElementById('pbDel');
   if (del) del.disabled = state.patterns.length <= 1;
+  const pngAll = document.getElementById('pbPngAll');
+  if (pngAll) pngAll.disabled = state.patterns.length <= 1;
   const hint = document.getElementById('pbHint');
   if (hint) hint.textContent = p && p.frame ? '（このパターンは出力範囲を用紙全体に拡大して出力します）' : '';
 }
@@ -2007,32 +2018,70 @@ function renderExportCanvas(scale = 2) {
   state.sel = selBak;
   return oc;
 }
-function exportPng() {
+// 指定パターンを一時的にアクティブ扱いにして描画(編集中の選択・Undoには触れない)
+function renderPatternCanvas(p, scale = 2) {
+  const bak = { objects: state.objects, title: state.settings.title, legendPos: state.settings.legendPos, active: state.activePattern };
+  state.objects = p.objects;
+  state.settings.title = p.title;
+  state.settings.legendPos = p.legendPos || null;
+  state.activePattern = state.patterns.indexOf(p);
+  let oc;
+  try { oc = renderExportCanvas(scale); }
+  finally {
+    state.objects = bak.objects; state.settings.title = bak.title;
+    state.settings.legendPos = bak.legendPos; state.activePattern = bak.active;
+  }
+  return oc;
+}
+function patternFileBase(p, i) {
+  const num = String(i + 1).padStart(2, '0');
+  return `${state.settings.koshu || '作業帯図'}_${num}_${(p.name || 'パターン').replace(/[\\/:*?"<>|]/g, '')}`;
+}
+function exportPng(all) {
   try {
-    const oc = renderExportCanvas(2);
-    oc.toBlob(b => {
+    syncActivePattern();
+    if (all && state.patterns.length > 1) {
+      // 連番PNGを順次ダウンロード(ブラウザのまとめ制御を避けるため間隔を空ける)
+      state.patterns.forEach((p, i) => {
+        setTimeout(() => {
+          try { renderPatternCanvas(p, 2).toBlob(b => { if (b) download(patternFileBase(p, i) + '.png', b); }, 'image/png'); } catch (e) { /* skip */ }
+        }, i * 450);
+      });
+      showToast(`全${state.patterns.length}パターンをPNGで書き出します（連続ダウンロードの許可を求められたら「許可」してください）。`);
+      return;
+    }
+    renderExportCanvas(2).toBlob(b => {
       if (!b) { alert('PNGの生成に失敗しました。'); return; }
       download((state.settings.title || '作業帯図') + '.png', b);
     }, 'image/png');
   } catch (e) { alert('PNG出力に失敗しました: ' + e.message); }
 }
-function doPrint(size) {
+function doPrint(size, all) {
   try {
-    const url = renderExportCanvas(2).toDataURL('image/png');
+    syncActivePattern();
+    const urls = (all && state.patterns.length > 1)
+      ? state.patterns.map(p => renderPatternCanvas(p, 2).toDataURL('image/png'))
+      : [renderExportCanvas(2).toDataURL('image/png')];
     const frame = document.getElementById('printFrame');
     const doc = frame.contentWindow.document;
+    const pages = urls.map(u => `<div class="pg"><img src="${u}"></div>`).join('');
     doc.open();
-    doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${state.settings.title}</title>
+    doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${state.settings.koshu || '作業帯図'}</title>
       <style>
         @page{size:${size} landscape;margin:0}
         html,body{margin:0;padding:0}
+        .pg{width:100vw;height:100vh;page-break-after:always;overflow:hidden}
+        .pg:last-child{page-break-after:auto}
         img{width:100%;height:100%;object-fit:contain;display:block}
-      </style></head><body><img src="${url}"></body></html>`);
+      </style></head><body>${pages}</body></html>`);
     doc.close();
-    const img = doc.querySelector('img');
+    const imgs = Array.from(doc.querySelectorAll('img'));
     const fire = () => { try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e) { alert('印刷の起動に失敗しました: ' + e.message); } };
-    if (img && !img.complete) img.onload = () => setTimeout(fire, 120);
-    else setTimeout(fire, 150);
+    const pending = imgs.filter(im => !im.complete);
+    if (pending.length) {
+      let left = pending.length;
+      pending.forEach(im => im.onload = im.onerror = () => { if (--left === 0) setTimeout(fire, 120); });
+    } else setTimeout(fire, 150);
   } catch (e) { alert('印刷用データの生成に失敗しました: ' + e.message); }
 }
 
@@ -2054,13 +2103,18 @@ function bindUI() {
   $('btnLoad').onclick = () => $('fileJson').click();
   $('fileJson').onchange = e => { if (e.target.files[0]) loadJson(e.target.files[0]); e.target.value = ''; };
   $('btnSave').onclick = saveJson;
-  $('btnPng').onclick = exportPng;
-  $('btnPrint').onclick = () => $('printModal').classList.add('show');
+  $('btnPng').onclick = () => exportPng(false);
+  $('btnPrint').onclick = () => {
+    // パターンが1つなら対象選択を隠す
+    $('prTargetWrap').style.display = state.patterns.length > 1 ? '' : 'none';
+    $('printModal').classList.add('show');
+  };
   $('prCancel').onclick = () => $('printModal').classList.remove('show');
   $('prGo').onclick = () => {
     const size = document.querySelector('input[name=psize]:checked').value === 'a3' ? 'A3' : 'A4';
+    const all = (document.querySelector('input[name=ptarget]:checked') || {}).value === 'all';
     $('printModal').classList.remove('show');
-    setTimeout(() => doPrint(size), 150);
+    setTimeout(() => doPrint(size, all), 150);
   };
   $('btnUndo').onclick = undo;
   $('btnRedo').onclick = redo;
@@ -2148,6 +2202,7 @@ function bindUI() {
   $('pbDel').onclick = () => deletePattern();
   $('pbFrame').onclick = () => setTool('frame', '出力範囲: 親図面上で対角の2点をクリックして矩形を指定します(用紙比に自動調整。Escで中止)');
   $('pbFrameClear').onclick = () => { const p = activePat(); if (p && p.frame) { p.frame = null; renderPatternBar(); render(); autosave(); } };
+  $('pbPngAll').onclick = () => exportPng(true);
   $('btnHelp').onclick = () => $('helpModal').classList.add('show');
   $('helpClose').onclick = () => $('helpModal').classList.remove('show');
   document.querySelectorAll('.modal-bg').forEach(m => m.addEventListener('click', e => {
