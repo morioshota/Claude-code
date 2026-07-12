@@ -314,6 +314,51 @@ const tests = `
   // zone total = 1 + 2 = 3 m²
   ok(sum.includes('3') , 'patternSummary total area includes 3');
   ok(patternSummaryHtml.length>=0, 'summary empty when no relevant objects: '+(function(){var b=state.objects;state.objects=[{type:'symbol',kind:'cone',x:0,y:0}];var r=patternSummaryHtml()===''; state.objects=b; return r;})());
+
+  // ---- H2: frame drag edit ----
+  state.patterns=[]; state.activePattern=0; state.view={z:1,ox:0,oy:0}; state.tool='select';
+  var fp=makePattern(); fp.frame={x:100,y:100,w:200,h:141.4}; state.patterns=[fp]; loadActivePattern();
+  // handle detection: corner -> resize with opposite O; edge -> move; inside -> null
+  var hcorner=frameHandleAt({x:100,y:100});
+  ok(hcorner && hcorner.type==='resize' && hcorner.O.x===300 && Math.abs(hcorner.O.y-241.4)<1e-6, 'frameHandleAt corner => resize w/ opposite O');
+  var hedge=frameHandleAt({x:200,y:100});
+  ok(hedge && hedge.type==='move', 'frameHandleAt on edge => move');
+  ok(frameHandleAt({x:200,y:170})===null, 'frameHandleAt inside => null (objects/marquee)');
+  // resize keeps paper aspect, opposite corner fixed
+  var rr=frameResizeRect({x:300,y:241.4},{x:100,y:50});
+  ok(Math.abs(rr.h - rr.w*PAPER.h/PAPER.w)<1e-6, 'frameResizeRect keeps paper aspect');
+  ok(Math.abs((rr.x+rr.w)-300)<1e-6 && Math.abs((rr.y+rr.h)-241.4)<1e-6, 'frameResizeRect keeps opposite corner fixed');
+  // move via pointer: grab edge, drag, frame shifts
+  state.tool='select'; setSel([]);
+  pointerDown({button:0, clientX:200, clientY:100}); // on top edge
+  pointerMove({clientX:230, clientY:140, cancelable:false});
+  pointerUp();
+  ok(Math.abs(activePat().frame.x-130)<1e-6 && Math.abs(activePat().frame.y-140)<1e-6, 'drag frame edge moves frame');
+  // resize via pointer: grab a corner, drag
+  var f0=activePat().frame; var oppX=f0.x+f0.w, oppY=f0.y+f0.h;
+  pointerDown({button:0, clientX:f0.x, clientY:f0.y}); // top-left corner
+  pointerMove({clientX:f0.x-40, clientY:f0.y-10, cancelable:false});
+  pointerUp();
+  ok(Math.abs((activePat().frame.x+activePat().frame.w)-oppX)<1e-6, 'drag corner keeps opposite corner (resize)');
+
+  // ---- R5: 予告標示板 auto-place ----
+  state.objects=[]; state.settings.symScale=1; state.settings.mPerPx=0.1; state.settings.snap=false;
+  yokokuParams={dists:[50,100,200], gap:3, dir:'down'};
+  placeYokoku({x:400,y:200});
+  var ys=state.objects.filter(o=>o.kind==='board_yokoku1');
+  ok(ys.length===3, 'placeYokoku places one sign per distance');
+  ok(ys.map(o=>o.dist).sort((a,b)=>a-b).join(',')==='50,100,200', 'signs carry chosen distances');
+  ok(ys.every(o=>o.x===400), 'signs share x (縦1列)');
+  var yy=ys.map(o=>o.y).sort((a,b)=>a-b);
+  var stepM=(1.05*1+3); // (signH_m + gap) ; px = *pxPerM(10)
+  ok(Math.abs((yy[1]-yy[0]) - stepM*10)<1e-6 && Math.abs((yy[2]-yy[1]) - stepM*10)<1e-6, 'signs equally spaced by (height+gap)');
+  // only 50/100 selected
+  state.objects=[]; yokokuParams={dists:[50,100], gap:2, dir:'up'};
+  placeYokoku({x:0,y:0});
+  ok(state.objects.length===2 && state.objects[0].y===0 && state.objects[1].y<0, 'dir=up stacks upward; subset of distances');
+  // board_yokoku1 draw honors o.dist (no throw, uses text)
+  calls.length=0; drawObj(makeCtx(), {type:'symbol',kind:'board_yokoku1',x:0,y:0,rot:0,scl:1,dist:100});
+  ok(calls.some(c=>c.indexOf('fillText:')===0 && c.includes('100')), 'board_yokoku1 renders its distance text');
   console.log(fails? ('\\n'+fails+' FAILURES') : '\\nALL PASS ('+(0)+')');
   return fails;
 })();

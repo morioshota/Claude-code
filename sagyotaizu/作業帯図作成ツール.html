@@ -164,6 +164,7 @@ footer b{color:#fff; font-weight:600;}
 .radio-card input{margin-right:6px;}
 .mgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; margin-top:8px;}
 .mgrid label{font-size:11.5px; color:var(--ink2); display:block; margin-bottom:3px;}
+.mini2{font-size:13px; display:flex; align-items:center; gap:5px; cursor:pointer;}
 .mgrid input,.mgrid select{width:100%; padding:5px 7px; border:1px solid var(--line); border-radius:5px; font-size:12.5px; font-family:inherit;}
 .helpbox{font-size:12px; line-height:1.9; color:var(--ink2);}
 .helpbox h5{margin:10px 0 3px; font-size:12.5px; color:var(--ink); border-left:3px solid var(--amber); padding-left:6px;}
@@ -185,6 +186,7 @@ footer b{color:#fff; font-weight:600;}
   <span id="scaleBadge">縮尺 未設定</span>
   <div class="hsep"></div>
   <button class="hbtn primary" id="btnWizard">▶ 規制パターン自動配置</button>
+  <button class="hbtn" id="btnYokoku">予告標示板 配置</button>
   <div class="hsep"></div>
   <div class="hgroup">
     <button class="hbtn" id="btnUndo" title="元に戻す (Ctrl+Z)">↩</button>
@@ -263,6 +265,25 @@ footer b{color:#fff; font-weight:600;}
   </div>
 </div>
 
+<div class="modal-bg" id="yokokuModal">
+  <div class="modal" style="width:360px">
+    <div class="mhead">予告標示板の配置</div>
+    <div class="mbody">
+      <p class="pnote" style="margin:2px 2px 10px;line-height:1.8">設置する距離の標示板を選び、図面をクリックすると<b>縦1列</b>に並べます（先頭＝クリック位置）。50/100 だけ等、必要な分だけ選べます。</p>
+      <div style="display:flex; gap:16px; margin:6px 2px 10px">
+        <label class="mini2"><input type="checkbox" class="ydist" value="50" checked> 50m</label>
+        <label class="mini2"><input type="checkbox" class="ydist" value="100" checked> 100m</label>
+        <label class="mini2"><input type="checkbox" class="ydist" value="200" checked> 200m</label>
+      </div>
+      <div class="mgrid">
+        <div><label>看板の間隔 (m)</label><input type="number" id="yGap" value="3" step="0.5" min="0"></div>
+        <div><label>並べる向き</label><select id="yDir"><option value="down">下向き（近い順に下へ）</option><option value="up">上向き（近い順に上へ）</option></select></div>
+      </div>
+    </div>
+    <div class="mfoot"><button class="mbtn" id="yCancel">キャンセル</button><button class="mbtn go" id="yStart">配置位置の指定へ</button></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="helpModal">
   <div class="modal">
     <div class="mhead">使い方</div>
@@ -275,7 +296,7 @@ footer b{color:#fff; font-weight:600;}
       背景の地形図(親図面)・縮尺・表示設定は<b>全パターンで共有</b>し、上部の「パターン」タブで図面を切り替えます。パターンごとに規制の配置・図面名・凡例位置・出力範囲を個別に持てます（例: 場所や区間の違い、施工フェーズ、規制方法の代替案）。<br>
       「＋追加」で新規、「複製」で現在のパターンをコピー、「名前変更」でタブ名を編集（タブのダブルクリックでも可）。<br>
       <b>一括出力</b>: パターンバーの「全パターンPNG」で連番PNGをまとめて書き出し、印刷モーダルの「全パターン」で複数ページ連続印刷ができます（工事の提出セット作成用）。<br>
-      <b>出力範囲</b>: 「範囲を指定」で親図面上に対角2点をクリックすると、そのパターンの出力範囲(用紙比に自動調整)を設定できます。PNG出力・印刷時は、この範囲を用紙いっぱいに拡大して出力します（範囲未指定なら親図面全体）。図枠・表題・凡例・スケールバーは用紙側に固定表示されます。
+      <b>出力範囲</b>: 「範囲を指定」で親図面上に対角2点をクリックすると、そのパターンの出力範囲(用紙比に自動調整)を設定できます。PNG出力・印刷時は、この範囲を用紙いっぱいに拡大して出力します（範囲未指定なら親図面全体）。図枠・表題・凡例・スケールバーは用紙側に固定表示されます。設定した枠は<b>角のハンドルをドラッグでリサイズ（用紙比固定）、枠線をドラッグで移動</b>できます。
       <h5>編集操作</h5>
       クリックで選択、ドラッグで移動。<kbd>R</kbd> で15°回転。<kbd>Delete</kbd> で削除。<kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> で取消/やり直し。線・多角形は選択すると頂点(白い四角)が表示され、ドラッグで変形できます。
       <h5>複数選択（まとめて移動）</h5>
@@ -288,6 +309,8 @@ footer b{color:#fff; font-weight:600;}
       マウスホイールで拡大縮小、<kbd>Space</kbd>+ドラッグ または 右ドラッグで画面移動。
       <h5>線を描くツール(作業帯・歩行者通路・コーン列・寸法線)</h5>
       クリックで点を追加、<b>ダブルクリックまたは Enter で確定</b>、<kbd>Esc</kbd> で中止。
+      <h5>予告標示板の自動配置</h5>
+      ヘッダーの「予告標示板 配置」を押し、設置する距離（<b>50m / 100m / 200m</b>、必要な分だけ）と看板の間隔・向きを選んで図面をクリックすると、予告標示板を<b>縦1列</b>に並べます。各看板は個別に移動でき、右パネルの「予告距離(m)」で表示距離を変えられます（パレットの「工事予告標示板(距離)」から手置きも可）。
       <h5>面積・延長の集計</h5>
       作業帯・導流帯を選ぶと<b>面積(m²)・周長</b>、コーン列/バリケード列は<b>延長(m)・本数</b>、歩行者通路は延長、寸法線は実測長が右パネルに出ます。何も選んでいないときは、そのパターンの<b>合計（作業帯面積・規制延長など）</b>を表示します。申請書の記載値の目安にどうぞ（正確な値には先に縮尺設定を）。
       <h5>注意</h5>
@@ -384,6 +407,9 @@ footer b{color:#fff; font-weight:600;}
          distributeSelected (R6/R7)
    v2.5: 面積・延長の自動集計。選択物の面積(m²)/周長/延長/本数を右パネル表示、無選択時は
          パターン合計(作業帯面積・規制延長ほか)。polyAreaM2/polyLenM/patternSummaryHtml (R12)
+   v2.6: 出力範囲枠のドラッグ編集(角=用紙比固定リサイズ/枠線=移動。frameHandleAt/
+         frameResizeRect) (H2)。予告標示板の自動配置(距離50/100/200を選択、縦1列・間隔つき。
+         距離パラメータ付き記号board_yokoku1、placeYokoku/yokokuParams) (R5)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -509,6 +535,25 @@ function frameFromDrag(a, b) {
   let w = Math.abs(b.x - a.x); if (w < 12) w = 12;
   const h = w * PAPER.h / PAPER.w;
   return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w, h };
+}
+function frameCorners(fr) {
+  return [{ x: fr.x, y: fr.y }, { x: fr.x + fr.w, y: fr.y }, { x: fr.x + fr.w, y: fr.y + fr.h }, { x: fr.x, y: fr.y + fr.h }];
+}
+// クリック位置が範囲枠のどの操作点か: 角=resize(対角を固定), 辺=move, それ以外=null
+function frameHandleAt(w) {
+  const p = activePat(); if (!p || !p.frame) return null;
+  const cs = frameCorners(p.frame), tol = 9 / state.view.z;
+  for (let i = 0; i < 4; i++)
+    if (Math.abs(w.x - cs[i].x) <= tol && Math.abs(w.y - cs[i].y) <= tol) return { type: 'resize', O: cs[(i + 2) % 4] };
+  const onEdge = distToSeg(w, cs[0], cs[1]) <= tol || distToSeg(w, cs[1], cs[2]) <= tol ||
+                 distToSeg(w, cs[2], cs[3]) <= tol || distToSeg(w, cs[3], cs[0]) <= tol;
+  return onEdge ? { type: 'move' } : null;
+}
+// 対角Oを固定し、カーソルwへ用紙比を保ったままリサイズした矩形
+function frameResizeRect(O, w) {
+  const wd = Math.max(12, Math.abs(w.x - O.x));
+  const ht = wd * PAPER.h / PAPER.w;
+  return { x: w.x >= O.x ? O.x : O.x - wd, y: w.y >= O.y ? O.y : O.y - ht, w: wd, h: ht };
 }
 
 // ---------- 記号ライブラリ ----------
@@ -645,6 +690,10 @@ const KINDS = {
     ctx.fillStyle = '#111'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `bold ${h * 0.5}px sans-serif`;
     ctx.fillText('50', -w / 3, 0); ctx.fillText('100', 0, 0); ctx.fillText('200', w / 3, 0);
+  }},
+  board_yokoku1:  { name: '工事予告標示板(距離)', size: 1.4, draw(ctx, p, o) {
+    const d = o && o.dist != null ? o.dist : 50;
+    boardSign(ctx, p, ['工事中', d + 'm先'], { w: 1.7, h: 1.05 });
   }},
   board_kenmei:   { name: '工事件名標示板', size: 1.4, draw(ctx, p) {
     const w = p * 1.7, h = p * 0.85;
@@ -874,7 +923,7 @@ function drawObj(c, o) {
   const p = pxPerM() * state.settings.symScale * (o.scl || 1);
   if (o.type === 'symbol') {
     c.save(); c.translate(o.x, o.y); c.rotate((o.rot || 0) * Math.PI / 180);
-    KINDS[o.kind].draw(c, p); c.restore();
+    KINDS[o.kind].draw(c, p, o); c.restore();
     if (o.label) drawSymbolLabel(c, o); // ラベルは記号の回転に関係なく水平描画
   } else if (o.type === 'zone') {
     c.save();
@@ -1258,6 +1307,13 @@ function drawOverlays(c) {
     c.fillStyle = '#1f5f8b'; c.font = `bold ${13 * hz}px sans-serif`;
     c.textAlign = 'left'; c.textBaseline = 'bottom';
     c.fillText('出力範囲: ' + ap.name, fr.x + 4 * hz, fr.y - 4 * hz);
+    if (state.tool === 'select') { // 角ハンドル(ドラッグでリサイズ/枠線ドラッグで移動)
+      frameCorners(fr).forEach(q => {
+        const s = 5 * hz;
+        c.fillStyle = '#fff'; c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz;
+        c.fillRect(q.x - s, q.y - s, s * 2, s * 2); c.strokeRect(q.x - s, q.y - s, s * 2, s * 2);
+      });
+    }
   }
   // 範囲枠 作図中プレビュー
   const d = state.draft;
@@ -1395,12 +1451,31 @@ function setTool(t, hint) {
   const labels = { select: '選択' };
   document.getElementById('modeLabel').textContent =
     labels[t] || (t.startsWith('place:') ? KINDS[t.slice(6)].name + ' 配置' :
-    t === 'calib' ? '縮尺設定' : t === 'frame' ? '出力範囲指定' : t.startsWith('wizard') ? 'パターン配置' :
+    t === 'calib' ? '縮尺設定' : t === 'frame' ? '出力範囲指定' : t === 'yokoku' ? '予告標示板 配置' : t.startsWith('wizard') ? 'パターン配置' :
     t === 'dim' ? '寸法線' : t === 'text' ? '文字' :
     t === 'poly:zone' ? '作業帯 作図' : t === 'poly:divzone' ? '導流帯 作図' : t === 'poly:pedpath' ? '歩行者通路 作図' :
     t === 'poly:conerow' ? 'コーン列 作図' : t === 'poly:barricaderow' ? 'A型バリケード列 作図' : t);
   setHint(hint || '');
   render();
+}
+
+// ---------- 予告標示板の自動配置 ----------
+let yokokuParams = null; // {dists:[50,100,...], gap, dir:'down'|'up'}
+function placeYokoku(P) {
+  const params = yokokuParams;
+  if (!params || !params.dists.length) { setHint('設置する距離が選ばれていません。'); return; }
+  const p0 = snapPoint(P);
+  pushUndo();
+  const ppm = pxPerM();
+  const signH = 1.05 * state.settings.symScale;              // board_yokoku1 の高さ(m相当)
+  const step = (signH + params.gap) * ppm * (params.dir === 'up' ? -1 : 1);
+  const dists = params.dists.slice().sort((a, b) => a - b);  // 近い順(小→大)
+  dists.forEach((d, i) => {
+    state.objects.push({ id: uid(), type: 'symbol', kind: 'board_yokoku1', x: p0.x, y: p0.y + i * step, rot: 0, scl: 1, dist: d });
+  });
+  render(); autosave();
+  setHint(`予告標示板を${dists.length}枚、縦1列に配置しました。個別に移動・距離変更できます。`);
+  setTimeout(() => setHint(''), 4000);
 }
 
 // ---------- 入力処理 ----------
@@ -1433,6 +1508,13 @@ function pointerDown(e) {
         const vi = hitVertex(selObj, w);
         if (vi >= 0) { drag = { kind: 'vertex', obj: selObj, vi, pend: snapshot() }; return; }
       }
+    }
+    // 出力範囲枠の編集(角=リサイズ, 枠線=移動)。枠内クリックは通常の選択に通す
+    const fh = frameHandleAt(w);
+    if (fh) {
+      if (fh.type === 'resize') drag = { kind: 'frameResize', O: fh.O };
+      else drag = { kind: 'frameMove', w0: w, fr0: { ...activePat().frame } };
+      return;
     }
     // 凡例(選択物にヒットしていない場合のみ)
     if (state.settings.showLegend && legendBBox &&
@@ -1498,6 +1580,9 @@ function pointerDown(e) {
       render(); autosave();
     }
     render();
+  } else if (t === 'yokoku') {
+    placeYokoku(w);
+    setTool('select');
   } else if (t === 'wizardA') {
     state.draft = { mode: 'wizard', pts: [w] };
     setTool('wizardB', '終点をクリックしてください');
@@ -1528,6 +1613,16 @@ function pointerMove(e) {
     drag.pend = null;
   }
   if (drag.kind === 'marquee') { drag.cur = w; render(); return; }
+  if (drag.kind === 'frameMove') {
+    const p = activePat();
+    if (p && p.frame) { p.frame.x = drag.fr0.x + (w.x - drag.w0.x); p.frame.y = drag.fr0.y + (w.y - drag.w0.y); render(); }
+    return;
+  }
+  if (drag.kind === 'frameResize') {
+    const p = activePat();
+    if (p && p.frame) { p.frame = frameResizeRect(drag.O, w); render(); }
+    return;
+  }
   if (drag.kind === 'pan') {
     state.view.ox = drag.ox + (s.x - drag.sx);
     state.view.oy = drag.oy + (s.y - drag.sy);
@@ -1747,6 +1842,7 @@ const PALETTE = [
     ['place:sign_stop', 'sign_stop'], ['place:sign_ukai', 'sign_ukai'],
     ['place:sign_closed', 'sign_closed'], ['place:sign_lane_reduce', 'sign_lane_reduce'],
     ['place:sign_noentry', 'sign_noentry'], ['place:board_yokoku', 'board_yokoku'],
+    ['place:board_yokoku1', 'board_yokoku1'],
     ['place:board_kenmei', 'board_kenmei'], ['place:board_hokousha', 'board_hokousha'],
   ]},
   { title: '看板', items: [
@@ -1959,6 +2055,7 @@ function renderProps() {
     html += `<div class="prow"><label>回転 (°)</label><input type="range" id="pRot" min="0" max="359" value="${Math.round(o.rot || 0)}"><span class="val" id="pRotV">${Math.round(o.rot || 0)}</span></div>`;
   }
   if (o.type === 'symbol') html += `<div class="prow"><label>大きさ</label><input type="range" id="pScl" min="30" max="300" value="${Math.round((o.scl || 1) * 100)}"><span class="val" id="pSclV">${(o.scl || 1).toFixed(1)}</span></div>`;
+  if (o.type === 'symbol' && o.kind === 'board_yokoku1') html += num('pDist', '予告距離 (m)', o.dist != null ? o.dist : 50, 10, 0);
   if (o.type === 'symbol') {
     const escL = (o.label || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
     const ang = Math.round((((o.labelAngle ?? -40) % 360) + 360) % 360);
@@ -2003,6 +2100,7 @@ function renderProps() {
   const bind = (id, fn, ev = 'input') => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   bind('pRot', e => { o.rot = +e.target.value; document.getElementById('pRotV').textContent = e.target.value; render(); autosave(); });
   bind('pScl', e => { o.scl = +e.target.value / 100; document.getElementById('pSclV').textContent = o.scl.toFixed(1); render(); autosave(); });
+  bind('pDist', e => { const v = parseFloat(e.target.value); if (v >= 0) { o.dist = v; render(); autosave(); } });
   bind('pLabel', e => { o.label = e.target.value || null; render(); autosave(); });
   bind('pLabelAng', e => { o.labelAngle = +e.target.value; document.getElementById('pLabelAngV').textContent = e.target.value; render(); autosave(); });
   bind('pLabelDist', e => { o.labelDist = +e.target.value; document.getElementById('pLabelDistV').textContent = e.target.value; render(); autosave(); });
@@ -2322,6 +2420,17 @@ function bindUI() {
     $('wizardModal').classList.remove('show');
     const warn = state.settings.calibrated ? '' : '【縮尺未設定のため既定値(1m=20px)で配置します】 ';
     setTool('wizardA', warn + '規制区間の起点をクリックしてください');
+  };
+  // 予告標示板の自動配置モーダル
+  $('btnYokoku').onclick = () => $('yokokuModal').classList.add('show');
+  $('yCancel').onclick = () => $('yokokuModal').classList.remove('show');
+  $('yStart').onclick = () => {
+    const dists = Array.from(document.querySelectorAll('.ydist:checked')).map(c => +c.value);
+    if (!dists.length) { alert('設置する距離を1つ以上選んでください。'); return; }
+    const gap = parseFloat($('yGap').value);
+    yokokuParams = { dists, gap: gap >= 0 ? gap : 3, dir: $('yDir').value };
+    $('yokokuModal').classList.remove('show');
+    setTool('yokoku', '予告標示板: 縦1列に並べる先頭位置をクリックしてください（Escで中止）');
   };
   // 縮尺モーダル
   const setCalibTab = tab => {

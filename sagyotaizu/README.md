@@ -86,7 +86,7 @@ state = {
 ### オブジェクト型（`objects[]` の要素）
 | type | 内容 | 主なプロパティ |
 |---|---|---|
-| `symbol` | 記号 1 個 | `kind`(KINDS のキー), `x, y, rot, scl`, `label`/`labelAngle`/`labelDist`（引き出しラベル・v1.3） |
+| `symbol` | 記号 1 個 | `kind`(KINDS のキー), `x, y, rot, scl`, `label`/`labelAngle`/`labelDist`（引き出しラベル・v1.3）, `dist`（`board_yokoku1` の予告距離m・v2.6） |
 | `zone` | 作業帯（工事箇所） | `pts[]`（多角形頂点） |
 | `divzone` | **導流帯**（v1.1 追加） | `pts[]`, `stripe`(斜線間隔 m), `fill`(内部薄塗り), `color` |
 | `pedpath` | 歩行者通路 | `pts[]`, `width`(m) |
