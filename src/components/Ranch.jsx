@@ -8,7 +8,9 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { Creature } from "./ui.jsx";
 import { spriteCanvasFor } from "../lib/sprites.js";
-import { calcLevel, stageOf, moveTierOf } from "../lib/stock.js";
+import { calcLevel, stageOf, moveTierOf, evalAchievements } from "../lib/stock.js";
+import { ACHIEVEMENTS } from "../data/constants.js";
+import { hashStr, today } from "../lib/util.js";
 
 const dayPhase = () => {
   const h = new Date().getHours() + new Date().getMinutes() / 60;
@@ -23,6 +25,15 @@ const PHASE_INFO = {
   night: { label: "🌙 よる",   sky: 0x0d1230, amb: 0.34, sun: 0.1,  stars: 0.9 },
 };
 
+/* 季節(月で決まる)と天気(日付ハッシュで決まる)。実時間だけの演出で株価・市場とは無関係 */
+const seasonOf = (m) => {
+  if (m >= 3 && m <= 5)  return { key: "spring", label: "🌸はる", leaf: 0xe58fb4, ground: 0x4a9455, wild: 0x437a42, particle: { color: 0xffb7d5, size: 0.34, speed: 1.3, sway: 1.6 } };
+  if (m >= 6 && m <= 8)  return { key: "summer", label: "🌻なつ", leaf: 0x1f5c33, ground: 0x3d8a4e, wild: 0x3a6b35, particle: null };
+  if (m >= 9 && m <= 11) return { key: "autumn", label: "🍁あき", leaf: 0xc2622d, ground: 0x7d8a45, wild: 0x6b7a3a, particle: { color: 0xd97a3a, size: 0.38, speed: 1.9, sway: 2.2 } };
+  return { key: "winter", label: "⛄ふゆ", leaf: 0x2d5a44, ground: 0xb9c8c3, wild: 0x9fb3ac, particle: { color: 0xffffff, size: 0.3, speed: 1.1, sway: 0.9 } };
+};
+const isRainyToday = () => hashStr(today()) % 10 < 3; // 3割の日は雨(冬なら雪が強まる)
+
 /* ---- 3D牧場(2.5D: ドット絵スプライト×3D地形) ---- */
 
 function Ranch3D({ stocks, onSelect, onFallback }) {
@@ -35,7 +46,7 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
   const sceneKey = stocks
     .filter((s) => s.status !== "sold")
     .map((s) => `${s.id}:${s.status}:${moveTierOf(s) === 3 ? "z" : "a"}:${stageOf(calcLevel(s)).no}:${s.shiny ? "S" : ""}:${s.evoPattern || ""}`)
-    .join("|");
+    .join("|") + `|s:${seasonOf(new Date().getMonth() + 1).key}|r:${isRainyToday() ? 1 : 0}|a:${evalAchievements(stocks).size}`;
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -55,6 +66,8 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
     el.style.touchAction = "none";
 
     const scene = new THREE.Scene();
+    const season = seasonOf(new Date().getMonth() + 1);
+    const rainy = isRainyToday();
     const camera = new THREE.PerspectiveCamera(50, W() / H(), 0.1, 400);
     // 初期アングルは旧自作オービット(az=0.5, pol=1.02, r=27)と同じ位置
     const AZ0 = 0.5, POL0 = 1.02, R0 = 27;
@@ -94,9 +107,9 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
     scene.add(amb, sun);
 
     // 地形: 柵(x=4)の左=ぼくじょう、右=やせい
-    const gPast = new THREE.Mesh(new THREE.PlaneGeometry(20, 24), new THREE.MeshLambertMaterial({ color: 0x3d8a4e }));
+    const gPast = new THREE.Mesh(new THREE.PlaneGeometry(20, 24), new THREE.MeshLambertMaterial({ color: season.ground }));
     gPast.rotation.x = -Math.PI / 2; gPast.position.set(-6, 0, 0);
-    const gWild = new THREE.Mesh(new THREE.PlaneGeometry(13, 24), new THREE.MeshLambertMaterial({ color: 0x3a6b35 }));
+    const gWild = new THREE.Mesh(new THREE.PlaneGeometry(13, 24), new THREE.MeshLambertMaterial({ color: season.wild }));
     gWild.rotation.x = -Math.PI / 2; gWild.position.set(10.5, 0, 0);
     scene.add(gPast, gWild);
 
@@ -118,7 +131,7 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
       const g = new THREE.Group();
       const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * s, 0.34 * s, 1.2 * s, 6), new THREE.MeshLambertMaterial({ color: 0x6b4a2b }));
       trunk.position.y = 0.6 * s;
-      const leaf = new THREE.Mesh(new THREE.ConeGeometry(1.3 * s, 2.5 * s, 7), new THREE.MeshLambertMaterial({ color: 0x1f5c33 }));
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(1.3 * s, 2.5 * s, 7), new THREE.MeshLambertMaterial({ color: season.leaf }));
       leaf.position.y = 2.3 * s;
       g.add(trunk, leaf);
       g.position.set(x, 0, z);
@@ -145,15 +158,86 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
     const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.8, transparent: true, opacity: 0 }));
     scene.add(stars);
 
+    // 季節・天気のパーティクル(花びら/落ち葉/雪/雨)。動きを減らす設定では出さない
+    let drops = null, dropVel = null, dropCfg = null;
+    const pcfg = rainy
+      ? (season.key === "winter"
+        ? { color: 0xffffff, size: 0.32, speed: 2.4, sway: 0.8 }   // 冬の雨日は本降りの雪
+        : { color: 0x9db8e8, size: 0.2, speed: 16, sway: 0.1 })    // 雨すじ
+      : season.particle;
+    if (pcfg && !reduced) {
+      const N = rainy ? 240 : 140;
+      const pos = new Float32Array(N * 3);
+      dropVel = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        pos[i * 3] = -18 + Math.random() * 36;
+        pos[i * 3 + 1] = Math.random() * 15;
+        pos[i * 3 + 2] = -13 + Math.random() * 26;
+        dropVel[i] = 0.7 + Math.random() * 0.6;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      drops = new THREE.Points(geo, new THREE.PointsMaterial({ color: pcfg.color, size: pcfg.size, transparent: true, opacity: rainy && season.key !== "winter" ? 0.5 : 0.9 }));
+      dropCfg = pcfg;
+      scene.add(drops);
+    }
+
+    // 実績で解放される飾り(研究の蓄積が牧場を豊かにする)
+    const unlocked = evalAchievements(stocksRef.current).size;
+    if (unlocked >= 3) { // 🌼花壇
+      [[-13.5, -5.5], [-12.7, -6.3], [-13.9, -6.6], [-12.9, -5.2], [-13.4, -7.1], [-12.3, -5.8]].forEach(([x, z], i) => {
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 4), new THREE.MeshLambertMaterial({ color: 0x2f7a3d }));
+        stem.position.set(x, 0.25, z);
+        const bud = new THREE.Mesh(new THREE.SphereGeometry(0.17, 6, 5), new THREE.MeshLambertMaterial({ color: [0xff8fb3, 0xffd166, 0xc4b5fd, 0xff8f6b, 0xffffff, 0x93c5fd][i % 6] }));
+        bud.position.set(x, 0.55, z);
+        scene.add(stem, bud);
+      });
+    }
+    if (unlocked >= 6) { // 🪧かんばん
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.7, 0.18), fenceMat);
+      post.position.set(-6, 0.85, 11.3);
+      const cv2 = document.createElement("canvas");
+      cv2.width = 256; cv2.height = 96;
+      const c2 = cv2.getContext("2d");
+      c2.fillStyle = "#8a6a3a"; c2.fillRect(0, 0, 256, 96);
+      c2.fillStyle = "#5c4526"; c2.fillRect(6, 6, 244, 84);
+      c2.fillStyle = "#ffe9c9"; c2.font = "bold 30px sans-serif"; c2.textAlign = "center"; c2.textBaseline = "middle";
+      c2.fillText("KABUぼくじょう", 128, 50);
+      const signTex = new THREE.CanvasTexture(cv2);
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(2.7, 1.0, 0.12), new THREE.MeshLambertMaterial({ map: signTex }));
+      panel.position.set(-6, 1.75, 11.3);
+      scene.add(post, panel);
+    }
+    if (unlocked >= 9) { // 🔥かがり火(ブルームで夜に光る)
+      [[-1.6, -8], [-1.6, 8]].forEach(([x, z]) => {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 1.4, 5), fenceMat);
+        pole.position.set(x, 0.7, z);
+        const flame = new THREE.Mesh(new THREE.SphereGeometry(0.24, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffb54d }));
+        flame.position.set(x, 1.55, z);
+        scene.add(pole, flame);
+      });
+    }
+    if (unlocked >= ACHIEVEMENTS.length) { // 🏆全実績: 金の像
+      const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.7, 0.5, 8), new THREE.MeshLambertMaterial({ color: 0x9ca3af }));
+      ped.position.set(-9.5, 0.25, -9);
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 7), new THREE.MeshBasicMaterial({ color: 0xffd166 }));
+      body.position.set(-9.5, 1.0, -9);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 7), new THREE.MeshBasicMaterial({ color: 0xffd166 }));
+      head.position.set(-9.5, 1.62, -9);
+      scene.add(ped, body, head);
+    }
+
     // 実時間の昼夜(1分ごとに再判定)
     const applyTime = () => {
       const phase = dayPhase();
       const p = PHASE_INFO[phase];
-      scene.background = new THREE.Color(p.sky);
-      scene.fog = new THREE.Fog(new THREE.Color(p.sky), 30, 100); // HD-2D風の空気遠近
-      amb.intensity = p.amb;
-      sun.intensity = p.sun;
-      stars.material.opacity = p.stars;
+      const sky = new THREE.Color(p.sky);
+      if (rainy) sky.lerp(new THREE.Color(0x6b7280), 0.45); // 雨の日は空を鈍色に
+      scene.background = sky;
+      scene.fog = new THREE.Fog(sky, rainy ? 22 : 30, rainy ? 72 : 100); // HD-2D風の空気遠近(雨は濃く)
+      amb.intensity = p.amb * (rainy ? 0.72 : 1);
+      sun.intensity = p.sun * (rainy ? 0.45 : 1);
+      stars.material.opacity = rainy ? 0 : p.stars;
       if (bloomPass) {
         // 昼: 空が明るいのでほぼ光らせない / 夕方: ほどほど / 夜: しっかり発光
         const b = phase === "day" ? { s: 0.22, t: 0.92 } : phase === "dusk" ? { s: 0.5, t: 0.75 } : { s: 0.85, t: 0.55 };
@@ -196,6 +280,28 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
       members.set(s.id, { sp, sh, st, tex, hgt, tier });
     });
 
+    // すれ違い挨拶: 近づいたペアの間に♪が浮かぶ(ペアごと20秒クールダウン)
+    const greets = [];
+    const greetTex = (() => {
+      const gcv = document.createElement("canvas");
+      gcv.width = 64; gcv.height = 64;
+      const gctx = gcv.getContext("2d");
+      gctx.font = "bold 44px sans-serif"; gctx.textAlign = "center"; gctx.textBaseline = "middle";
+      gctx.strokeStyle = "#1f2430"; gctx.lineWidth = 6; // 昼の明るい空でも見えるように縁取り
+      gctx.strokeText("♪", 32, 34);
+      gctx.fillStyle = "#ffffff";
+      gctx.fillText("♪", 32, 34);
+      return new THREE.CanvasTexture(gcv);
+    })();
+    const spawnGreet = (x, z) => {
+      const gsp = new THREE.Sprite(new THREE.SpriteMaterial({ map: greetTex, transparent: true, depthTest: false }));
+      gsp.scale.set(1.3, 1.3, 1);
+      gsp.position.set(x, 4.0, z);
+      scene.add(gsp);
+      greets.push({ sp: gsp, born: performance.now() });
+    };
+    const lastGreet = new Map();
+
     // 徘徊(鮮度で速さ・頻度が変化)
     const moveIv = setInterval(() => {
       if (reduced) return;
@@ -219,6 +325,23 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
           o.st.z += (dz / d) * Math.min(speed, d);
         }
       });
+      // すれ違い判定(眠っている子は挨拶しない)
+      if (!reduced) {
+        const arr = [...members.entries()];
+        const now = Date.now();
+        for (let i = 0; i < arr.length; i++) {
+          for (let j = i + 1; j < arr.length; j++) {
+            const [ida, a] = arr[i], [idb, b] = arr[j];
+            if (a.tier === 3 || b.tier === 3) continue;
+            const d2 = Math.hypot(a.sp.position.x - b.sp.position.x, a.sp.position.z - b.sp.position.z);
+            const key = ida < idb ? ida + idb : idb + ida;
+            if (d2 < 2.4 && (!lastGreet.has(key) || now - lastGreet.get(key) > 20000)) {
+              lastGreet.set(key, now);
+              spawnGreet((a.sp.position.x + b.sp.position.x) / 2, (a.sp.position.z + b.sp.position.z) / 2);
+            }
+          }
+        }
+      }
     }, 480);
 
     // 描画ループ(位置補間＋ぴょんぴょん)
@@ -239,6 +362,35 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
         o.sh.scale.set(1.15 * k, 0.72 * k, 1);
         o.sh.material.opacity = 0.26 - hopY * 0.12;
       });
+      // 季節・天気パーティクルの落下(下まで行ったら上に戻す)
+      if (drops) {
+        const pos = drops.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          let y = pos.getY(i) - dropCfg.speed * dropVel[i] * 0.016;
+          if (y < 0) {
+            y = 14 + Math.random() * 2;
+            pos.setX(i, -18 + Math.random() * 36);
+            pos.setZ(i, -13 + Math.random() * 26);
+          } else if (dropCfg.sway > 0.2) {
+            pos.setX(i, pos.getX(i) + Math.sin(t * 2 + i) * dropCfg.sway * 0.008);
+          }
+          pos.setY(i, y);
+        }
+        pos.needsUpdate = true;
+      }
+      // ♪はふわっと浮かんで消える
+      for (let i = greets.length - 1; i >= 0; i--) {
+        const g2 = greets[i];
+        const age = (performance.now() - g2.born) / 1300;
+        if (age >= 1) {
+          scene.remove(g2.sp);
+          g2.sp.material.dispose();
+          greets.splice(i, 1);
+        } else {
+          g2.sp.position.y = 4.0 + age * 1.4;
+          g2.sp.material.opacity = 1 - age * age;
+        }
+      }
       controls.update(); // 慣性(damping)の反映
       if (composer) composer.render(); else renderer.render(scene, camera);
     };
@@ -290,9 +442,14 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointerup", onUp);
       el.removeEventListener("pointercancel", onCancel);
-      members.forEach((o) => {
-        o.tex.dispose(); o.sp.material.dispose();
-        o.sh.geometry.dispose(); o.sh.material.dispose();
+      scene.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
+            if (m.map) m.map.dispose();
+            m.dispose();
+          });
+        }
       });
       starGeo.dispose();
       if (composer) { composer.renderTarget1.dispose(); composer.renderTarget2.dispose(); }
@@ -417,6 +574,8 @@ function RanchView({ stocks, onSelect }) {
     } catch (e) { return "2d"; }
   });
   const phase = PHASE_INFO[dayPhase()];
+  const season = seasonOf(new Date().getMonth() + 1);
+  const rainy = isRainyToday();
   return (
     <div>
       {mode === "3d"
@@ -424,7 +583,7 @@ function RanchView({ stocks, onSelect }) {
         : <Ranch2D stocks={stocks} onSelect={onSelect} />}
       <div style={{ fontSize: 10.5, color: "#5b6284", marginTop: 8, lineHeight: 1.7 }}>
         {mode === "3d"
-          ? <>いまは{phase.label}（端末の時計と連動して昼・夕方・夜に変化）。<b style={{ color: "#8b93b8" }}>ドラッグで回転、ピンチ/ホイールでズーム、タップで詳細</b>が開きます。柵の左がぼくじょう（保有）、右がやせい（ウォッチ中）。</>
+          ? <>いまは{season.label}の{phase.label}{rainy ? "・☔あめもよう" : ""}（季節は月、天気は日替わり、時刻は端末の時計と連動）。<b style={{ color: "#8b93b8" }}>ドラッグで回転、ピンチ/ホイールでズーム、タップで詳細</b>が開きます。柵の左がぼくじょう（保有）、右がやせい（ウォッチ中）。</>
           : <>この端末では3D表示が使えないため2D表示です。タップで詳細が開きます。柵の左がぼくじょう（保有）、右がやせい（ウォッチ中）。</>}
         🌱新鮮な銘柄ほど元気に跳ね、🍂古いとのんびり、🥀90日超は眠ります（動き＝記録の鮮度で、株価とは無関係です）。リリースした銘柄は野生に帰るため現れません。
       </div>
