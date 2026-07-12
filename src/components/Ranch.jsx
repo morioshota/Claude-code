@@ -80,7 +80,7 @@ function Ranch3D({ stocks, onSelect, onFallback }) {
     try {
       composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
-      composer.addPass(new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.42, 0.65, 0.72));
+      composer.addPass(new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.85, 0.85, 0.5));
       composer.setSize(W(), H());
     } catch (e) { composer = null; }
 

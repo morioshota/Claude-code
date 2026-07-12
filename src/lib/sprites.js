@@ -58,16 +58,16 @@ const shadeGrid = (g) => {
       if (!c || lum(c) < 0.16) continue; // 目などの暗色はいじらない(潰れ防止)
       const openU = !at(y - 1, x), openL = !at(y, x - 1), openD = !at(y + 1, x), openR = !at(y, x + 1);
       let f = 0;
-      if (openU) f += 0.30;
-      if (openL) f += 0.13;
-      if (openU && openL) f += 0.12; // 左上角のスペキュラ
-      if (f > 0) { out[y][x] = mixCol(c, [255, 255, 255], Math.min(f, 0.5)); continue; }
+      if (openU) f += 0.42;
+      if (openL) f += 0.18;
+      if (openU && openL) f += 0.16; // 左上角のスペキュラ
+      if (f > 0) { out[y][x] = mixCol(c, [255, 255, 255], Math.min(f, 0.62)); continue; }
       let d = 0;
-      if (openD) d += 0.28;
-      if (openR) d += 0.12;
+      if (openD) d += 0.38;
+      if (openR) d += 0.16;
       const rel = (y - top) / span;
-      if (rel > 0.6) d += 0.18 * ((rel - 0.6) / 0.4); // 下半身は暗めにして丸みを出す
-      if (d > 0) out[y][x] = mixCol(c, [10, 12, 24], Math.min(d, 0.45));
+      if (rel > 0.55) d += 0.28 * ((rel - 0.55) / 0.45); // 下半身は暗めにして丸みを出す
+      if (d > 0) out[y][x] = mixCol(c, [10, 12, 24], Math.min(d, 0.55));
     }
   }
   return out;
@@ -258,17 +258,24 @@ function buildPixels(stock, sleeping) {
       });
     }
   }
-  // 色違いのきらめき(白ドット)を頭上と足元に決定論的に散らす
-  if (shiny) {
-    grid = padGrid(grid, 1, 1);
-    const t = topRow(grid), b2 = bottomRow(grid);
-    const tb = rowBounds(grid[t]) || [0, grid[0].length - 1];
-    put(grid, t - 1, tb[1] + 1, WHITE);
-    put(grid, b2 - 1, (rowBounds(grid[b2]) || tb)[0] - 1, WHITE);
-  }
   grid = trimGrid(grid);
   // GBA風仕上げ: 2倍拡大 → 陰影 → アウトライン(順序重要: 輪郭は陰影の後)
   grid = outlineGrid(shadeGrid(epx2(grid)));
+  // 色違いのきらめきは仕上げの後に✦(ダイヤ型)で描く:
+  // 輪郭処理を通さないことで「浮いた四角」ではなく「光の粒」に見える
+  if (shiny) {
+    const sparkle = (g, y, x) => {
+      put(g, y, x, WHITE);
+      [[y - 1, x], [y + 1, x], [y, x - 1], [y, x + 1]].forEach(([yy, xx]) => put(g, yy, xx, "#e9d5ff"));
+    };
+    grid = padGrid(grid, 2, 2);
+    const t = topRow(grid), b2 = bottomRow(grid);
+    const tb = rowBounds(grid[t]) || [0, grid[0].length - 1];
+    const bb = rowBounds(grid[b2]) || tb;
+    sparkle(grid, t + 1, tb[1] + 2);
+    sparkle(grid, b2 - 2, bb[0] - 1);
+    grid = trimGrid(grid);
+  }
   return { grid, w: grid[0].length, h: grid.length, speciesName: species.name };
 }
 
