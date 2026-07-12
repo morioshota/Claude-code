@@ -132,6 +132,9 @@ aside{background:var(--panel); overflow-y:auto;}
 .pempty{font-size:11.5px; color:#8795a1; line-height:1.7; background:#fff; border:1px dashed var(--line);
   border-radius:6px; padding:10px;}
 .pnote{font-size:10.5px; color:#8795a1; line-height:1.6; margin-top:6px;}
+.palign{display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; margin-bottom:5px;}
+.palign2{display:grid; grid-template-columns:1fr 1fr; gap:4px;}
+.palign .pbtn,.palign2 .pbtn{padding:6px 0; font-size:11px;}
 
 footer{
   background:var(--ink); color:#aebccb; font-size:11px; padding:4px 12px;
@@ -220,6 +223,7 @@ footer b{color:#fff; font-weight:600;}
     <div class="prow"><label>凡例を表示</label><input type="checkbox" id="setLegend" checked></div>
     <div class="prow"><label>注記を表示</label><input type="checkbox" id="setNote" checked></div>
     <div class="prow"><label>スケールバー</label><input type="checkbox" id="setScaleBar"></div>
+    <div class="prow"><label>スナップ（頂点吸着）</label><input type="checkbox" id="setSnap" checked></div>
     <div class="prow"><label>記号の倍率</label><input type="range" id="setSymScale" min="50" max="300" value="100"><span class="val" id="setSymScaleV">1.0</span></div>
     <div class="pdivider"></div>
     <h3>選択中のオブジェクト</h3>
@@ -273,6 +277,8 @@ footer b{color:#fff; font-weight:600;}
       クリックで選択、ドラッグで移動。<kbd>R</kbd> で15°回転。<kbd>Delete</kbd> で削除。<kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> で取消/やり直し。線・多角形は選択すると頂点(白い四角)が表示され、ドラッグで変形できます。
       <h5>複数選択（まとめて移動）</h5>
       何もない所から<b>ドラッグで矩形を描くと、触れたオブジェクトをまとめて選択</b>できます（CAD の窓選択）。<kbd>Shift</kbd>+クリックで選択に個別追加/解除、<kbd>Ctrl+A</kbd> で全選択。複数選択したまま<b>ドラッグでまとめて移動</b>、<kbd>Delete</kbd>でまとめて削除、右パネルの「まとめて複製」で一括複製できます。頂点編集・寸法/ラベル等の個別編集は1つだけ選択したときに有効です。
+      <h5>整列・等間隔・スナップ</h5>
+      複数選択すると右パネルに<b>整列（左/中央/右・上/中央/下）</b>と<b>等間隔配置（横/縦、3つ以上）</b>が出ます。コーンや記号の手置きを揃えるのに便利です。また図面設定の<b>「スナップ（頂点吸着）」</b>をオンにすると、作図・頂点ドラッグ時に近くの頂点へ吸い付き（橙の十字マーカー表示）、線の始点・終点をぴったり合わせられます。
       <h5>記号のラベル・引き出し線</h5>
       記号を選択して右パネルの「ラベル」に文字(工事件名・連絡先など)を入れると、引き出し線付きで表示されます。「引出し向き」「引出し長さ」で位置を調整できます。
       <h5>画面操作</h5>
@@ -368,6 +374,9 @@ footer b{color:#fff; font-weight:600;}
          右パネルのセレクタ。バリケード等は経路の向きに合わせて回転(conePositionsがangを返す)
    v2.3: 全パターン一括出力。全パターンPNG(連番)＋印刷モーダルの「全パターン(複数ページ)」。
          renderPatternCanvasで各パターンを一時描画(編集中の選択/Undoに非干渉) (H1)
+   v2.4: スナップ(作図・頂点ドラッグ時に近い頂点へ吸着、トグル/マーカー表示)と、複数選択の
+         整列(左中右/上中下)・等間隔配置(横/縦)。settings.snap、snapPoint/alignSelected/
+         distributeSelected (R6/R7)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -384,6 +393,7 @@ const state = {
     calibrated: false,
     scaleDenominator: null, // 縮尺分母(例500=1/500)。直接入力時のみ厳密値。2点設定ではnull(表示は近似)
     showScaleBar: false,  // 図面枠内のスケールバー表示
+    snap: true,           // 作図/頂点ドラッグ時に近くの頂点へスナップ
     bgOpacity: 1.0,
     legendPos: null,      // {x,y} 未設定なら右下自動
   },
@@ -393,6 +403,7 @@ const state = {
   view: { z: 0.55, ox: 40, oy: 30 },
   selIds: [],             // 選択中オブジェクトidの配列(複数選択)。単一選択時のみsel=そのid
   sel: null,              // '_legend' or 単一選択id or null。頂点編集/詳細プロパティは単一選択時のみ
+  snapHint: null,         // スナップ中の点 {x,y}(オーバーレイ表示用。実行時のみ)
   tool: 'select',
   draft: null,            // 作図中データ
   undoStack: [], redoStack: [],
@@ -1127,6 +1138,63 @@ function shiftObj(cp, sh) {
   else if (cp.type === 'dim') { cp.a.x += sh; cp.a.y += sh; cp.b.x += sh; cp.b.y += sh; }
   else { cp.x += sh; cp.y += sh; }
 }
+// スナップ候補: 各オブジェクトの頂点/中心
+function snapCandidates(o) {
+  if (o.type === 'symbol' || o.type === 'text') return [{ x: o.x, y: o.y }];
+  if (o.type === 'dim') return [o.a, o.b];
+  if (o.pts) return o.pts;
+  return [];
+}
+// 近くの頂点へスナップ。interactive時は state.snapHint を更新
+function snapPoint(w, exclude, interactive) {
+  if (!state.settings.snap) { if (interactive) state.snapHint = null; return { x: w.x, y: w.y, hit: false }; }
+  const tol = 10 / state.view.z;
+  let best = null, bd = tol;
+  for (const o of state.objects) {
+    if (exclude && exclude.has(o.id)) continue;
+    for (const q of snapCandidates(o)) {
+      const d = Math.hypot(q.x - w.x, q.y - w.y);
+      if (d < bd) { bd = d; best = q; }
+    }
+  }
+  if (interactive) state.snapHint = best ? { x: best.x, y: best.y } : null;
+  return best ? { x: best.x, y: best.y, hit: true } : { x: w.x, y: w.y, hit: false };
+}
+// ---------- 整列・等間隔配置 (複数選択) ----------
+function alignSelected(mode) {
+  const objs = selectedObjs(); if (objs.length < 2) return;
+  pushUndo();
+  const boxes = objs.map(o => ({ o, b: objBBox(o) }));
+  const minX = Math.min(...boxes.map(x => x.b.x)), maxX = Math.max(...boxes.map(x => x.b.x + x.b.w));
+  const minY = Math.min(...boxes.map(x => x.b.y)), maxY = Math.max(...boxes.map(x => x.b.y + x.b.h));
+  const cX = (minX + maxX) / 2, cY = (minY + maxY) / 2;
+  boxes.forEach(({ o, b }) => {
+    let dx = 0, dy = 0;
+    if (mode === 'left') dx = minX - b.x;
+    else if (mode === 'right') dx = maxX - (b.x + b.w);
+    else if (mode === 'hcenter') dx = cX - (b.x + b.w / 2);
+    else if (mode === 'top') dy = minY - b.y;
+    else if (mode === 'bottom') dy = maxY - (b.y + b.h);
+    else if (mode === 'vcenter') dy = cY - (b.y + b.h / 2);
+    if (dx || dy) moveObjBy(o, o, dx, dy);
+  });
+  render(); autosave();
+}
+function distributeSelected(axis) {
+  const objs = selectedObjs();
+  if (objs.length < 3) { showToast('等間隔配置は3つ以上を選択したときに使えます。'); return; }
+  pushUndo();
+  const boxes = objs.map(o => ({ o, b: objBBox(o) }));
+  const center = axis === 'h' ? (x => x.b.x + x.b.w / 2) : (x => x.b.y + x.b.h / 2);
+  boxes.sort((p, q) => center(p) - center(q));
+  const first = center(boxes[0]), last = center(boxes[boxes.length - 1]);
+  const step = (last - first) / (boxes.length - 1);
+  boxes.forEach((bx, i) => {
+    const d = (first + step * i) - center(bx);
+    if (axis === 'h') moveObjBy(bx.o, bx.o, d, 0); else moveObjBy(bx.o, bx.o, 0, d);
+  });
+  render(); autosave();
+}
 
 function drawOverlays(c) {
   const hz = 1 / state.view.z;
@@ -1186,6 +1254,16 @@ function drawOverlays(c) {
   if (d && d.mode === 'calib' && d.pts && d.pts.length === 1 && d.cursor) {
     c.strokeStyle = '#c0392b'; c.lineWidth = 2 * hz;
     c.beginPath(); c.moveTo(d.pts[0].x, d.pts[0].y); c.lineTo(d.cursor.x, d.cursor.y); c.stroke();
+  }
+  // スナップ点マーカー(橙の小四角＋十字)
+  if (state.snapHint) {
+    const s = 6 * hz;
+    c.strokeStyle = '#e67e22'; c.lineWidth = 1.6 * hz; c.setLineDash([]);
+    c.strokeRect(state.snapHint.x - s, state.snapHint.y - s, s * 2, s * 2);
+    c.beginPath();
+    c.moveTo(state.snapHint.x - s * 1.7, state.snapHint.y); c.lineTo(state.snapHint.x + s * 1.7, state.snapHint.y);
+    c.moveTo(state.snapHint.x, state.snapHint.y - s * 1.7); c.lineTo(state.snapHint.x, state.snapHint.y + s * 1.7);
+    c.stroke();
   }
 }
 
@@ -1359,22 +1437,26 @@ function pointerDown(e) {
     }
   } else if (t.startsWith('place:')) {
     pushUndo();
-    state.objects.push({ id: uid(), type: 'symbol', kind: t.slice(6), x: w.x, y: w.y, rot: 0, scl: 1 });
+    const sp = snapPoint(w);
+    state.objects.push({ id: uid(), type: 'symbol', kind: t.slice(6), x: sp.x, y: sp.y, rot: 0, scl: 1 });
     render(); autosave();
   } else if (t === 'text') {
+    const sp = snapPoint(w);
     askInput({ title: '文字の入力', message: '図面に配置する文字を入力してください。', value: '' }).then(txt => {
-      if (txt) { pushUndo(); state.objects.push({ id: uid(), type: 'text', x: w.x, y: w.y, text: txt, size: 18, rot: 0 }); render(); }
+      if (txt) { pushUndo(); state.objects.push({ id: uid(), type: 'text', x: sp.x, y: sp.y, text: txt, size: 18, rot: 0 }); render(); }
     });
   } else if (t === 'dim') {
-    if (!state.draft) state.draft = { mode: 'dim', pts: [w] };
+    const sp = snapPoint(w);
+    if (!state.draft) state.draft = { mode: 'dim', pts: [{ x: sp.x, y: sp.y }] };
     else {
       pushUndo();
-      state.objects.push({ id: uid(), type: 'dim', a: state.draft.pts[0], b: w, off: 16 });
+      state.objects.push({ id: uid(), type: 'dim', a: state.draft.pts[0], b: { x: sp.x, y: sp.y }, off: 16 });
       state.draft = null; setHint('寸法線: 1点目をクリック'); render();
     }
   } else if (t.startsWith('poly:')) {
+    const sp = snapPoint(w);
     if (!state.draft) state.draft = { mode: t, pts: [] };
-    state.draft.pts.push(w);
+    state.draft.pts.push({ x: sp.x, y: sp.y });
     render();
   } else if (t === 'calib') {
     if (!state.draft) state.draft = { mode: 'calib', pts: [w] };
@@ -1407,7 +1489,12 @@ function pointerMove(e) {
   const mm = state.settings.mPerPx;
   document.getElementById('coord').textContent =
     `x ${(w.x * mm).toFixed(2)}m / y ${(w.y * mm).toFixed(2)}m　倍率 ${(state.view.z * 100).toFixed(0)}%`;
-  if (state.draft) { state.draft.cursor = w; render(); }
+  if (state.draft) {
+    if (state.settings.snap && (state.draft.mode.startsWith('poly:') || state.draft.mode === 'dim')) {
+      const sp = snapPoint(w, null, true); state.draft.cursor = { x: sp.x, y: sp.y };
+    } else { state.draft.cursor = w; state.snapHint = null; }
+    render();
+  }
   if (!drag) return;
   if (e.cancelable) e.preventDefault();
   if (drag.pend) { // 実際に動かした時だけUndo履歴に積む
@@ -1427,8 +1514,9 @@ function pointerMove(e) {
     render(); return;
   }
   if (drag.kind === 'vertex') {
+    const sp = snapPoint(w, new Set([drag.obj.id]), true);
     const pts = objPoints(drag.obj);
-    pts[drag.vi].x = w.x; pts[drag.vi].y = w.y;
+    pts[drag.vi].x = sp.x; pts[drag.vi].y = sp.y;
     render(); return;
   }
   if (drag.kind === 'move') {
@@ -1449,7 +1537,7 @@ function pointerUp() {
     }
     drag = null; return; // 選択操作なので自動保存は不要
   }
-  drag = null; autosave();
+  drag = null; state.snapHint = null; autosave(); render();
 }
 cv.addEventListener('mousedown', pointerDown);
 addEventListener('mousemove', pointerMove);
@@ -1763,8 +1851,19 @@ function renderProps() {
   if (sels.length >= 2) { // 複数選択: グループ操作パネル
     document.getElementById('selLabel').textContent = `選択中: ${sels.length}個`;
     root.innerHTML =
-      `<div class="pempty">${sels.length}個のオブジェクトを選択中。<br>ドラッグでまとめて移動、<b>R</b>で記号/文字を回転、<b>Delete</b>で削除できます。<br><br>個別の寸法・ラベル編集は1つだけ選択したときに表示されます。</div>` +
+      `<div class="pempty">${sels.length}個のオブジェクトを選択中。<br>ドラッグでまとめて移動、<b>R</b>で記号/文字を回転、<b>Delete</b>で削除できます。</div>` +
+      `<h3 style="margin-top:2px">整列</h3>` +
+      `<div class="palign">
+        <button class="pbtn" data-al="left">左揃え</button><button class="pbtn" data-al="hcenter">左右中央</button><button class="pbtn" data-al="right">右揃え</button>
+        <button class="pbtn" data-al="top">上揃え</button><button class="pbtn" data-al="vcenter">上下中央</button><button class="pbtn" data-al="bottom">下揃え</button>
+      </div>` +
+      `<div class="palign2">
+        <button class="pbtn" data-dist="h">横に等間隔</button><button class="pbtn" data-dist="v">縦に等間隔</button>
+      </div>` +
+      `<p class="pnote">等間隔配置は3つ以上の選択で有効です。</p>` +
       `<div class="pbtnrow"><button class="pbtn" id="pgDup">まとめて複製</button><button class="pbtn danger" id="pgDel">まとめて削除</button></div>`;
+    root.querySelectorAll('[data-al]').forEach(b => b.addEventListener('click', () => alignSelected(b.dataset.al)));
+    root.querySelectorAll('[data-dist]').forEach(b => b.addEventListener('click', () => distributeSelected(b.dataset.dist)));
     document.getElementById('pgDel').addEventListener('click', () => {
       pushUndo();
       const ids = new Set(state.selIds);
@@ -2092,6 +2191,7 @@ function syncSettingsUI() {
   document.getElementById('setLegend').checked = state.settings.showLegend;
   document.getElementById('setNote').checked = state.settings.showNote;
   document.getElementById('setScaleBar').checked = !!state.settings.showScaleBar;
+  document.getElementById('setSnap').checked = state.settings.snap !== false;
   document.getElementById('setSymScale').value = Math.round(state.settings.symScale * 100);
   document.getElementById('setSymScaleV').textContent = state.settings.symScale.toFixed(1);
   document.getElementById('bgOpacity').value = Math.round(state.settings.bgOpacity * 100);
@@ -2131,6 +2231,7 @@ function bindUI() {
   $('btnZoomFit').onclick = zoomFit;
   $('btnCalib').onclick = openCalibModal;
   $('setScaleBar').onchange = e => { state.settings.showScaleBar = e.target.checked; render(); autosave(); };
+  $('setSnap').onchange = e => { state.settings.snap = e.target.checked; if (!e.target.checked) state.snapHint = null; render(); autosave(); };
   $('bgOpacity').oninput = e => { state.settings.bgOpacity = +e.target.value / 100; render(); autosave(); };
   $('setTitle').oninput = e => { state.settings.title = e.target.value; render(); autosave(); };
   $('setKoshu').oninput = e => { state.settings.koshu = e.target.value; render(); autosave(); };

@@ -243,6 +243,52 @@ const tests = `
   ok(!threwP, 'doPrint(all) no-throw'+(threwP?': '+threwP.message:''));
   var threwP1=null; try{ doPrint('A3', false); }catch(e){ threwP1=e; }
   ok(!threwP1, 'doPrint(one) no-throw'+(threwP1?': '+threwP1.message:''));
+
+  // ---- SNAP + ALIGN/DISTRIBUTE ----
+  state.settings.snap=true; state.view={z:1,ox:0,oy:0};
+  state.objects=[
+    {id:'v1',type:'symbol',kind:'cone',x:100,y:100,rot:0,scl:1},
+    {id:'v2',type:'text',x:300,y:180,text:'t',size:18,rot:0},
+  ];
+  // snapPoint: near a vertex -> snaps to it; far -> unchanged
+  var sn=snapPoint({x:104,y:97}); ok(sn.hit && sn.x===100 && sn.y===100, 'snapPoint snaps to nearby vertex');
+  var sn2=snapPoint({x:500,y:500}); ok(!sn2.hit && sn2.x===500, 'snapPoint leaves far point unchanged');
+  state.settings.snap=false; var sn3=snapPoint({x:104,y:97}); ok(!sn3.hit && sn3.x===104, 'snap off => no snapping');
+  state.settings.snap=true;
+  // exclude set skips own object
+  var sn4=snapPoint({x:101,y:101}, new Set(['v1'])); ok(!sn4.hit, 'exclude skips own vertex');
+  // align left: all bbox.x equal to min
+  state.objects=[
+    {id:'a',type:'symbol',kind:'cone',x:100,y:50,rot:0,scl:1},
+    {id:'b',type:'symbol',kind:'cone',x:140,y:120,rot:0,scl:1},
+    {id:'c',type:'symbol',kind:'cone',x:180,y:200,rot:0,scl:1},
+  ];
+  setSel(['a','b','c']);
+  var bxBefore=selectedObjs().map(o=>objBBox(o).x);
+  alignSelected('left');
+  var xs=selectedObjs().map(o=>objBBox(o).x);
+  ok(Math.max(...xs)-Math.min(...xs) < 1e-6, 'align left: bbox.x all equal');
+  // vcenter align: centers y equal
+  alignSelected('vcenter');
+  var cys=selectedObjs().map(o=>{var b=objBBox(o);return b.y+b.h/2;});
+  ok(Math.max(...cys)-Math.min(...cys) < 1e-6, 'align vcenter: centers equal');
+  // distribute horizontal: equal center spacing, ends fixed
+  state.objects=[
+    {id:'d1',type:'symbol',kind:'cone',x:0,y:0,rot:0,scl:1},
+    {id:'d2',type:'symbol',kind:'cone',x:10,y:0,rot:0,scl:1},
+    {id:'d3',type:'symbol',kind:'cone',x:100,y:0,rot:0,scl:1},
+  ];
+  setSel(['d1','d2','d3']);
+  distributeSelected('h');
+  var cxs=selectedObjs().map(o=>o.x).sort((p,q)=>p-q);
+  ok(Math.abs((cxs[1]-cxs[0])-(cxs[2]-cxs[1]))<1e-6, 'distribute h: equal spacing');
+  ok(cxs[0]===0 && cxs[2]===100, 'distribute h: endpoints fixed');
+  // distribute <3 shows toast, no change
+  setSel(['d1','d2']); var bx=state.objects[0].x; distributeSelected('h');
+  ok(state.objects[0].x===bx, 'distribute needs >=3 (no-op for 2)');
+  // snap marker draws without throwing
+  state.snapHint={x:10,y:10}; var threwS=null; try{ drawOverlays(makeCtx()); }catch(e){ threwS=e; } state.snapHint=null;
+  ok(!threwS, 'drawOverlays(snap marker) no-throw'+(threwS?': '+threwS.message:''));
   console.log(fails? ('\\n'+fails+' FAILURES') : '\\nALL PASS ('+(0)+')');
   return fails;
 })();
