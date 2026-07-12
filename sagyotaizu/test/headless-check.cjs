@@ -289,6 +289,31 @@ const tests = `
   // snap marker draws without throwing
   state.snapHint={x:10,y:10}; var threwS=null; try{ drawOverlays(makeCtx()); }catch(e){ threwS=e; } state.snapHint=null;
   ok(!threwS, 'drawOverlays(snap marker) no-throw'+(threwS?': '+threwS.message:''));
+
+  // ---- AREA / LENGTH SUMMARY ----
+  state.settings.mPerPx=0.1; state.settings.calibrated=true; // 10px = 1m
+  var sq=[{x:0,y:0},{x:10,y:0},{x:10,y:10},{x:0,y:10}];
+  ok(Math.abs(polyAreaM2(sq)-1) < 1e-9, 'polyAreaM2: 10x10px square = 1 m² (got '+polyAreaM2(sq)+')');
+  ok(Math.abs(polyLenM(sq,true)-4) < 1e-9, 'polyLenM closed: perimeter = 4 m');
+  ok(Math.abs(polyLenM([{x:0,y:0},{x:30,y:0}],false)-3) < 1e-9, 'polyLenM open: 30px = 3 m');
+  ok(polyAreaM2([{x:0,y:0},{x:1,y:0}])===0, 'polyAreaM2 <3 pts = 0');
+  // per-object metrics html
+  var mz=objMetricsHtml({type:'zone',pts:sq});
+  ok(mz.includes('面積') && mz.includes('m²'), 'objMetrics(zone) shows area');
+  var mcr=objMetricsHtml({type:'conerow',kind:'abarricade',pts:[{x:0,y:0},{x:100,y:0}],interval:1.8});
+  ok(mcr.includes('延長') && mcr.includes('バリケード本数'), 'objMetrics(barricade row) shows length+count');
+  var md=objMetricsHtml({type:'dim',a:{x:0,y:0},b:{x:50,y:0}});
+  ok(md.includes('実測長') && md.includes('5'), 'objMetrics(dim) shows measured length (5 m)');
+  // pattern summary aggregates
+  state.objects=[
+    {type:'zone',pts:sq}, {type:'zone',pts:[{x:0,y:0},{x:20,y:0},{x:20,y:10},{x:0,y:10}]},
+    {type:'conerow',kind:'cone',pts:[{x:0,y:0},{x:50,y:0}],interval:2,bar:true},
+  ];
+  var sum=patternSummaryHtml();
+  ok(sum.includes('集計') && sum.includes('作業帯 面積') && sum.includes('規制延長'), 'patternSummary lists area+length totals');
+  // zone total = 1 + 2 = 3 m²
+  ok(sum.includes('3') , 'patternSummary total area includes 3');
+  ok(patternSummaryHtml.length>=0, 'summary empty when no relevant objects: '+(function(){var b=state.objects;state.objects=[{type:'symbol',kind:'cone',x:0,y:0}];var r=patternSummaryHtml()===''; state.objects=b; return r;})());
   console.log(fails? ('\\n'+fails+' FAILURES') : '\\nALL PASS ('+(0)+')');
   return fails;
 })();

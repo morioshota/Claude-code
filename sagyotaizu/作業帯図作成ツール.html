@@ -135,6 +135,9 @@ aside{background:var(--panel); overflow-y:auto;}
 .palign{display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; margin-bottom:5px;}
 .palign2{display:grid; grid-template-columns:1fr 1fr; gap:4px;}
 .palign .pbtn,.palign2 .pbtn{padding:6px 0; font-size:11px;}
+.pmetrics{background:#fff; border:1px solid var(--line); border-radius:6px; padding:6px 9px; margin-top:8px;}
+.pmrow{display:flex; justify-content:space-between; gap:8px; font-size:11.5px; color:var(--ink2); padding:2px 0;}
+.pmrow b{color:var(--ink); font-variant-numeric:tabular-nums; white-space:nowrap;}
 
 footer{
   background:var(--ink); color:#aebccb; font-size:11px; padding:4px 12px;
@@ -285,6 +288,8 @@ footer b{color:#fff; font-weight:600;}
       マウスホイールで拡大縮小、<kbd>Space</kbd>+ドラッグ または 右ドラッグで画面移動。
       <h5>線を描くツール(作業帯・歩行者通路・コーン列・寸法線)</h5>
       クリックで点を追加、<b>ダブルクリックまたは Enter で確定</b>、<kbd>Esc</kbd> で中止。
+      <h5>面積・延長の集計</h5>
+      作業帯・導流帯を選ぶと<b>面積(m²)・周長</b>、コーン列/バリケード列は<b>延長(m)・本数</b>、歩行者通路は延長、寸法線は実測長が右パネルに出ます。何も選んでいないときは、そのパターンの<b>合計（作業帯面積・規制延長など）</b>を表示します。申請書の記載値の目安にどうぞ（正確な値には先に縮尺設定を）。
       <h5>注意</h5>
       ・縮尺設定を先に行うと、コーン間隔や寸法値が実寸で正しく入ります。<br>
       ・作業データはブラウザに自動保存されますが、確実な保管には「保存(JSON)」を使用してください。<br>
@@ -377,6 +382,8 @@ footer b{color:#fff; font-weight:600;}
    v2.4: スナップ(作図・頂点ドラッグ時に近い頂点へ吸着、トグル/マーカー表示)と、複数選択の
          整列(左中右/上中下)・等間隔配置(横/縦)。settings.snap、snapPoint/alignSelected/
          distributeSelected (R6/R7)
+   v2.5: 面積・延長の自動集計。選択物の面積(m²)/周長/延長/本数を右パネル表示、無選択時は
+         パターン合計(作業帯面積・規制延長ほか)。polyAreaM2/polyLenM/patternSummaryHtml (R12)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -689,6 +696,23 @@ function polyCenter(pts) {
   let x = 0, y = 0; pts.forEach(p => { x += p.x; y += p.y; });
   return { x: x / pts.length, y: y / pts.length };
 }
+// 多角形の面積(m²)。世界px²→実寸はmPerPx²倍
+function polyAreaM2(pts) {
+  if (!pts || pts.length < 3) return 0;
+  let a = 0;
+  for (let i = 0, n = pts.length; i < n; i++) { const p = pts[i], q = pts[(i + 1) % n]; a += p.x * q.y - q.x * p.y; }
+  const mpp = state.settings.mPerPx;
+  return Math.abs(a) / 2 * mpp * mpp;
+}
+// 折れ線の延長(m)。closed=trueで最終辺も加算
+function polyLenM(pts, closed) {
+  if (!pts || pts.length < 2) return 0;
+  let L = 0;
+  for (let i = 0; i < pts.length - 1; i++) L += V.len(V.sub(pts[i + 1], pts[i]));
+  if (closed && pts.length > 2) L += V.len(V.sub(pts[0], pts[pts.length - 1]));
+  return L * state.settings.mPerPx;
+}
+function fmtNum(n, d = 1) { return (Math.round(n * 10 ** d) / 10 ** d).toLocaleString('ja-JP', { maximumFractionDigits: d }); }
 
 // ---------- 入力モーダル (prompt代替) ----------
 // prompt() はcanvasイベント内でブラウザにブロックされるため自前モーダルを使う
@@ -1844,6 +1868,42 @@ function renderPatternBar() {
   if (hint) hint.textContent = p && p.frame ? '（このパターンは出力範囲を用紙全体に拡大して出力します）' : '';
 }
 
+// ---------- 集計 ----------
+const _mrow = (k, v) => `<div class="pmrow"><span>${k}</span><b>${v}</b></div>`;
+// このパターンの面積・延長の合計HTML(対象が無ければ空)
+function patternSummaryHtml() {
+  const zones = state.objects.filter(o => o.type === 'zone');
+  const divs = state.objects.filter(o => o.type === 'divzone');
+  const rows = state.objects.filter(o => o.type === 'conerow');
+  const peds = state.objects.filter(o => o.type === 'pedpath');
+  if (!zones.length && !divs.length && !rows.length && !peds.length) return '';
+  let h = `<h3 style="margin-top:12px">集計（このパターン）</h3><div class="pmetrics">`;
+  if (zones.length) h += _mrow(`作業帯 面積 ×${zones.length}`, fmtNum(zones.reduce((s, o) => s + polyAreaM2(o.pts), 0), 1) + ' m²');
+  if (divs.length) h += _mrow(`導流帯 面積 ×${divs.length}`, fmtNum(divs.reduce((s, o) => s + polyAreaM2(o.pts), 0), 1) + ' m²');
+  if (rows.length) h += _mrow(`規制延長(コーン列等) ×${rows.length}`, fmtNum(rows.reduce((s, o) => s + polyLenM(o.pts, false), 0), 1) + ' m');
+  if (peds.length) h += _mrow(`歩行者通路 延長 ×${peds.length}`, fmtNum(peds.reduce((s, o) => s + polyLenM(o.pts, false), 0), 1) + ' m');
+  h += `</div>`;
+  if (!state.settings.calibrated) h += `<p class="pnote">※縮尺が未設定です。値は既定縮尺での参考値です。「縮尺設定」で実寸に合わせてください。</p>`;
+  return h;
+}
+// 選択中オブジェクト単体の面積/延長などの指標HTML
+function objMetricsHtml(o) {
+  const rows = [];
+  if (o.type === 'zone' || o.type === 'divzone') {
+    rows.push(['面積', fmtNum(polyAreaM2(o.pts), 1) + ' m²']);
+    rows.push(['周長', fmtNum(polyLenM(o.pts, true), 1) + ' m']);
+  } else if (o.type === 'conerow') {
+    rows.push(['延長', fmtNum(polyLenM(o.pts, false), 1) + ' m']);
+    const label = (o.kind === 'abarricade' ? 'バリケード' : o.kind === 'drum' ? 'ドラム' : 'コーン') + '本数';
+    rows.push([label, conePositions(o).length + ' 本']);
+  } else if (o.type === 'pedpath') {
+    rows.push(['延長', fmtNum(polyLenM(o.pts, false), 1) + ' m']);
+  } else if (o.type === 'dim') {
+    rows.push(['実測長', fmtNum(V.len(V.sub(o.b, o.a)) * state.settings.mPerPx, 2) + ' m']);
+  }
+  return rows.length ? `<div class="pmetrics">${rows.map(([k, v]) => _mrow(k, v)).join('')}</div>` : '';
+}
+
 // ---------- プロパティパネル ----------
 function renderProps() {
   const root = document.getElementById('objProps');
@@ -1886,9 +1946,10 @@ function renderProps() {
     ? '選択中: ' + typeLabel(o)
     : (state.sel === '_legend' ? '選択中: 凡例' : '');
   if (!o) {
-    root.innerHTML = state.sel === '_legend'
+    const msg = state.sel === '_legend'
       ? '<div class="pempty">凡例を選択中。ドラッグで位置を移動できます。</div>'
       : '<div class="pempty">オブジェクトを選択すると、ここで回転・寸法・ラベル等を編集できます。<br><br>左のパレットから記号を選んで図面をクリックすると配置できます。</div>';
+    root.innerHTML = msg + patternSummaryHtml();
     return;
   }
   let html = '';
@@ -1934,6 +1995,7 @@ function renderProps() {
     html += `<div class="prow"><label>内容</label><input type="text" id="pText" value="${esc}"></div>`;
     html += `<div class="prow"><label>大きさ</label><input type="range" id="pTSize" min="10" max="60" value="${o.size || 18}"><span class="val" id="pTSizeV">${o.size || 18}</span></div>`;
   }
+  html += objMetricsHtml(o);
   if (o.pts || o.type === 'dim') html += `<p class="pnote">白い四角(頂点)をドラッグすると形を変えられます。</p>`;
   html += `<div class="pbtnrow"><button class="pbtn" id="pDup">複製</button><button class="pbtn danger" id="pDel">削除</button></div>`;
   root.innerHTML = html;
