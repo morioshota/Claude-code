@@ -1,0 +1,17 @@
+{
+  "name": "銘柄図鑑 KABU DEX",
+  "short_name": "KABU DEX",
+  "description": "リサーチ済み銘柄を図鑑コレクションとして管理する研究記録アプリ",
+  "lang": "ja",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0d1c",
+  "theme_color": "#0e1122",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
