@@ -45,7 +45,8 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
   "shiny": false, "shinyAt": "当選日(任意)",
   "evoPattern": "進化装飾のkind(初進化時に抽選し永久保存。evolution.js参照)",
   "evoFxBest": "normal|rare|ultra (引いた進化演出の最高レア。実績用)",
-  "lastTriggerCheck": "YYYY-MM-DD (トリガー点検の最終実施日)"
+  "lastTriggerCheck": "YYYY-MM-DD (トリガー点検の最終実施日)",
+  "soldAt": "YYYY-MM-DD (卒業=リリース日)", "lesson": "この銘柄から学んだこと(卒業アルバム用)"
 } ] }
 ```
 
@@ -105,6 +106,8 @@ npm run build    # 本番ビルド(dist/)
 - **進化ビジュアル**: ステージ2以上で進化装飾が育つ。初進化時にタイプ別プール(`evolution.js`)から抽選→`evoPattern`永久保存。ステージ4は王冠
 - **進化演出ガチャ**: 進化の瞬間に 通常70%/レア25%/超レア5%(`fx.jsx`のEvoCeremony)。最高レアは`evoFxBest`に保存(実績用)
 - **効果音**: `lib/sound.js`。🔊ボタンでミュート(永続)。`prefers-reduced-motion`ではパーティクル等の演出を自動オフ
+- **卒業アルバム**: `Album.jsx`。リリース(→sold)は即保存せず卒業式モーダルが割り込み、「学んだこと(lesson)」を書いてから確定。アルバムビューで卒業生一覧と学びの編集。成績評価ではなく振り返りが目的
+- **PWA**: `public/manifest.webmanifest`＋`public/sw.js`。SW登録は本番のみ。ページはネットワーク優先・アセットはSWR・`/api/`は非キャッシュ。キャッシュ照合は`ignoreVary`必須(CORSモジュールとVaryで外れる)
 
 ## バックログ（優先度順の提案）
 

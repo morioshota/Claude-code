@@ -11,6 +11,7 @@
 import { useState, useEffect } from "react";
 import { storage } from "./lib/storage.js";
 import { AiAssistant } from "./components/AiAssistant.jsx";
+import { GraduationModal, AlbumView } from "./components/Album.jsx";
 import { DetailModal } from "./components/DetailModal.jsx";
 import { DexCard } from "./components/DexCard.jsx";
 import { Heatmap } from "./components/Heatmap.jsx";
@@ -42,7 +43,8 @@ export default function KabuDex() {
   const [getFlash, setGetFlash] = useState(null);
   const [evoFlash, setEvoFlash] = useState(null); // {stock, stage, tier} 進化セレモニー
   const [shinyFlash, setShinyFlash] = useState(null); // 色違い当選セレモニー(進化と重なったら後で表示)
-  const [view, setView] = useState("dex"); // 'dex'|'ranch'
+  const [view, setView] = useState("dex"); // 'dex'|'ranch'|'album'
+  const [graduating, setGraduating] = useState(null); // 卒業式モーダル対象のstock
   const [activity, setActivity] = useState(null); // 草カレンダー用 {days, seeded}
   const [soundOn, setSoundOn] = useState(soundEnabled());
   const [checkNagDismissed, setCheckNagDismissed] = useState(() => {
@@ -130,7 +132,7 @@ export default function KabuDex() {
     const ns = { ...f, id: uid(), no: maxNo + 1, logs: f.logs || [], noteCount: 0, lastResearch: "" };
     persist([...stocks, ns]);
     setFormMode(null);
-    setGetFlash(ns.name);
+    setGetFlash({ icon: "🎉", text: `${ns.name} を図鑑に登録した！` });
     sfx("get");
     burstConfetti(30);
     recordActivity().then(setActivity);
@@ -139,7 +141,30 @@ export default function KabuDex() {
 
   const updateStock = (updated, openEdit) => {
     if (openEdit) { setFormMode("edit"); return; }
+    // リリース(→sold)は即保存せず卒業式モーダルへ(「学んだこと」を書いてから確定)
+    const before = stocks.find((s) => s.id === updated.id);
+    if (updated.status === "sold" && before && before.status !== "sold") {
+      setGraduating(before);
+      return;
+    }
     persist(stocks.map((s) => (s.id === updated.id ? updated : s)));
+  };
+
+  /* 卒業式の確定: 学んだこと(lesson)と卒業日を保存してアルバム入り */
+  const confirmGraduation = (lesson) => {
+    const g = graduating;
+    setGraduating(null);
+    setSelectedId(null);
+    persist(stocks.map((s) => (s.id === g.id ? { ...s, status: "sold", soldAt: today(), lesson } : s)));
+    sfx("fanfare");
+    burstConfetti(50);
+    recordActivity().then(setActivity); // 振り返りも研究行動として草に記録
+    setGetFlash({ icon: "🕊️", text: `${g.name} が卒業しました。おもいでは🎓アルバムに` });
+    setTimeout(() => setGetFlash(null), 2600);
+  };
+
+  const saveLesson = (id, text) => {
+    persist(stocks.map((s) => (s.id === id ? { ...s, lesson: text } : s)));
   };
 
   const saveEdit = (f) => {
@@ -373,11 +398,11 @@ export default function KabuDex() {
       {/* パーティクルの受け皿(紙吹雪・星・フラッシュ) */}
       <FxLayer />
 
-      {/* ゲット演出 */}
+      {/* ゲット・卒業などの汎用フラッシュ演出 */}
       {getFlash && (
-        <div style={{ position: "fixed", top: "40%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 100, background: "#0e1122", border: "2px solid #ffd166", borderRadius: 16, padding: "18px 28px", textAlign: "center", boxShadow: "0 0 40px rgba(255,209,102,.4)", animation: "kzPop 2s ease forwards", pointerEvents: "none" }}>
-          <div style={{ fontSize: 34 }}>🎉</div>
-          <div style={{ fontFamily: "'DotGothic16', monospace", color: "#ffd166", fontSize: 16, marginTop: 4 }}>{getFlash} を図鑑に登録した！</div>
+        <div style={{ position: "fixed", top: "40%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 100, background: "#0e1122", border: "2px solid #ffd166", borderRadius: 16, padding: "18px 28px", textAlign: "center", boxShadow: "0 0 40px rgba(255,209,102,.4)", animation: "kzPop 2.4s ease forwards", pointerEvents: "none" }}>
+          <div style={{ fontSize: 34 }}>{getFlash.icon}</div>
+          <div style={{ fontFamily: "'DotGothic16', monospace", color: "#ffd166", fontSize: 16, marginTop: 4 }}>{getFlash.text}</div>
         </div>
       )}
 
@@ -440,7 +465,7 @@ export default function KabuDex() {
 
         {/* ビュー切り替え */}
         <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-          {[["dex", "📕 図鑑"], ["ranch", "🏞 ぼくじょう"]].map(([k, label]) => (
+          {[["dex", "📕 図鑑"], ["ranch", "🏞 ぼくじょう"], ["album", "🎓 アルバム"]].map(([k, label]) => (
             <button key={k} onClick={() => setView(k)} style={{
               all: "unset", cursor: "pointer", padding: "8px 18px", borderRadius: 10,
               fontFamily: "'DotGothic16', monospace", fontSize: 13, letterSpacing: 1,
@@ -458,6 +483,7 @@ export default function KabuDex() {
         </div>
 
         {view === "ranch" && <RanchView stocks={stocks} onSelect={openDetail} />}
+        {view === "album" && <AlbumView stocks={stocks} onSelect={openDetail} onSaveLesson={saveLesson} />}
 
         {view === "dex" && (<>
         {/* 操作列 */}
@@ -540,6 +566,7 @@ export default function KabuDex() {
       {panel === "badges" && <BadgeModal stocks={stocks} onClose={() => setPanel(null)} />}
       {panel === "data" && <DataPortModal stocks={stocks} onExport={exportAll} onImport={importAll} onClose={() => setPanel(null)} />}
       {panel === "check" && <TriggerCheckModal due={due} onAnswer={answerTriggerCheck} onClose={() => setPanel(null)} />}
+      {graduating && <GraduationModal stock={graduating} onConfirm={confirmGraduation} onCancel={() => setGraduating(null)} />}
     </div>
   );
 }
