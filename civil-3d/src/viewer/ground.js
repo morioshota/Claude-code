@@ -1,10 +1,15 @@
 import * as THREE from 'three';
-import { toWorld } from './coords.js';
 import { resampleByF } from '../core/georef.js';
+
+// 測量(east,north,elev) → three.js。立坑(extrude.js)と同じ規約に合わせる:
+// east=+X, elev=+Y(標高), north→-Z。これで平面図由来の位置が立坑と重なる。
+function gw(p) {
+  return new THREE.Vector3(p.east, p.elev, -p.north);
+}
 
 // ジオリファレンス済み断面(1本)を3Dの折れ線として生成。
 export function buildSectionLine(sectionWorld, color = 0x6ec6ff) {
-  const pts = sectionWorld.map((p) => toWorld(p.east, p.north, p.elev));
+  const pts = sectionWorld.map((p) => gw(p));
   const line = new THREE.Line(
     new THREE.BufferGeometry().setFromPoints(pts),
     new THREE.LineBasicMaterial({ color })
@@ -33,7 +38,7 @@ export function buildGroundSurface(sections, opts = {}) {
   const pos = [];
   for (const row of rows) {
     for (const p of row) {
-      const v = toWorld(p.east, p.north, p.elev);
+      const v = gw(p);
       pos.push(v.x, v.y, v.z);
     }
   }

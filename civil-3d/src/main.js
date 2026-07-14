@@ -41,13 +41,15 @@ function resetShaftState() {
   structGroup = null;
   structCount = 0;
   placingStruct = false;
+  dview = 'sheet';
+  glElev = 0;
 }
 
 function resetGeoState() {
   cancelGeo();
   geoSections = [];
   geoGroup = null;
-  groundActive = false;
+  groundMeanElev = 0;
 }
 
 function clearWorld() {
@@ -196,7 +198,65 @@ let geoGroup = null; // 3D成果(地盤サーフェス/断面線)
 let geoOverlay = null; // シート上の入力プレビュー
 let el1Value = 100;
 let el2Value = 95;
-let groundActive = false;
+let groundMeanElev = 0;
+// 図面サブビュー: 'sheet'(図面) | 'shaft'(立坑) | 'ground'(地盤) | 'both'(統合)
+let dview = 'sheet';
+let glElev = 0; // GL(地表)の実標高。立坑/試験掘り/構造物の基準面。
+
+const hasShaft = () => !!shaftGroup;
+const hasGround = () => !!geoGroup && geoSections.length >= 1;
+
+// GL面(試験掘り/構造物の配置クリック用)。glElev に追従。
+function glPlane() {
+  return new THREE.Plane(new THREE.Vector3(0, 1, 0), -glElev);
+}
+
+// dview に応じて各グループの表示と立坑のGL標高を反映
+function applyDview() {
+  if (!drawing) return;
+  drawing.group.visible = dview === 'sheet';
+  if (shaftGroup) {
+    shaftGroup.visible = dview === 'shaft' || dview === 'both';
+    shaftGroup.position.y = glElev; // GL基準を実標高へ
+  }
+  if (geoGroup) geoGroup.visible = dview === 'ground' || dview === 'both';
+  S.grid.visible = gridVisible;
+}
+
+function frameForView() {
+  if (dview === 'sheet') {
+    S.frame(drawing.worldBox, { front: true });
+  } else if (dview === 'shaft' && shaftGroup) {
+    S.frame(new THREE.Box3().setFromObject(shaftGroup));
+  } else if (dview === 'ground' && geoGroup) {
+    S.frame(new THREE.Box3().setFromObject(geoGroup));
+  } else if (dview === 'both') {
+    const box = new THREE.Box3();
+    if (shaftGroup) box.expandByObject(shaftGroup);
+    if (geoGroup) box.expandByObject(geoGroup);
+    if (!box.isEmpty()) S.frame(box);
+  }
+}
+
+function switchView(v) {
+  dview = v;
+  if (v === 'sheet') cancelGeo();
+  applyDview();
+  frameForView();
+  buildPanel();
+  updateHud();
+}
+
+function viewNavHtml() {
+  const btn = (v, label, cls = '') => `<button data-view="${v}" class="${cls}" style="width:auto;padding:6px 12px">${label}</button>`;
+  const btns = [];
+  if (dview !== 'sheet') btns.push(btn('sheet', '図面'));
+  if (hasShaft() && dview !== 'shaft') btns.push(btn('shaft', '立坑'));
+  if (hasGround() && dview !== 'ground') btns.push(btn('ground', '地盤'));
+  if (hasShaft() && hasGround() && dview !== 'both') btns.push(btn('both', '統合', 'primary'));
+  if (!btns.length) return '';
+  return `<div class="group"><div class="title">ビュー切替</div><div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-start">${btns.join('')}</div></div>`;
+}
 
 function planeHit(ev, plane = zPlane) {
   const r = canvas.getBoundingClientRect();
@@ -348,9 +408,8 @@ function cancelGeo() {
 function startGeoSection() {
   if (tracing) stopTrace();
   cancelGeo();
-  groundActive = false;
-  if (geoGroup) geoGroup.visible = false;
-  drawing.group.visible = true;
+  dview = 'sheet';
+  applyDview();
   S.frame(drawing.worldBox, { front: true });
   geoStep = 'planStart';
   S.controls.enabled = false;
@@ -416,21 +475,19 @@ function showGround() {
     });
   }
   geoGroup = buildGroundSurface(geoSections.map((s) => s.world), { grid: 24 });
-  groundActive = true;
-  drawing.group.visible = false;
   S.world.add(geoGroup);
-  const box = new THREE.Box3().setFromObject(geoGroup);
-  if (!box.isEmpty()) S.frame(box);
+  // GL標高の既定値を地盤の平均標高に合わせる(立坑を実標高へ載せるため)
+  const all = geoSections.flatMap((s) => s.world.map((p) => p.elev));
+  groundMeanElev = all.length ? all.reduce((a, b) => a + b, 0) / all.length : 0;
+  glElev = groundMeanElev;
+  dview = 'ground';
+  applyDview();
+  frameForView();
   updateHud();
 }
 
 function exitGround() {
-  groundActive = false;
-  if (geoGroup) geoGroup.visible = false;
-  drawing.group.visible = true;
-  S.frame(drawing.worldBox, { front: true });
-  buildPanel();
-  updateHud();
+  switchView('sheet');
 }
 
 function removeGeoSection(idx) {
@@ -484,19 +541,26 @@ function generate3D() {
   const pts = tracePts.slice();
   stopTrace();
   clearTrace();
-  drawing.group.visible = false;
-  if (shaftGroup) S.world.remove(shaftGroup);
+  if (shaftGroup) {
+    S.world.remove(shaftGroup);
+    shaftGroup.traverse((o) => {
+      o.geometry?.dispose?.();
+      o.material?.dispose?.();
+    });
+  }
   pitsGroup = null;
   pitCount = 0;
   placingPit = false;
   structGroup = null;
   structCount = 0;
   placingStruct = false;
+  // 地盤があればGLを地盤の平均標高に載せる。無ければGL=0(相対)。
+  glElev = hasGround() ? groundMeanElev : 0;
   shaftGroup = new THREE.Group();
   shaftGroup.name = 'shaft-model';
   const shaft = buildShaft(pts, depthValue, { topY: 0, color: 0x4aa3ff });
   shaftGroup.add(shaft);
-  // 地表(GL)参照の枠
+  // 地表(GL)参照の枠(GL=0のローカル。shaftGroupごと実標高へ持ち上げる)
   const b = new THREE.Box3().setFromObject(shaft);
   const glPts = [
     new THREE.Vector3(b.min.x, 0, b.min.z), new THREE.Vector3(b.max.x, 0, b.min.z),
@@ -506,33 +570,18 @@ function generate3D() {
   shaftGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(glPts),
     new THREE.LineBasicMaterial({ color: 0x9be89b })));
   S.world.add(shaftGroup);
-  S.frame(new THREE.Box3().setFromObject(shaftGroup));
+  dview = 'shaft';
+  applyDview();
+  frameForView();
   buildPanel();
   const area = polygonArea(pts);
   setStatus(`3Dを生成: 深さ ${depthValue}m ／ 底面積 約${area.toFixed(1)}㎡ ／ 掘削体積 約${(area * depthValue).toFixed(1)}㎥`);
   updateHud();
 }
 
+// 「図面に戻る」= 立坑を保持したまま図面ビューへ(統合のため破棄しない)
 function backToDrawing() {
-  if (shaftGroup) {
-    S.world.remove(shaftGroup);
-    shaftGroup.traverse((o) => {
-      o.geometry?.dispose?.();
-      o.material?.dispose?.();
-    });
-    shaftGroup = null;
-  }
-  pitsGroup = null;
-  pitCount = 0;
-  placingPit = false;
-  structGroup = null;
-  structCount = 0;
-  placingStruct = false;
-  clearTrace();
-  drawing.group.visible = true;
-  S.frame(drawing.worldBox, { front: true });
-  buildPanel();
-  updateHud();
+  switchView('sheet');
 }
 
 function pitListHtml() {
@@ -580,7 +629,7 @@ function geoListHtml() {
   );
 }
 
-function buildGroundPanel(rows) {
+function buildGroundPanel() {
   panel.innerHTML = `
     <h1>土木3Dビルダー <span class="badge">地盤サーフェス</span></h1>
     <div class="sub">横断図から起こした現況地盤サーフェス。断面を追加すると精度が上がります。</div>
@@ -590,6 +639,7 @@ function buildGroundPanel(rows) {
       <div class="note" id="status"></div>
       <div class="row" style="margin-top:8px"><button id="demo">デモ現場に戻る</button></div>
     </div>
+    ${viewNavHtml()}
     <div class="group">
       <div class="title">断面（${geoSections.length}本）</div>
       <div id="geoList">${geoListHtml()}</div>
@@ -611,6 +661,61 @@ function buildGroundPanel(rows) {
     b.addEventListener('click', () => removeGeoSection(+b.dataset.rmgeo))
   );
   wireCommon();
+  wireNav();
+}
+
+function buildIntegratedPanel() {
+  panel.innerHTML = `
+    <h1>土木3Dビルダー <span class="badge">統合ビュー</span></h1>
+    <div class="sub">現況地盤・立坑・試験掘り・構造物を実標高で重ね合わせて総合検討します。</div>
+    <div class="group">
+      <div class="title">データ</div>
+      <div class="row"><button class="filebtn">別の図面を読み込む…<input type="file" id="cad" accept=".dwg,.dxf"/></button></div>
+      <div class="note" id="status"></div>
+      <div class="row" style="margin-top:8px"><button id="demo">デモ現場に戻る</button></div>
+    </div>
+    ${viewNavHtml()}
+    <div class="group">
+      <div class="title">GL基準</div>
+      <div class="row"><label>GL標高(m)</label><input id="glElev" type="number" value="${glElev.toFixed(1)}" step="0.1" style="width:70px;${inpStyle}"/></div>
+      <div class="note">立坑・試験掘り・構造物の天端基準。地盤に合わせて調整できます。</div>
+    </div>
+    <div class="group">
+      <div class="title">表示</div>
+      <div class="row"><label><input type="checkbox" id="vGround" checked/><span class="swatch" style="background:#6f7f5a"></span>現況地盤</label></div>
+      <div class="row"><label><input type="checkbox" id="vShaft" checked/><span class="swatch" style="background:#4aa3ff"></span>立坑</label></div>
+      <div class="row"><label><input type="checkbox" id="vPits" checked/><span class="swatch" style="background:#d8c37a"></span>試験掘り</label></div>
+      <div class="row"><label><input type="checkbox" id="vStr" checked/><span class="swatch" style="background:#9fb2c9"></span>構造物</label></div>
+      <div class="row"><label><input type="checkbox" id="gridv" ${gridVisible ? 'checked' : ''}/>基準グリッド</label></div>
+    </div>
+  `;
+  wireCommon();
+  wireNav();
+  panel.querySelector('#glElev').addEventListener('input', (e) => setGlElev(parseFloat(e.target.value) || 0));
+  const setVis = (sel, fn) => panel.querySelector(sel).addEventListener('change', (e) => fn(e.target.checked));
+  setVis('#vGround', (v) => geoGroup && (geoGroup.visible = v));
+  setVis('#vShaft', (v) => {
+    const s = shaftGroup?.getObjectByName('shaft');
+    if (s) s.visible = v;
+  });
+  setVis('#vPits', (v) => pitsGroup && (pitsGroup.visible = v));
+  setVis('#vStr', (v) => structGroup && (structGroup.visible = v));
+  setVis('#gridv', (v) => {
+    gridVisible = v;
+    S.grid.visible = v;
+  });
+}
+
+function setGlElev(v) {
+  glElev = v;
+  if (shaftGroup) shaftGroup.position.y = glElev;
+  updateHud();
+}
+
+function wireNav() {
+  panel.querySelectorAll('button[data-view]').forEach((b) =>
+    b.addEventListener('click', () => switchView(b.dataset.view))
+  );
 }
 
 function polygonArea(ring) {
@@ -638,12 +743,12 @@ canvas.addEventListener('click', (ev) => {
     return;
   }
   if (placingPit) {
-    const h = planeHit(ev, yPlane);
+    const h = planeHit(ev, glPlane());
     if (h) placePitAt(h.x, h.z);
     return;
   }
   if (placingStruct) {
-    const h = planeHit(ev, yPlane);
+    const h = planeHit(ev, glPlane());
     if (h) placeStructAt(h.x, h.z);
     return;
   }
@@ -667,26 +772,31 @@ function updateHud() {
       `試験掘り ${model.pits.length} ／ 構造物 ${model.structures.length}<br>` +
       `<span style="color:#7f8896">左ドラッグ=回転 / 右ドラッグ=移動 / ホイール=ズーム</span>`;
   } else if (mode === 'drawing' && drawing) {
-    if (groundActive && geoGroup) {
+    const nav = '<br><span style="color:#7f8896">左ドラッグ=回転 / 右=移動 / ホイール=ズーム</span>';
+    if (dview === 'both') {
+      const s = shaftGroup?.getObjectByName('shaft');
+      const area = s?.userData?.ring ? polygonArea(s.userData.ring) : 0;
+      hud.innerHTML =
+        `<b>${esc(drawing.source)} — 統合ビュー</b><br>` +
+        `GL標高 ${glElev.toFixed(1)} m ／ 立坑深 ${depthValue} m(底 EL${(glElev - depthValue).toFixed(1)}) ／ 掘削 約${(area * depthValue).toFixed(1)} ㎥ ／ 断面 ${geoSections.length} 本` + nav;
+    } else if (dview === 'ground' && geoGroup) {
       const box = new THREE.Box3().setFromObject(geoGroup);
       const sz = box.getSize(new THREE.Vector3());
       hud.innerHTML =
         `<b>${esc(drawing.source)} — 現況地盤</b><br>` +
-        `断面 ${geoSections.length} 本 ／ 標高 ${box.min.y.toFixed(1)}〜${box.max.y.toFixed(1)} m ／ 幅 ${sz.x.toFixed(1)} m<br>` +
-        `<span style="color:#7f8896">左ドラッグ=回転 / 右=移動 / ホイール=ズーム</span>`;
-    } else if (shaftGroup) {
+        `断面 ${geoSections.length} 本 ／ 標高 ${box.min.y.toFixed(1)}〜${box.max.y.toFixed(1)} m ／ 幅 ${sz.x.toFixed(1)} m` + nav;
+    } else if (dview === 'shaft' && shaftGroup) {
       const s = shaftGroup.getObjectByName('shaft');
       const area = s?.userData?.ring ? polygonArea(s.userData.ring) : 0;
+      const glTxt = hasGround() ? `／ GL EL${glElev.toFixed(1)}m ` : '';
       hud.innerHTML =
         `<b>${esc(drawing.source)} — 3D立坑</b><br>` +
-        `深さ ${depthValue} m ／ 底面積 約${area.toFixed(1)} ㎡ ／ 掘削体積 約${(area * depthValue).toFixed(1)} ㎥<br>` +
-        `<span style="color:#7f8896">左ドラッグ=回転 / 右=移動 / ホイール=ズーム</span>`;
+        `深さ ${depthValue} m ／ 底面積 約${area.toFixed(1)} ㎡ ／ 掘削体積 約${(area * depthValue).toFixed(1)} ㎥ ${glTxt}` + nav;
     } else {
       const sz = drawing.worldBox.getSize(new THREE.Vector3());
       hud.innerHTML =
         `<b>${esc(drawing.source)}</b><br>` +
-        `${drawing.layerNames.length}レイヤ ／ 図面範囲 ${sz.x.toFixed(1)}×${sz.y.toFixed(1)} m相当<br>` +
-        `<span style="color:#7f8896">図面ビュー。左ドラッグ=回転 / 右=移動 / ホイール=ズーム</span>`;
+        `${drawing.layerNames.length}レイヤ ／ 図面範囲 ${sz.x.toFixed(1)}×${sz.y.toFixed(1)} m相当` + nav;
     }
   }
 }
@@ -761,11 +871,15 @@ function buildDrawingPanel() {
         `<span style="color:#7f8896">(${drawing.group.getObjectByName(`lyr:${name}`)?.geometry?.attributes?.position?.count / 2 || 0})</span></label></div>`;
     })
     .join('');
-  if (groundActive) {
-    buildGroundPanel(rows);
+  if (dview === 'ground') {
+    buildGroundPanel();
     return;
   }
-  const inShaft = !!shaftGroup;
+  if (dview === 'both') {
+    buildIntegratedPanel();
+    return;
+  }
+  const inShaft = dview === 'shaft';
   const geoBlock = inShaft ? '' : `
     <div class="group">
       <div class="title">断面ジオリファレンス（地盤）</div>
@@ -789,10 +903,12 @@ function buildDrawingPanel() {
       <div class="note" id="status"></div>
       <div class="row" style="margin-top:8px"><button id="demo">デモ現場に戻る</button></div>
     </div>
+    ${viewNavHtml()}
     <div class="group">
       <div class="title">3D起こし（押し出し）</div>
       ${inShaft
         ? `<div class="note">深さ ${depthValue}m で生成済み。輪郭をやり直す場合は図面に戻ってください。</div>
+           ${hasGround() ? `<div class="row" style="margin-top:6px"><label>GL標高(m)</label><input id="glElev" type="number" value="${glElev.toFixed(1)}" step="0.1" style="width:70px;${inpStyle}"/></div>` : ''}
            <div class="row" style="margin-top:8px"><button id="backBtn" class="primary">◀ 図面に戻る</button></div>`
         : `<div class="row"><label>深さ(m)</label><input type="number" id="depth" value="${depthValue}" min="0.1" step="0.1" style="width:70px;background:#1a1f27;color:#e6e9ef;border:1px solid #333c48;border-radius:6px;padding:3px 6px"/></div>
            <div class="row" style="margin-top:6px"><button id="traceBtn">▶ 範囲トレース開始</button></div>
@@ -827,8 +943,10 @@ function buildDrawingPanel() {
       ${rows}
     </div>
   `;
+  wireNav();
   if (inShaft) {
     panel.querySelector('#backBtn').addEventListener('click', backToDrawing);
+    panel.querySelector('#glElev')?.addEventListener('input', (e) => setGlElev(parseFloat(e.target.value) || 0));
     const ta = panel.querySelector('#pitLayers');
     ta.addEventListener('input', (e) => (pitLayersText = e.target.value));
     panel.querySelector('#placePit').addEventListener('click', startPlacePit);
