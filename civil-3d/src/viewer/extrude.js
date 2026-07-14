@@ -72,6 +72,38 @@ export function buildShaft(ring, depth, opts = {}) {
   return g;
 }
 
+// 構造物(MH・カルバート等)を半透明ボックスで生成し、当たり確認に使う。
+// x,z: 平面中心(m) / w,l,h: 幅(東西)・奥行(南北)・高さ(m) / sink: GLから天端までの下がり(m)
+export function buildStructureBox(x, z, w, l, h, sink, opts = {}) {
+  const color = opts.color ?? 0x9fb2c9;
+  const g = new THREE.Group();
+  g.name = 'structure';
+  const centerY = -sink - h / 2; // GL(0)から sink 下げた位置に天端
+  const geo = new THREE.BoxGeometry(w, h, l);
+  const mesh = new THREE.Mesh(
+    geo,
+    new THREE.MeshStandardMaterial({
+      color,
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide,
+      roughness: 0.6,
+    })
+  );
+  mesh.position.set(x, centerY, z);
+  if (opts.rotation) mesh.rotation.y = opts.rotation;
+  g.add(mesh);
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(geo),
+    new THREE.LineBasicMaterial({ color: 0xcfe0f5 })
+  );
+  edges.position.copy(mesh.position);
+  edges.rotation.copy(mesh.rotation);
+  g.add(edges);
+  g.userData = { ...opts.meta, x, z, w, l, h, sink };
+  return g;
+}
+
 // トレース中のプレビュー用ライン(シート面 z=0 上)
 export function buildTraceLine(points, closed = false) {
   const pts = points.map((p) => new THREE.Vector3(p.x, p.y, 0.01));

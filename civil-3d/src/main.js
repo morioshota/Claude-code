@@ -4,7 +4,7 @@ import { createScene } from './viewer/scene.js';
 import { makeAlignment } from './core/alignment.js';
 import { loadCad } from './core/cad.js';
 import { buildDrawing } from './viewer/drawing.js';
-import { buildShaft, buildTraceLine, buildTraceDots, buildPitColumn } from './viewer/extrude.js';
+import { buildShaft, buildTraceLine, buildTraceDots, buildPitColumn, buildStructureBox } from './viewer/extrude.js';
 import {
   buildCorridor,
   buildAlignmentLine,
@@ -160,6 +160,11 @@ let placingPit = false;
 let pitsGroup = null;
 let pitCount = 0;
 let pitLayersText = '埋土,1.2\n砂質土As,2.6\n粘性土Ac,3.0\n礫G,2.0';
+// 構造物
+let placingStruct = false;
+let structGroup = null;
+let structCount = 0;
+let structSpec = { w: 2, l: 2, h: 2, sink: 0.5, name: 'MH' };
 
 function planeHit(ev, plane = zPlane) {
   const r = canvas.getBoundingClientRect();
@@ -222,6 +227,45 @@ function removePit(id) {
   }
 }
 
+function startPlaceStruct() {
+  if (!shaftGroup) return;
+  placingStruct = true;
+  S.controls.enabled = false;
+  setStatus('地表(GL)面をクリックして構造物の中心位置を指定してください。');
+}
+
+function placeStructAt(x, z) {
+  placingStruct = false;
+  S.controls.enabled = true;
+  if (!structGroup) {
+    structGroup = new THREE.Group();
+    structGroup.name = 'structs';
+    shaftGroup.add(structGroup);
+  }
+  structCount++;
+  const id = `${structSpec.name || '構造物'}-${structCount}`;
+  const box = buildStructureBox(x, z, structSpec.w, structSpec.l, structSpec.h, structSpec.sink, {
+    meta: { id },
+  });
+  structGroup.add(box);
+  buildPanel();
+  const bottom = structSpec.sink + structSpec.h;
+  setStatus(`${id} を配置（天端-${structSpec.sink}m / 底-${bottom.toFixed(1)}m）。`);
+}
+
+function removeStruct(id) {
+  if (!structGroup) return;
+  const s = structGroup.children.find((c) => c.userData?.id === id);
+  if (s) {
+    structGroup.remove(s);
+    s.traverse((o) => {
+      o.geometry?.dispose?.();
+      o.material?.dispose?.();
+    });
+    buildPanel();
+  }
+}
+
 function refreshTrace() {
   if (traceOverlay) {
     S.world.remove(traceOverlay);
@@ -271,6 +315,9 @@ function generate3D() {
   pitsGroup = null;
   pitCount = 0;
   placingPit = false;
+  structGroup = null;
+  structCount = 0;
+  placingStruct = false;
   shaftGroup = new THREE.Group();
   shaftGroup.name = 'shaft-model';
   const shaft = buildShaft(pts, depthValue, { topY: 0, color: 0x4aa3ff });
@@ -304,6 +351,9 @@ function backToDrawing() {
   pitsGroup = null;
   pitCount = 0;
   placingPit = false;
+  structGroup = null;
+  structCount = 0;
+  placingStruct = false;
   clearTrace();
   drawing.group.visible = true;
   S.frame(drawing.worldBox, { front: true });
@@ -320,6 +370,21 @@ function pitListHtml() {
         const u = c.userData || {};
         return `<div class="row" style="margin:3px 0"><span>${esc(u.id)} <span style="color:#7f8896">深${(u.depth || 0).toFixed(1)}m</span></span>` +
           `<button data-rmpit="${esc(u.id)}" style="width:auto;padding:2px 8px;font-size:11px">削除</button></div>`;
+      })
+      .join('') +
+    '</div>'
+  );
+}
+
+function structListHtml() {
+  if (!structGroup || !structGroup.children.length) return '';
+  return (
+    '<div style="margin-top:8px">' +
+    structGroup.children
+      .map((c) => {
+        const u = c.userData || {};
+        return `<div class="row" style="margin:3px 0"><span>${esc(u.id)} <span style="color:#7f8896">${u.w}×${u.l}×${u.h}m</span></span>` +
+          `<button data-rmstr="${esc(u.id)}" style="width:auto;padding:2px 8px;font-size:11px">削除</button></div>`;
       })
       .join('') +
     '</div>'
@@ -348,6 +413,11 @@ canvas.addEventListener('click', (ev) => {
   if (placingPit) {
     const h = planeHit(ev, yPlane);
     if (h) placePitAt(h.x, h.z);
+    return;
+  }
+  if (placingStruct) {
+    const h = planeHit(ev, yPlane);
+    if (h) placeStructAt(h.x, h.z);
     return;
   }
   if (tracing) {
@@ -445,6 +515,8 @@ function buildDemoPanel() {
   });
 }
 
+const inpStyle = 'background:#1a1f27;color:#e6e9ef;border:1px solid #333c48;border-radius:6px;padding:3px 6px';
+
 function buildDrawingPanel() {
   const rows = drawing.layerNames
     .map((name) => {
@@ -483,6 +555,16 @@ function buildDrawingPanel() {
       <textarea id="pitLayers" rows="4" style="width:100%;background:#1a1f27;color:#e6e9ef;border:1px solid #333c48;border-radius:6px;padding:6px;font:12px monospace;resize:vertical">${esc(pitLayersText)}</textarea>
       <div class="row" style="margin-top:6px"><button id="placePit">＋ 試験掘りを配置（GLをクリック）</button></div>
       <div id="pitList">${pitListHtml()}</div>
+    </div>
+    <div class="group">
+      <div class="title">構造物（当たり確認）</div>
+      <div class="note" style="margin-bottom:6px">MH・カルバート等をボックスで配置し、立坑との干渉を確認します。</div>
+      <div class="row"><label>名称</label><input id="stName" value="${esc(structSpec.name)}" style="width:110px;${inpStyle}"/></div>
+      <div class="row"><label>幅W×奥行L(m)</label><span><input id="stW" type="number" value="${structSpec.w}" step="0.1" style="width:52px;${inpStyle}"/>×<input id="stL" type="number" value="${structSpec.l}" step="0.1" style="width:52px;${inpStyle}"/></span></div>
+      <div class="row"><label>高さH(m)</label><input id="stH" type="number" value="${structSpec.h}" step="0.1" style="width:60px;${inpStyle}"/></div>
+      <div class="row"><label>天端下がり(m)</label><input id="stSink" type="number" value="${structSpec.sink}" step="0.1" style="width:60px;${inpStyle}"/></div>
+      <div class="row" style="margin-top:6px"><button id="placeStruct">＋ 構造物を配置（GLをクリック）</button></div>
+      <div id="structList">${structListHtml()}</div>
     </div>` : ''}
     <div class="group">
       <div class="title">レイヤ（表示/非表示）</div>
@@ -499,6 +581,19 @@ function buildDrawingPanel() {
     panel.querySelector('#placePit').addEventListener('click', startPlacePit);
     panel.querySelectorAll('button[data-rmpit]').forEach((b) =>
       b.addEventListener('click', () => removePit(b.dataset.rmpit))
+    );
+    const bind = (sel, key, num) =>
+      panel.querySelector(sel).addEventListener('input', (e) => {
+        structSpec[key] = num ? Math.max(0, parseFloat(e.target.value) || 0) : e.target.value;
+      });
+    bind('#stName', 'name', false);
+    bind('#stW', 'w', true);
+    bind('#stL', 'l', true);
+    bind('#stH', 'h', true);
+    bind('#stSink', 'sink', true);
+    panel.querySelector('#placeStruct').addEventListener('click', startPlaceStruct);
+    panel.querySelectorAll('button[data-rmstr]').forEach((b) =>
+      b.addEventListener('click', () => removeStruct(b.dataset.rmstr))
     );
   } else {
     panel.querySelector('#depth').addEventListener('change', (e) => {
