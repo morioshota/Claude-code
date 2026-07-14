@@ -4,7 +4,7 @@ import { createScene } from './viewer/scene.js';
 import { makeAlignment } from './core/alignment.js';
 import { loadCad } from './core/cad.js';
 import { buildDrawing } from './viewer/drawing.js';
-import { buildShaft, buildTraceLine, buildTraceDots } from './viewer/extrude.js';
+import { buildShaft, buildTraceLine, buildTraceDots, buildPitColumn } from './viewer/extrude.js';
 import {
   buildCorridor,
   buildAlignmentLine,
@@ -148,20 +148,78 @@ let gridVisible = true;
 // ================= 3D起こし(平面図トレース→押し出し) =================
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
-const zPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+const zPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // 図面シート面
+const yPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // 地表(GL)面
 let tracing = false;
 let tracePts = [];
 let traceOverlay = null;
 let shaftGroup = null;
 let depthValue = 3.5;
+// 試験掘り
+let placingPit = false;
+let pitsGroup = null;
+let pitCount = 0;
+let pitLayersText = '埋土,1.2\n砂質土As,2.6\n粘性土Ac,3.0\n礫G,2.0';
 
-function planeHit(ev) {
+function planeHit(ev, plane = zPlane) {
   const r = canvas.getBoundingClientRect();
   ndc.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
   ndc.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
   raycaster.setFromCamera(ndc, S.camera);
   const hit = new THREE.Vector3();
-  return raycaster.ray.intersectPlane(zPlane, hit) ? hit : null;
+  return raycaster.ray.intersectPlane(plane, hit) ? hit : null;
+}
+
+function parsePitLayers(text) {
+  return text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const [name, th] = l.split(/[,、\t]/);
+      return { name: (name || '').trim(), thickness: parseFloat(th) || 1 };
+    })
+    .filter((x) => x.name);
+}
+
+function startPlacePit() {
+  if (!shaftGroup) return;
+  if (!parsePitLayers(pitLayersText).length) {
+    setStatus('土層を「名前,層厚」で入力してください。');
+    return;
+  }
+  placingPit = true;
+  S.controls.enabled = false;
+  setStatus('地表(GL)面をクリックして試験掘りの位置を指定してください。');
+}
+
+function placePitAt(x, z) {
+  placingPit = false;
+  S.controls.enabled = true;
+  const layers = parsePitLayers(pitLayersText);
+  if (!pitsGroup) {
+    pitsGroup = new THREE.Group();
+    pitsGroup.name = 'pits';
+    shaftGroup.add(pitsGroup);
+  }
+  pitCount++;
+  pitsGroup.add(buildPitColumn(x, z, 0, layers, `TP-${pitCount}`));
+  buildPanel();
+  const depth = layers.reduce((s, l) => s + l.thickness, 0);
+  setStatus(`TP-${pitCount} を配置しました（総深 ${depth.toFixed(1)}m）。`);
+}
+
+function removePit(id) {
+  if (!pitsGroup) return;
+  const col = pitsGroup.children.find((c) => c.userData?.id === id);
+  if (col) {
+    pitsGroup.remove(col);
+    col.traverse((o) => {
+      o.geometry?.dispose?.();
+      o.material?.dispose?.();
+    });
+    buildPanel();
+  }
 }
 
 function refreshTrace() {
@@ -210,6 +268,9 @@ function generate3D() {
   clearTrace();
   drawing.group.visible = false;
   if (shaftGroup) S.world.remove(shaftGroup);
+  pitsGroup = null;
+  pitCount = 0;
+  placingPit = false;
   shaftGroup = new THREE.Group();
   shaftGroup.name = 'shaft-model';
   const shaft = buildShaft(pts, depthValue, { topY: 0, color: 0x4aa3ff });
@@ -240,11 +301,29 @@ function backToDrawing() {
     });
     shaftGroup = null;
   }
+  pitsGroup = null;
+  pitCount = 0;
+  placingPit = false;
   clearTrace();
   drawing.group.visible = true;
   S.frame(drawing.worldBox, { front: true });
   buildPanel();
   updateHud();
+}
+
+function pitListHtml() {
+  if (!pitsGroup || !pitsGroup.children.length) return '';
+  return (
+    '<div style="margin-top:8px">' +
+    pitsGroup.children
+      .map((c) => {
+        const u = c.userData || {};
+        return `<div class="row" style="margin:3px 0"><span>${esc(u.id)} <span style="color:#7f8896">深${(u.depth || 0).toFixed(1)}m</span></span>` +
+          `<button data-rmpit="${esc(u.id)}" style="width:auto;padding:2px 8px;font-size:11px">削除</button></div>`;
+      })
+      .join('') +
+    '</div>'
+  );
 }
 
 function polygonArea(ring) {
@@ -265,13 +344,20 @@ function updateTraceButtons() {
 }
 
 canvas.addEventListener('click', (ev) => {
-  if (!tracing || mode !== 'drawing') return;
-  const h = planeHit(ev);
-  if (!h) return;
-  tracePts.push({ x: h.x, y: h.y });
-  refreshTrace();
-  updateTraceButtons();
-  setStatus(`トレース点: ${tracePts.length}（3点以上で生成可）`);
+  if (mode !== 'drawing') return;
+  if (placingPit) {
+    const h = planeHit(ev, yPlane);
+    if (h) placePitAt(h.x, h.z);
+    return;
+  }
+  if (tracing) {
+    const h = planeHit(ev, zPlane);
+    if (!h) return;
+    tracePts.push({ x: h.x, y: h.y });
+    refreshTrace();
+    updateTraceButtons();
+    setStatus(`トレース点: ${tracePts.length}（3点以上で生成可）`);
+  }
 });
 
 // ================= HUD / ステータス =================
@@ -390,6 +476,14 @@ function buildDrawingPanel() {
            <div class="row" style="margin-top:6px"><button id="genBtn" class="primary" disabled>3Dを生成</button></div>
            <div class="note">平面図の土留め/掘削の輪郭を順にクリック。矢板長 L=3500 等を深さに入力します。</div>`}
     </div>
+    ${inShaft ? `
+    <div class="group">
+      <div class="title">試験掘り（柱状図）</div>
+      <div class="note" style="margin-bottom:6px">土層を「名前,層厚(m)」で改行区切り入力し、配置ボタン→GL面をクリック。</div>
+      <textarea id="pitLayers" rows="4" style="width:100%;background:#1a1f27;color:#e6e9ef;border:1px solid #333c48;border-radius:6px;padding:6px;font:12px monospace;resize:vertical">${esc(pitLayersText)}</textarea>
+      <div class="row" style="margin-top:6px"><button id="placePit">＋ 試験掘りを配置（GLをクリック）</button></div>
+      <div id="pitList">${pitListHtml()}</div>
+    </div>` : ''}
     <div class="group">
       <div class="title">レイヤ（表示/非表示）</div>
       <div class="row"><label><input type="checkbox" id="labels" ${labelsVisible ? 'checked' : ''}/>文字ラベル</label></div>
@@ -400,6 +494,12 @@ function buildDrawingPanel() {
   `;
   if (inShaft) {
     panel.querySelector('#backBtn').addEventListener('click', backToDrawing);
+    const ta = panel.querySelector('#pitLayers');
+    ta.addEventListener('input', (e) => (pitLayersText = e.target.value));
+    panel.querySelector('#placePit').addEventListener('click', startPlacePit);
+    panel.querySelectorAll('button[data-rmpit]').forEach((b) =>
+      b.addEventListener('click', () => removePit(b.dataset.rmpit))
+    );
   } else {
     panel.querySelector('#depth').addEventListener('change', (e) => {
       depthValue = Math.max(0.1, parseFloat(e.target.value) || 3.5);

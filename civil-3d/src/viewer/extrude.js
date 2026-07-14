@@ -84,6 +84,47 @@ export function buildTraceLine(points, closed = false) {
   return line;
 }
 
+// 試験掘り(ボーリング柱状図)を3Dの色分け柱として生成する。
+// x,z: 平面位置(m, ワールド) / topY: 天端=GL標高(m) / layers:[{name,thickness}]
+const SOIL_COLORS = [
+  0xb98d4e, 0xd8c37a, 0x8a9a5b, 0x9aa0a6, 0xc9b487, 0x7d7f88, 0xa0785a, 0xcbb27a,
+];
+export function buildPitColumn(x, z, topY, layers, id = 'TP') {
+  const g = new THREE.Group();
+  g.name = 'pit';
+  const w = 0.5;
+  let cursor = topY;
+  let total = 0;
+  layers.forEach((ly, i) => {
+    const th = Math.max(0.01, ly.thickness);
+    total += th;
+    const color = ly.color ?? SOIL_COLORS[i % SOIL_COLORS.length];
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(w, th, w),
+      new THREE.MeshStandardMaterial({ color, roughness: 1 })
+    );
+    mesh.position.set(x, cursor - th / 2, z);
+    mesh.userData = { pit: id, layer: ly.name, thickness: th };
+    g.add(mesh);
+    const edge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(mesh.geometry),
+      new THREE.LineBasicMaterial({ color: 0x1a1e26 })
+    );
+    edge.position.copy(mesh.position);
+    g.add(edge);
+    cursor -= th;
+  });
+  // 天端のピン
+  const pin = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 1.6, 8),
+    new THREE.MeshBasicMaterial({ color: 0xff5d5d })
+  );
+  pin.position.set(x, topY + 0.8, z);
+  g.add(pin);
+  g.userData = { id, x, z, depth: total, layers };
+  return g;
+}
+
 // トレース点マーカー
 export function buildTraceDots(points) {
   const g = new THREE.Group();
