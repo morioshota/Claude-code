@@ -14,7 +14,9 @@
 - **仮設オープンカットの表示**: 掘削範囲を半透明ボックスで表示。構造物との干渉を目視確認
 - **縦倍率**: 高低差を1〜8倍に強調（土木の定番）
 - **表示レイヤのON/OFF**、慣性つきカメラ操作（OrbitControls）
-- **DXF読み込み**: 平面図のポリラインを線形として取り込み（レイヤを選んで採用）
+- **DWG / DXF 読み込み（図面ビュー）**: 実際の図面をブラウザで読み込み、レイヤ別に色分け表示。
+  文字ラベルも表示（断面線 A-A'・B-B'、寸法、注記など）。LINE/ポリライン/円/円弧/楕円をレンダリング。
+  DWGは LibreDWG(WASM) で直接読み込み、DXFは dxf-parser で処理。
 
 `デモ現場を読み込む` を押すと、実DXFが無くてもサンプル現場（延長120mのカーブ道路＋現況地盤＋試験掘り3本＋ボックスカルバート）で全機能を確認できます。
 
@@ -95,7 +97,10 @@ temp       = [{ id, type:'excavation', station, offset, width, run, depth, color
 
 - Vite 5 + Vanilla JS（ESモジュール）
 - three.js 0.160（OrbitControls）
-- dxf-parser 1.1
+- @mlightcad/libredwg-web 0.7（DWG読み込み・WASM）
+- dxf-parser 1.1（DXF読み込み）
+
+> DWGの WASM(約9.4MB) は `npm install` 時に `public/wasm/` へ自動コピーされます（リポジトリには含めません）。
 
 ## 注意
 

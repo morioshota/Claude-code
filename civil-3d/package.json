@@ -4,13 +4,23 @@
   "description": "土木図面(平面図・横断図)から検討用3Dモデルを生成するプロトタイプ",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-wasm.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copy-wasm.mjs",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "node scripts/copy-wasm.mjs"
   },
-  "keywords": ["civil", "dxf", "3d", "three.js", "cross-section"],
+  "keywords": [
+    "civil",
+    "dxf",
+    "3d",
+    "three.js",
+    "cross-section"
+  ],
   "license": "MIT",
   "dependencies": {
+    "@mlightcad/libredwg-web": "^0.7.7",
     "dxf-parser": "^1.1.2",
     "three": "^0.160.0"
   },

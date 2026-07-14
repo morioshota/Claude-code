@@ -24,10 +24,25 @@ export function createScene(canvas) {
   sun.position.set(120, 200, 80);
   scene.add(sun);
 
-  // 参照グリッド(50m/枚, 10m目盛) を標高0付近に敷く
-  const grid = new THREE.GridHelper(600, 60, 0x2c3542, 0x1c2029);
-  grid.position.y = 90;
+  // 参照グリッド。内容の規模に合わせて frame() で張り替える。
+  const grid = new THREE.Group();
+  grid.name = 'grid';
   scene.add(grid);
+  function fillGrid(cx, cz, y, span) {
+    while (grid.children.length) {
+      const c = grid.children.pop();
+      c.geometry?.dispose?.();
+      c.material?.dispose?.();
+      grid.remove(c);
+    }
+    // 目盛は 1/10/50/100m のうち span に応じた値
+    const cell = span > 400 ? 50 : span > 120 ? 10 : span > 40 ? 5 : 1;
+    const size = Math.ceil(span / cell) * cell * 2;
+    const gh = new THREE.GridHelper(size, size / cell, 0x2c3542, 0x1a1e26);
+    gh.position.set(cx, y, cz);
+    grid.add(gh);
+  }
+  fillGrid(60, 0, 90, 300);
 
   // 世界の器。すべての生成物はこの group にぶら下げ、まとめて縦倍率をかける。
   const world = new THREE.Group();
@@ -43,17 +58,26 @@ export function createScene(canvas) {
     }
   }
 
-  function frame(box) {
+  function frame(box, opts = {}) {
     // 対象バウンディングにカメラをフィットさせる
     const center = new THREE.Vector3();
     box.getCenter(center);
     const size = box.getSize(new THREE.Vector3());
-    const radius = Math.max(size.x, size.y, size.z) * 0.9 + 20;
+    const radius = Math.max(size.x, size.y, size.z) * 0.9 + Math.max(2, size.x * 0.05);
     controls.target.copy(center);
-    camera.position.set(center.x + radius * 0.7, center.y + radius * 0.8, center.z + radius);
-    camera.near = Math.max(0.5, radius / 500);
-    camera.far = radius * 20;
+    if (opts.front) {
+      // 図面シートを正面から見る(Z軸正面・あおりなし)
+      camera.position.set(center.x, center.y, center.z + radius * 1.4);
+    } else {
+      camera.position.set(center.x + radius * 0.7, center.y + radius * 0.8, center.z + radius);
+    }
+    camera.near = Math.max(0.1, radius / 500);
+    camera.far = radius * 30;
     camera.updateProjectionMatrix();
+    // グリッドと霧を規模に追従
+    fillGrid(center.x, center.z, box.min.y - size.y * 0.02, Math.max(size.x, size.z));
+    scene.fog.near = radius * 3;
+    scene.fog.far = radius * 12;
   }
 
   function loop(onFrame) {
