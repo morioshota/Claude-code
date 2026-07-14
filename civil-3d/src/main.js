@@ -4,6 +4,7 @@ import { createScene } from './viewer/scene.js';
 import { makeAlignment } from './core/alignment.js';
 import { loadCad } from './core/cad.js';
 import { buildDrawing } from './viewer/drawing.js';
+import { buildShaft, buildTraceLine, buildTraceDots } from './viewer/extrude.js';
 import {
   buildCorridor,
   buildAlignmentLine,
@@ -144,6 +145,135 @@ function applyDrawingToggles() {
 }
 let gridVisible = true;
 
+// ================= 3D起こし(平面図トレース→押し出し) =================
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const zPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+let tracing = false;
+let tracePts = [];
+let traceOverlay = null;
+let shaftGroup = null;
+let depthValue = 3.5;
+
+function planeHit(ev) {
+  const r = canvas.getBoundingClientRect();
+  ndc.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
+  ndc.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, S.camera);
+  const hit = new THREE.Vector3();
+  return raycaster.ray.intersectPlane(zPlane, hit) ? hit : null;
+}
+
+function refreshTrace() {
+  if (traceOverlay) {
+    S.world.remove(traceOverlay);
+    traceOverlay.traverse((o) => {
+      o.geometry?.dispose?.();
+      o.material?.dispose?.();
+    });
+  }
+  traceOverlay = new THREE.Group();
+  traceOverlay.name = 'trace-overlay';
+  if (tracePts.length >= 2) traceOverlay.add(buildTraceLine(tracePts, tracePts.length >= 3));
+  traceOverlay.add(buildTraceDots(tracePts));
+  S.world.add(traceOverlay);
+}
+
+function clearTrace() {
+  tracePts = [];
+  if (traceOverlay) {
+    S.world.remove(traceOverlay);
+    traceOverlay = null;
+  }
+}
+
+function startTrace() {
+  if (shaftGroup) backToDrawing();
+  tracing = true;
+  clearTrace();
+  S.controls.enabled = false; // トレース中はカメラ操作を止める
+  drawing.group.visible = true;
+  setStatus('平面図の輪郭を順にクリック。3点以上で「3Dを生成」できます。');
+  updateTraceButtons();
+}
+
+function stopTrace() {
+  tracing = false;
+  S.controls.enabled = true;
+  updateTraceButtons();
+}
+
+function generate3D() {
+  if (tracePts.length < 3) return;
+  const pts = tracePts.slice();
+  stopTrace();
+  clearTrace();
+  drawing.group.visible = false;
+  if (shaftGroup) S.world.remove(shaftGroup);
+  shaftGroup = new THREE.Group();
+  shaftGroup.name = 'shaft-model';
+  const shaft = buildShaft(pts, depthValue, { topY: 0, color: 0x4aa3ff });
+  shaftGroup.add(shaft);
+  // 地表(GL)参照の枠
+  const b = new THREE.Box3().setFromObject(shaft);
+  const glPts = [
+    new THREE.Vector3(b.min.x, 0, b.min.z), new THREE.Vector3(b.max.x, 0, b.min.z),
+    new THREE.Vector3(b.max.x, 0, b.max.z), new THREE.Vector3(b.min.x, 0, b.max.z),
+    new THREE.Vector3(b.min.x, 0, b.min.z),
+  ];
+  shaftGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(glPts),
+    new THREE.LineBasicMaterial({ color: 0x9be89b })));
+  S.world.add(shaftGroup);
+  S.frame(new THREE.Box3().setFromObject(shaftGroup));
+  buildPanel();
+  const area = polygonArea(pts);
+  setStatus(`3Dを生成: 深さ ${depthValue}m ／ 底面積 約${area.toFixed(1)}㎡ ／ 掘削体積 約${(area * depthValue).toFixed(1)}㎥`);
+  updateHud();
+}
+
+function backToDrawing() {
+  if (shaftGroup) {
+    S.world.remove(shaftGroup);
+    shaftGroup.traverse((o) => {
+      o.geometry?.dispose?.();
+      o.material?.dispose?.();
+    });
+    shaftGroup = null;
+  }
+  clearTrace();
+  drawing.group.visible = true;
+  S.frame(drawing.worldBox, { front: true });
+  buildPanel();
+  updateHud();
+}
+
+function polygonArea(ring) {
+  let a = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const p = ring[i];
+    const q = ring[(i + 1) % ring.length];
+    a += p.x * q.y - q.x * p.y;
+  }
+  return Math.abs(a) / 2;
+}
+
+function updateTraceButtons() {
+  const b = document.getElementById('traceBtn');
+  if (b) b.textContent = tracing ? '⏸ トレース中（クリックで点追加）' : '▶ 範囲トレース開始';
+  const g = document.getElementById('genBtn');
+  if (g) g.disabled = tracePts.length < 3;
+}
+
+canvas.addEventListener('click', (ev) => {
+  if (!tracing || mode !== 'drawing') return;
+  const h = planeHit(ev);
+  if (!h) return;
+  tracePts.push({ x: h.x, y: h.y });
+  refreshTrace();
+  updateTraceButtons();
+  setStatus(`トレース点: ${tracePts.length}（3点以上で生成可）`);
+});
+
 // ================= HUD / ステータス =================
 function updateHud() {
   if (mode === 'demo' && model) {
@@ -154,11 +284,20 @@ function updateHud() {
       `試験掘り ${model.pits.length} ／ 構造物 ${model.structures.length}<br>` +
       `<span style="color:#7f8896">左ドラッグ=回転 / 右ドラッグ=移動 / ホイール=ズーム</span>`;
   } else if (mode === 'drawing' && drawing) {
-    const sz = drawing.worldBox.getSize(new THREE.Vector3());
-    hud.innerHTML =
-      `<b>${esc(drawing.source)}</b><br>` +
-      `${drawing.layerNames.length}レイヤ ／ 図面範囲 ${sz.x.toFixed(1)}×${sz.y.toFixed(1)} m相当<br>` +
-      `<span style="color:#7f8896">図面ビュー。左ドラッグ=回転 / 右=移動 / ホイール=ズーム</span>`;
+    if (shaftGroup) {
+      const s = shaftGroup.getObjectByName('shaft');
+      const area = s?.userData?.ring ? polygonArea(s.userData.ring) : 0;
+      hud.innerHTML =
+        `<b>${esc(drawing.source)} — 3D立坑</b><br>` +
+        `深さ ${depthValue} m ／ 底面積 約${area.toFixed(1)} ㎡ ／ 掘削体積 約${(area * depthValue).toFixed(1)} ㎥<br>` +
+        `<span style="color:#7f8896">左ドラッグ=回転 / 右=移動 / ホイール=ズーム</span>`;
+    } else {
+      const sz = drawing.worldBox.getSize(new THREE.Vector3());
+      hud.innerHTML =
+        `<b>${esc(drawing.source)}</b><br>` +
+        `${drawing.layerNames.length}レイヤ ／ 図面範囲 ${sz.x.toFixed(1)}×${sz.y.toFixed(1)} m相当<br>` +
+        `<span style="color:#7f8896">図面ビュー。左ドラッグ=回転 / 右=移動 / ホイール=ズーム</span>`;
+    }
   }
 }
 function setStatus(t) {
@@ -230,14 +369,26 @@ function buildDrawingPanel() {
         `<span style="color:#7f8896">(${drawing.group.getObjectByName(`lyr:${name}`)?.geometry?.attributes?.position?.count / 2 || 0})</span></label></div>`;
     })
     .join('');
+  const inShaft = !!shaftGroup;
   panel.innerHTML = `
-    <h1>土木3Dビルダー <span class="badge">図面ビュー</span></h1>
-    <div class="sub">読み込んだ図面をレイヤ別に表示。次段階で平面図から3D起こし(押し出し・断面)に対応します。</div>
+    <h1>土木3Dビルダー <span class="badge">${inShaft ? '3Dモデル' : '図面ビュー'}</span></h1>
+    <div class="sub">平面図の輪郭をトレースして深さ方向に押し出し、立坑(土留め/掘削)の3Dを起こします。</div>
     <div class="group">
       <div class="title">データ</div>
       <div class="row"><button class="filebtn">別の図面を読み込む…<input type="file" id="cad" accept=".dwg,.dxf"/></button></div>
       <div class="note" id="status"></div>
       <div class="row" style="margin-top:8px"><button id="demo">デモ現場に戻る</button></div>
+    </div>
+    <div class="group">
+      <div class="title">3D起こし（押し出し）</div>
+      ${inShaft
+        ? `<div class="note">深さ ${depthValue}m で生成済み。輪郭をやり直す場合は図面に戻ってください。</div>
+           <div class="row" style="margin-top:8px"><button id="backBtn" class="primary">◀ 図面に戻る</button></div>`
+        : `<div class="row"><label>深さ(m)</label><input type="number" id="depth" value="${depthValue}" min="0.1" step="0.1" style="width:70px;background:#1a1f27;color:#e6e9ef;border:1px solid #333c48;border-radius:6px;padding:3px 6px"/></div>
+           <div class="row" style="margin-top:6px"><button id="traceBtn">▶ 範囲トレース開始</button></div>
+           <div class="row" style="margin-top:6px"><button id="undoBtn">1点戻す</button></div>
+           <div class="row" style="margin-top:6px"><button id="genBtn" class="primary" disabled>3Dを生成</button></div>
+           <div class="note">平面図の土留め/掘削の輪郭を順にクリック。矢板長 L=3500 等を深さに入力します。</div>`}
     </div>
     <div class="group">
       <div class="title">レイヤ（表示/非表示）</div>
@@ -247,6 +398,24 @@ function buildDrawingPanel() {
       ${rows}
     </div>
   `;
+  if (inShaft) {
+    panel.querySelector('#backBtn').addEventListener('click', backToDrawing);
+  } else {
+    panel.querySelector('#depth').addEventListener('change', (e) => {
+      depthValue = Math.max(0.1, parseFloat(e.target.value) || 3.5);
+    });
+    panel.querySelector('#traceBtn').addEventListener('click', () => {
+      if (tracing) stopTrace();
+      else startTrace();
+    });
+    panel.querySelector('#undoBtn').addEventListener('click', () => {
+      tracePts.pop();
+      refreshTrace();
+      updateTraceButtons();
+    });
+    panel.querySelector('#genBtn').addEventListener('click', generate3D);
+    updateTraceButtons();
+  }
   panel.querySelectorAll('input[data-lyr]').forEach((cb) =>
     cb.addEventListener('change', () => {
       drawingVis[cb.dataset.lyr] = cb.checked;
