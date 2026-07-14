@@ -5,6 +5,8 @@ import { makeAlignment } from './core/alignment.js';
 import { loadCad } from './core/cad.js';
 import { buildDrawing } from './viewer/drawing.js';
 import { buildShaft, buildTraceLine, buildTraceDots, buildPitColumn, buildStructureBox } from './viewer/extrude.js';
+import { georefSection } from './core/georef.js';
+import { buildGroundSurface } from './viewer/ground.js';
 import {
   buildCorridor,
   buildAlignmentLine,
@@ -30,6 +32,23 @@ let mode = 'demo'; // 'demo' | 'drawing'
 let model = null; // デモ現場
 let drawing = null; // 読み込んだ図面(buildDrawingの返り値)
 let exag = 1;
+
+function resetShaftState() {
+  shaftGroup = null;
+  pitsGroup = null;
+  pitCount = 0;
+  placingPit = false;
+  structGroup = null;
+  structCount = 0;
+  placingStruct = false;
+}
+
+function resetGeoState() {
+  cancelGeo();
+  geoSections = [];
+  geoGroup = null;
+  groundActive = false;
+}
 
 function clearWorld() {
   while (S.world.children.length) {
@@ -63,6 +82,8 @@ function rebuildDemo() {
 function loadDemo() {
   mode = 'demo';
   drawing = null;
+  resetShaftState();
+  resetGeoState();
   const alignment = makeAlignment(demoAlignmentPoints());
   model = {
     alignment,
@@ -112,6 +133,8 @@ async function onFile(file) {
     }
     mode = 'drawing';
     model = null;
+    resetShaftState();
+    resetGeoState();
     clearWorld();
     drawing = buildDrawing(cad);
     drawing.source = file.name;
@@ -165,6 +188,15 @@ let placingStruct = false;
 let structGroup = null;
 let structCount = 0;
 let structSpec = { w: 2, l: 2, h: 2, sink: 0.5, name: 'MH' };
+// 断面ジオリファレンス
+let geoStep = null; // null|'planStart'|'planEnd'|'vref1'|'vref2'|'trace'
+let geoData = { planStart: null, planEnd: null, vRef: [], trace: [] };
+let geoSections = [];
+let geoGroup = null; // 3D成果(地盤サーフェス/断面線)
+let geoOverlay = null; // シート上の入力プレビュー
+let el1Value = 100;
+let el2Value = 95;
+let groundActive = false;
 
 function planeHit(ev, plane = zPlane) {
   const r = canvas.getBoundingClientRect();
@@ -264,6 +296,148 @@ function removeStruct(id) {
     });
     buildPanel();
   }
+}
+
+// ---- 断面ジオリファレンス ----
+function clearGeoOverlay() {
+  if (geoOverlay) {
+    S.world.remove(geoOverlay);
+    geoOverlay.traverse((o) => {
+      o.geometry?.dispose?.();
+      o.material?.dispose?.();
+    });
+    geoOverlay = null;
+  }
+}
+
+function refreshGeoOverlay() {
+  clearGeoOverlay();
+  geoOverlay = new THREE.Group();
+  geoOverlay.name = 'geo-overlay';
+  const dot = (x, y, c) => {
+    const d = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshBasicMaterial({ color: c }));
+    d.position.set(x, y, 0.03);
+    geoOverlay.add(d);
+  };
+  const line = (a, b, c) =>
+    geoOverlay.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a.x, a.y, 0.02), new THREE.Vector3(b.x, b.y, 0.02)]),
+      new THREE.LineBasicMaterial({ color: c })
+    ));
+  if (geoData.planStart) dot(geoData.planStart.x, geoData.planStart.y, 0xffd166);
+  if (geoData.planStart && geoData.planEnd) {
+    dot(geoData.planEnd.x, geoData.planEnd.y, 0xffd166);
+    line(geoData.planStart, geoData.planEnd, 0xffd166);
+  }
+  geoData.vRef.forEach((v) => dot(v.cx, v.sy, 0xff7ad9));
+  if (geoData.trace.length) {
+    const pts = geoData.trace.map((p) => new THREE.Vector3(p.x, p.y, 0.02));
+    geoOverlay.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x6ec6ff })));
+    geoData.trace.forEach((p) => dot(p.x, p.y, 0x6ec6ff));
+  }
+  S.world.add(geoOverlay);
+}
+
+function cancelGeo() {
+  geoStep = null;
+  geoData = { planStart: null, planEnd: null, vRef: [], trace: [] };
+  clearGeoOverlay();
+  S.controls.enabled = true;
+}
+
+function startGeoSection() {
+  if (tracing) stopTrace();
+  cancelGeo();
+  groundActive = false;
+  if (geoGroup) geoGroup.visible = false;
+  drawing.group.visible = true;
+  S.frame(drawing.worldBox, { front: true });
+  geoStep = 'planStart';
+  S.controls.enabled = false;
+  setStatus('①平面図で断面線の始点をクリック');
+  buildPanel();
+}
+
+const GEO_PROMPT = {
+  planStart: '①平面図で断面線の始点をクリック',
+  planEnd: '②平面図で断面線の終点をクリック',
+  vref1: '③横断図で標高基準点1をクリック（右のEL1を先に入力）',
+  vref2: '④横断図で標高基準点2をクリック（EL2）',
+  trace: '⑤横断図の地盤ラインを順にクリック→「断面を確定」',
+};
+
+function handleGeoClick(x, y) {
+  let tracePoint = false;
+  switch (geoStep) {
+    case 'planStart':
+      geoData.planStart = { x, y };
+      geoStep = 'planEnd';
+      break;
+    case 'planEnd':
+      geoData.planEnd = { x, y };
+      geoStep = 'vref1';
+      break;
+    case 'vref1':
+      geoData.vRef = [{ sy: y, el: el1Value, cx: x }];
+      geoStep = 'vref2';
+      break;
+    case 'vref2':
+      geoData.vRef.push({ sy: y, el: el2Value, cx: x });
+      geoStep = 'trace';
+      break;
+    case 'trace':
+      geoData.trace.push({ x, y });
+      tracePoint = true;
+      break;
+    default:
+      return;
+  }
+  refreshGeoOverlay();
+  buildPanel(); // 確定ボタンの活性状態を更新するため毎回再描画
+  setStatus(tracePoint ? `地盤トレース: ${geoData.trace.length}点（2点以上で確定）` : GEO_PROMPT[geoStep]);
+}
+
+function commitGeoSection() {
+  if (geoStep !== 'trace' || geoData.trace.length < 2 || geoData.vRef.length < 2 || !geoData.planEnd) return;
+  const sec = georefSection(geoData.trace, geoData.vRef, geoData.planStart, geoData.planEnd);
+  geoSections.push({ world: sec, name: `断面${geoSections.length + 1}` });
+  cancelGeo();
+  showGround();
+  buildPanel();
+  setStatus(`断面を確定（計${geoSections.length}本）。「断面を追加」で本数を増やせます。`);
+}
+
+function showGround() {
+  if (geoGroup) {
+    S.world.remove(geoGroup);
+    geoGroup.traverse((o) => {
+      o.geometry?.dispose?.();
+      o.material?.dispose?.();
+    });
+  }
+  geoGroup = buildGroundSurface(geoSections.map((s) => s.world), { grid: 24 });
+  groundActive = true;
+  drawing.group.visible = false;
+  S.world.add(geoGroup);
+  const box = new THREE.Box3().setFromObject(geoGroup);
+  if (!box.isEmpty()) S.frame(box);
+  updateHud();
+}
+
+function exitGround() {
+  groundActive = false;
+  if (geoGroup) geoGroup.visible = false;
+  drawing.group.visible = true;
+  S.frame(drawing.worldBox, { front: true });
+  buildPanel();
+  updateHud();
+}
+
+function removeGeoSection(idx) {
+  geoSections.splice(idx, 1);
+  if (geoSections.length) showGround();
+  else exitGround();
+  buildPanel();
 }
 
 function refreshTrace() {
@@ -391,6 +565,54 @@ function structListHtml() {
   );
 }
 
+function geoListHtml() {
+  if (!geoSections.length) return '';
+  return (
+    '<div style="margin-top:8px">' +
+    geoSections
+      .map(
+        (s, i) =>
+          `<div class="row" style="margin:3px 0"><span>${esc(s.name)} <span style="color:#7f8896">${s.world.length}点</span></span>` +
+          `<button data-rmgeo="${i}" style="width:auto;padding:2px 8px;font-size:11px">削除</button></div>`
+      )
+      .join('') +
+    '</div>'
+  );
+}
+
+function buildGroundPanel(rows) {
+  panel.innerHTML = `
+    <h1>土木3Dビルダー <span class="badge">地盤サーフェス</span></h1>
+    <div class="sub">横断図から起こした現況地盤サーフェス。断面を追加すると精度が上がります。</div>
+    <div class="group">
+      <div class="title">データ</div>
+      <div class="row"><button class="filebtn">別の図面を読み込む…<input type="file" id="cad" accept=".dwg,.dxf"/></button></div>
+      <div class="note" id="status"></div>
+      <div class="row" style="margin-top:8px"><button id="demo">デモ現場に戻る</button></div>
+    </div>
+    <div class="group">
+      <div class="title">断面（${geoSections.length}本）</div>
+      <div id="geoList">${geoListHtml()}</div>
+      <div class="row" style="margin-top:8px"><button id="geoAdd" class="primary">＋ 断面を追加</button></div>
+      <div class="row" style="margin-top:6px"><button id="backSheet">◀ 図面ビューに戻る</button></div>
+    </div>
+    <div class="group">
+      <div class="title">レイヤ（表示/非表示）</div>
+      <div class="row"><label><input type="checkbox" id="gridv" ${gridVisible ? 'checked' : ''}/>基準グリッド</label></div>
+    </div>
+  `;
+  panel.querySelector('#geoAdd').addEventListener('click', startGeoSection);
+  panel.querySelector('#backSheet').addEventListener('click', exitGround);
+  panel.querySelector('#gridv').addEventListener('change', (e) => {
+    gridVisible = e.target.checked;
+    S.grid.visible = gridVisible;
+  });
+  panel.querySelectorAll('button[data-rmgeo]').forEach((b) =>
+    b.addEventListener('click', () => removeGeoSection(+b.dataset.rmgeo))
+  );
+  wireCommon();
+}
+
 function polygonArea(ring) {
   let a = 0;
   for (let i = 0; i < ring.length; i++) {
@@ -410,6 +632,11 @@ function updateTraceButtons() {
 
 canvas.addEventListener('click', (ev) => {
   if (mode !== 'drawing') return;
+  if (geoStep) {
+    const h = planeHit(ev, zPlane);
+    if (h) handleGeoClick(h.x, h.y);
+    return;
+  }
   if (placingPit) {
     const h = planeHit(ev, yPlane);
     if (h) placePitAt(h.x, h.z);
@@ -440,7 +667,14 @@ function updateHud() {
       `試験掘り ${model.pits.length} ／ 構造物 ${model.structures.length}<br>` +
       `<span style="color:#7f8896">左ドラッグ=回転 / 右ドラッグ=移動 / ホイール=ズーム</span>`;
   } else if (mode === 'drawing' && drawing) {
-    if (shaftGroup) {
+    if (groundActive && geoGroup) {
+      const box = new THREE.Box3().setFromObject(geoGroup);
+      const sz = box.getSize(new THREE.Vector3());
+      hud.innerHTML =
+        `<b>${esc(drawing.source)} — 現況地盤</b><br>` +
+        `断面 ${geoSections.length} 本 ／ 標高 ${box.min.y.toFixed(1)}〜${box.max.y.toFixed(1)} m ／ 幅 ${sz.x.toFixed(1)} m<br>` +
+        `<span style="color:#7f8896">左ドラッグ=回転 / 右=移動 / ホイール=ズーム</span>`;
+    } else if (shaftGroup) {
       const s = shaftGroup.getObjectByName('shaft');
       const area = s?.userData?.ring ? polygonArea(s.userData.ring) : 0;
       hud.innerHTML =
@@ -527,7 +761,25 @@ function buildDrawingPanel() {
         `<span style="color:#7f8896">(${drawing.group.getObjectByName(`lyr:${name}`)?.geometry?.attributes?.position?.count / 2 || 0})</span></label></div>`;
     })
     .join('');
+  if (groundActive) {
+    buildGroundPanel(rows);
+    return;
+  }
   const inShaft = !!shaftGroup;
+  const geoBlock = inShaft ? '' : `
+    <div class="group">
+      <div class="title">断面ジオリファレンス（地盤）</div>
+      <div class="row"><label>EL基準1(m)</label><input id="el1" type="number" value="${el1Value}" step="0.1" style="width:70px;${inpStyle}"/></div>
+      <div class="row"><label>EL基準2(m)</label><input id="el2" type="number" value="${el2Value}" step="0.1" style="width:70px;${inpStyle}"/></div>
+      ${geoStep
+        ? `<div class="note" style="color:#ffd166;margin-top:6px">${GEO_PROMPT[geoStep]}${geoStep === 'trace' ? `（${geoData.trace.length}点）` : ''}</div>
+           <div class="row" style="margin-top:6px"><button id="geoCommit" class="primary" ${geoData.trace.length < 2 ? 'disabled' : ''}>断面を確定</button></div>
+           <div class="row" style="margin-top:6px"><button id="geoCancel">キャンセル</button></div>`
+        : `<div class="row" style="margin-top:6px"><button id="geoAdd">＋ 断面を追加</button></div>`}
+      <div id="geoList">${geoListHtml()}</div>
+      ${geoSections.length >= 2 && !geoStep ? `<div class="row" style="margin-top:6px"><button id="geoSurface" class="primary">地盤サーフェスを生成</button></div>` : ''}
+      <div class="note">平面の断面線2点→横断のEL基準2点→地盤ラインをトレース。2本以上でサーフェス化。</div>
+    </div>`;
   panel.innerHTML = `
     <h1>土木3Dビルダー <span class="badge">${inShaft ? '3Dモデル' : '図面ビュー'}</span></h1>
     <div class="sub">平面図の輪郭をトレースして深さ方向に押し出し、立坑(土留め/掘削)の3Dを起こします。</div>
@@ -566,6 +818,7 @@ function buildDrawingPanel() {
       <div class="row" style="margin-top:6px"><button id="placeStruct">＋ 構造物を配置（GLをクリック）</button></div>
       <div id="structList">${structListHtml()}</div>
     </div>` : ''}
+    ${geoBlock}
     <div class="group">
       <div class="title">レイヤ（表示/非表示）</div>
       <div class="row"><label><input type="checkbox" id="labels" ${labelsVisible ? 'checked' : ''}/>文字ラベル</label></div>
@@ -610,6 +863,20 @@ function buildDrawingPanel() {
     });
     panel.querySelector('#genBtn').addEventListener('click', generate3D);
     updateTraceButtons();
+    // 断面ジオリファレンスの配線
+    panel.querySelector('#el1')?.addEventListener('input', (e) => (el1Value = parseFloat(e.target.value) || 0));
+    panel.querySelector('#el2')?.addEventListener('input', (e) => (el2Value = parseFloat(e.target.value) || 0));
+    panel.querySelector('#geoAdd')?.addEventListener('click', startGeoSection);
+    panel.querySelector('#geoCommit')?.addEventListener('click', commitGeoSection);
+    panel.querySelector('#geoCancel')?.addEventListener('click', () => {
+      cancelGeo();
+      setStatus('ジオリファレンスをキャンセルしました。');
+      buildPanel();
+    });
+    panel.querySelector('#geoSurface')?.addEventListener('click', showGround);
+    panel.querySelectorAll('button[data-rmgeo]').forEach((b) =>
+      b.addEventListener('click', () => removeGeoSection(+b.dataset.rmgeo))
+    );
   }
   panel.querySelectorAll('input[data-lyr]').forEach((cb) =>
     cb.addEventListener('change', () => {
