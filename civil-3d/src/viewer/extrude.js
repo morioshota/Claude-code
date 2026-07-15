@@ -104,6 +104,102 @@ export function buildStructureBox(x, z, w, l, h, sink, opts = {}) {
   return g;
 }
 
+// 埋設管(ガス・水道・下水等の企業者管)。平面ルート(シート座標)と土被りDPから円管を生成。
+// route: [{x,y}] シート座標(m) / dia: 管径(m) / dp1,dp2: 始点・終点の土被り(m, GL→管天端)
+// 土被りは延長に沿って線形補間する(DP=1150〜970 のような勾配付きに対応)。
+export function buildPipeRun(route, opts = {}) {
+  const dia = opts.dia ?? 0.1;
+  const r = dia / 2;
+  const dp1 = opts.dp1 ?? 0.6;
+  const dp2 = opts.dp2 ?? dp1;
+  const color = opts.color ?? 0x35c04a;
+  const g = new THREE.Group();
+  g.name = 'pipe';
+  if (route.length < 2) return g;
+
+  const cum = [0];
+  for (let i = 1; i < route.length; i++) {
+    cum.push(cum[i - 1] + Math.hypot(route[i].x - route[i - 1].x, route[i].y - route[i - 1].y));
+  }
+  const L = cum[cum.length - 1] || 1;
+  const centers = route.map((p, i) => {
+    const dp = dp1 + (dp2 - dp1) * (cum[i] / L);
+    return new THREE.Vector3(p.x, -(dp + r), -p.y); // 管天端がGL-dp
+  });
+
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.1 });
+  const up = new THREE.Vector3(0, 1, 0);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), mat);
+  head.position.copy(centers[0]);
+  head.userData = opts.meta || {};
+  g.add(head);
+  for (let i = 0; i < centers.length - 1; i++) {
+    const a = centers[i];
+    const b = centers[i + 1];
+    const len = a.distanceTo(b);
+    if (len < 1e-6) continue;
+    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 16), mat);
+    cyl.position.copy(a).add(b).multiplyScalar(0.5);
+    cyl.quaternion.setFromUnitVectors(up, b.clone().sub(a).normalize());
+    cyl.userData = opts.meta || {};
+    g.add(cyl);
+    const joint = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), mat);
+    joint.position.copy(b);
+    joint.userData = opts.meta || {};
+    g.add(joint);
+  }
+  g.userData = { ...(opts.meta || {}), route, dia, dp1, dp2 };
+  return g;
+}
+
+// 土留め壁(矢板等)。平面の開いたルートに沿って、GL(0)から深さ分の薄い壁を立てる。
+// 立坑(閉じた輪郭)と違い、直線・L字などの開いた並びに使う。
+export function buildWallRun(route, depth, opts = {}) {
+  const color = opts.color ?? 0xff6b6b;
+  const g = new THREE.Group();
+  g.name = 'wall';
+  if (route.length < 2 || depth <= 0) return g;
+  const top = route.map((p) => new THREE.Vector3(p.x, 0, -p.y));
+  const bot = route.map((p) => new THREE.Vector3(p.x, -depth, -p.y));
+  const pos = [];
+  for (let i = 0; i < route.length - 1; i++) {
+    const a = top[i];
+    const b = top[i + 1];
+    const c = bot[i + 1];
+    const d = bot[i];
+    pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    pos.push(a.x, a.y, a.z, c.x, c.y, c.z, d.x, d.y, d.z);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(
+    geo,
+    new THREE.MeshStandardMaterial({
+      color,
+      transparent: true,
+      opacity: 0.45,
+      side: THREE.DoubleSide,
+      roughness: 0.8,
+    })
+  );
+  mesh.userData = opts.meta || {};
+  g.add(mesh);
+  const edgePts = [];
+  for (let i = 0; i < route.length - 1; i++) {
+    edgePts.push(top[i], top[i + 1], bot[i], bot[i + 1]);
+  }
+  for (let i = 0; i < route.length; i++) edgePts.push(top[i], bot[i]);
+  g.add(
+    new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints(edgePts),
+      new THREE.LineBasicMaterial({ color })
+    )
+  );
+  g.userData = { ...(opts.meta || {}), route, depth };
+  return g;
+}
+
 // トレース中のプレビュー用ライン(シート面 z=0 上)
 export function buildTraceLine(points, closed = false) {
   const pts = points.map((p) => new THREE.Vector3(p.x, p.y, 0.01));

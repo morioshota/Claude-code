@@ -4,7 +4,7 @@ import { createScene } from './viewer/scene.js';
 import { makeAlignment } from './core/alignment.js';
 import { loadCad } from './core/cad.js';
 import { buildDrawing } from './viewer/drawing.js';
-import { buildShaft, buildTraceLine, buildTraceDots, buildPitColumn, buildStructureBox } from './viewer/extrude.js';
+import { buildShaft, buildTraceLine, buildTraceDots, buildPitColumn, buildStructureBox, buildPipeRun, buildWallRun } from './viewer/extrude.js';
 import { georefSection } from './core/georef.js';
 import { buildGroundSurface } from './viewer/ground.js';
 import {
@@ -41,6 +41,9 @@ function resetShaftState() {
   structGroup = null;
   structCount = 0;
   placingStruct = false;
+  utilGroup = null;
+  utilCount = 0;
+  traceTarget = 'shaft';
   dview = 'sheet';
   glElev = 0;
 }
@@ -190,6 +193,20 @@ let placingStruct = false;
 let structGroup = null;
 let structCount = 0;
 let structSpec = { w: 2, l: 2, h: 2, sink: 0.5, name: 'MH' };
+// 埋設物(企業者管)・土留め壁
+let utilGroup = null; // pipes/walls をまとめて保持(GL基準で持ち上げる)
+let utilCount = 0;
+let pipeSpec = { kind: 'ガス', dia: 100, dp1: 600, dp2: 600 }; // 径・DPはmm
+let wallSpec = { depth: 3.5 };
+let traceTarget = 'shaft'; // 'shaft' | 'pipe' | 'wall'
+const PIPE_KINDS = {
+  'ガス': 0x35c04a,
+  '水道': 0x3b82f6,
+  '下水': 0x9a6b3f,
+  '電力': 0xff8c42,
+  '通信': 0xb9c0cb,
+  'その他': 0xe0e0e0,
+};
 // 断面ジオリファレンス
 let geoStep = null; // null|'planStart'|'planEnd'|'vref1'|'vref2'|'trace'
 let geoData = { planStart: null, planEnd: null, vRef: [], trace: [] };
@@ -205,6 +222,8 @@ let glElev = 0; // GL(地表)の実標高。立坑/試験掘り/構造物の基�
 
 const hasShaft = () => !!shaftGroup;
 const hasGround = () => !!geoGroup && geoSections.length >= 1;
+const hasUtils = () => !!utilGroup && utilGroup.children.length > 0;
+const has3D = () => hasShaft() || hasUtils();
 
 // GL面(試験掘り/構造物の配置クリック用)。glElev に追従。
 function glPlane() {
@@ -219,6 +238,10 @@ function applyDview() {
     shaftGroup.visible = dview === 'shaft' || dview === 'both';
     shaftGroup.position.y = glElev; // GL基準を実標高へ
   }
+  if (utilGroup) {
+    utilGroup.visible = dview === 'shaft' || dview === 'both';
+    utilGroup.position.y = glElev;
+  }
   if (geoGroup) geoGroup.visible = dview === 'ground' || dview === 'both';
   S.grid.visible = gridVisible;
 }
@@ -226,13 +249,17 @@ function applyDview() {
 function frameForView() {
   if (dview === 'sheet') {
     S.frame(drawing.worldBox, { front: true });
-  } else if (dview === 'shaft' && shaftGroup) {
-    S.frame(new THREE.Box3().setFromObject(shaftGroup));
+  } else if (dview === 'shaft' && has3D()) {
+    const box = new THREE.Box3();
+    if (shaftGroup) box.expandByObject(shaftGroup);
+    if (utilGroup) box.expandByObject(utilGroup);
+    if (!box.isEmpty()) S.frame(box);
   } else if (dview === 'ground' && geoGroup) {
     S.frame(new THREE.Box3().setFromObject(geoGroup));
   } else if (dview === 'both') {
     const box = new THREE.Box3();
     if (shaftGroup) box.expandByObject(shaftGroup);
+    if (utilGroup) box.expandByObject(utilGroup);
     if (geoGroup) box.expandByObject(geoGroup);
     if (!box.isEmpty()) S.frame(box);
   }
@@ -251,9 +278,9 @@ function viewNavHtml() {
   const btn = (v, label, cls = '') => `<button data-view="${v}" class="${cls}" style="width:auto;padding:6px 12px">${label}</button>`;
   const btns = [];
   if (dview !== 'sheet') btns.push(btn('sheet', '図面'));
-  if (hasShaft() && dview !== 'shaft') btns.push(btn('shaft', '立坑'));
+  if (has3D() && dview !== 'shaft') btns.push(btn('shaft', '3Dモデル'));
   if (hasGround() && dview !== 'ground') btns.push(btn('ground', '地盤'));
-  if (hasShaft() && hasGround() && dview !== 'both') btns.push(btn('both', '統合', 'primary'));
+  if (has3D() && hasGround() && dview !== 'both') btns.push(btn('both', '統合', 'primary'));
   if (!btns.length) return '';
   return `<div class="group"><div class="title">ビュー切替</div><div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-start">${btns.join('')}</div></div>`;
 }
@@ -507,7 +534,8 @@ function refreshTrace() {
   }
   traceOverlay = new THREE.Group();
   traceOverlay.name = 'trace-overlay';
-  if (tracePts.length >= 2) traceOverlay.add(buildTraceLine(tracePts, tracePts.length >= 3));
+  if (tracePts.length >= 2)
+    traceOverlay.add(buildTraceLine(tracePts, traceTarget === 'shaft' && tracePts.length >= 3));
   traceOverlay.add(buildTraceDots(tracePts));
   S.world.add(traceOverlay);
 }
@@ -520,13 +548,20 @@ function clearTrace() {
   }
 }
 
-function startTrace() {
-  if (shaftGroup) backToDrawing();
+const TRACE_HINT = {
+  shaft: '平面図の輪郭を順にクリック。3点以上で「3Dを生成」できます。',
+  pipe: '平面図の管ルート(線)に沿って順にクリック。2点以上で「埋設管を生成」できます。',
+  wall: '平面図の土留めライン(線)に沿って順にクリック。2点以上で「土留め壁を生成」できます。',
+};
+
+function startTrace(target = 'shaft') {
+  if (dview !== 'sheet') backToDrawing();
+  traceTarget = target;
   tracing = true;
   clearTrace();
   S.controls.enabled = false; // トレース中はカメラ操作を止める
   drawing.group.visible = true;
-  setStatus('平面図の輪郭を順にクリック。3点以上で「3Dを生成」できます。');
+  setStatus(TRACE_HINT[target]);
   updateTraceButtons();
 }
 
@@ -537,7 +572,7 @@ function stopTrace() {
 }
 
 function generate3D() {
-  if (tracePts.length < 3) return;
+  if (traceTarget !== 'shaft' || tracePts.length < 3) return;
   const pts = tracePts.slice();
   stopTrace();
   clearTrace();
@@ -582,6 +617,92 @@ function generate3D() {
 // 「図面に戻る」= 立坑を保持したまま図面ビューへ(統合のため破棄しない)
 function backToDrawing() {
   switchView('sheet');
+}
+
+// ---- 埋設物(企業者管)・土留め壁 ----
+function ensureUtilGroup() {
+  if (!utilGroup) {
+    utilGroup = new THREE.Group();
+    utilGroup.name = 'utils';
+    utilGroup.position.y = glElev;
+    S.world.add(utilGroup);
+  }
+  return utilGroup;
+}
+
+function generatePipe() {
+  if (traceTarget !== 'pipe' || tracePts.length < 2) return;
+  const pts = tracePts.slice();
+  stopTrace();
+  clearTrace();
+  if (!hasShaft() && !hasUtils()) glElev = hasGround() ? groundMeanElev : 0;
+  utilCount++;
+  const dp1 = pipeSpec.dp1 / 1000;
+  const dp2 = pipeSpec.dp2 / 1000;
+  const label = `${pipeSpec.kind} φ${pipeSpec.dia} DP=${pipeSpec.dp1}${pipeSpec.dp2 !== pipeSpec.dp1 ? `〜${pipeSpec.dp2}` : ''}`;
+  const id = `U-${utilCount}`;
+  const pipe = buildPipeRun(pts, {
+    dia: pipeSpec.dia / 1000,
+    dp1,
+    dp2,
+    color: PIPE_KINDS[pipeSpec.kind] ?? PIPE_KINDS['その他'],
+    meta: { id, label, kind: 'pipe' },
+  });
+  ensureUtilGroup().add(pipe);
+  dview = 'shaft';
+  applyDview();
+  frameForView();
+  buildPanel();
+  setStatus(`${label} を生成しました（${id}）。`);
+  updateHud();
+}
+
+function generateWall() {
+  if (traceTarget !== 'wall' || tracePts.length < 2) return;
+  const pts = tracePts.slice();
+  stopTrace();
+  clearTrace();
+  if (!hasShaft() && !hasUtils()) glElev = hasGround() ? groundMeanElev : 0;
+  utilCount++;
+  const id = `U-${utilCount}`;
+  const label = `土留め壁 L=${wallSpec.depth}m`;
+  const wall = buildWallRun(pts, wallSpec.depth, { meta: { id, label, kind: 'wall' } });
+  ensureUtilGroup().add(wall);
+  dview = 'shaft';
+  applyDview();
+  frameForView();
+  buildPanel();
+  setStatus(`${label} を生成しました（${id}）。`);
+  updateHud();
+}
+
+function removeUtil(id) {
+  if (!utilGroup) return;
+  const t = utilGroup.children.find((c) => c.userData?.id === id);
+  if (t) {
+    utilGroup.remove(t);
+    t.traverse((o) => {
+      o.geometry?.dispose?.();
+      o.material?.dispose?.();
+    });
+    buildPanel();
+    updateHud();
+  }
+}
+
+function utilListHtml() {
+  if (!utilGroup || !utilGroup.children.length) return '';
+  return (
+    '<div style="margin-top:8px">' +
+    utilGroup.children
+      .map((c) => {
+        const u = c.userData || {};
+        return `<div class="row" style="margin:3px 0"><span>${esc(u.label || u.id)}</span>` +
+          `<button data-rmutil="${esc(u.id)}" style="width:auto;padding:2px 8px;font-size:11px">削除</button></div>`;
+      })
+      .join('') +
+    '</div>'
+  );
 }
 
 function pitListHtml() {
@@ -686,6 +807,7 @@ function buildIntegratedPanel() {
       <div class="row"><label><input type="checkbox" id="vShaft" checked/><span class="swatch" style="background:#4aa3ff"></span>立坑</label></div>
       <div class="row"><label><input type="checkbox" id="vPits" checked/><span class="swatch" style="background:#d8c37a"></span>試験掘り</label></div>
       <div class="row"><label><input type="checkbox" id="vStr" checked/><span class="swatch" style="background:#9fb2c9"></span>構造物</label></div>
+      <div class="row"><label><input type="checkbox" id="vUtil" checked/><span class="swatch" style="background:#35c04a"></span>埋設物・土留め壁</label></div>
       <div class="row"><label><input type="checkbox" id="gridv" ${gridVisible ? 'checked' : ''}/>基準グリッド</label></div>
     </div>
   `;
@@ -700,6 +822,7 @@ function buildIntegratedPanel() {
   });
   setVis('#vPits', (v) => pitsGroup && (pitsGroup.visible = v));
   setVis('#vStr', (v) => structGroup && (structGroup.visible = v));
+  setVis('#vUtil', (v) => utilGroup && (utilGroup.visible = v));
   setVis('#gridv', (v) => {
     gridVisible = v;
     S.grid.visible = v;
@@ -709,6 +832,7 @@ function buildIntegratedPanel() {
 function setGlElev(v) {
   glElev = v;
   if (shaftGroup) shaftGroup.position.y = glElev;
+  if (utilGroup) utilGroup.position.y = glElev;
   updateHud();
 }
 
@@ -729,10 +853,19 @@ function polygonArea(ring) {
 }
 
 function updateTraceButtons() {
+  const active = (t, idle) => (tracing && traceTarget === t ? '⏸ トレース中（クリックで点追加）' : idle);
   const b = document.getElementById('traceBtn');
-  if (b) b.textContent = tracing ? '⏸ トレース中（クリックで点追加）' : '▶ 範囲トレース開始';
+  if (b) b.textContent = active('shaft', '▶ 範囲トレース開始');
   const g = document.getElementById('genBtn');
-  if (g) g.disabled = tracePts.length < 3;
+  if (g) g.disabled = !(traceTarget === 'shaft' && tracePts.length >= 3);
+  const pb = document.getElementById('pipeTraceBtn');
+  if (pb) pb.textContent = active('pipe', '▶ 管ルートをトレース');
+  const pg = document.getElementById('pipeGenBtn');
+  if (pg) pg.disabled = !(traceTarget === 'pipe' && tracePts.length >= 2);
+  const wb = document.getElementById('wallTraceBtn');
+  if (wb) wb.textContent = active('wall', '▶ 土留めラインをトレース');
+  const wg = document.getElementById('wallGenBtn');
+  if (wg) wg.disabled = !(traceTarget === 'wall' && tracePts.length >= 2);
 }
 
 canvas.addEventListener('click', (ev) => {
@@ -758,7 +891,8 @@ canvas.addEventListener('click', (ev) => {
     tracePts.push({ x: h.x, y: h.y });
     refreshTrace();
     updateTraceButtons();
-    setStatus(`トレース点: ${tracePts.length}（3点以上で生成可）`);
+    const need = traceTarget === 'shaft' ? 3 : 2;
+    setStatus(`トレース点: ${tracePts.length}（${need}点以上で生成可）`);
   }
 });
 
@@ -773,25 +907,28 @@ function updateHud() {
       `<span style="color:#7f8896">左ドラッグ=回転 / 右ドラッグ=移動 / ホイール=ズーム</span>`;
   } else if (mode === 'drawing' && drawing) {
     const nav = '<br><span style="color:#7f8896">左ドラッグ=回転 / 右=移動 / ホイール=ズーム</span>';
+    const utilTxt = hasUtils() ? `／ 埋設物・壁 ${utilGroup.children.length} 件 ` : '';
     if (dview === 'both') {
       const s = shaftGroup?.getObjectByName('shaft');
       const area = s?.userData?.ring ? polygonArea(s.userData.ring) : 0;
+      const shaftTxt = shaftGroup ? `／ 立坑深 ${depthValue} m(底 EL${(glElev - depthValue).toFixed(1)}) ／ 掘削 約${(area * depthValue).toFixed(1)} ㎥ ` : '';
       hud.innerHTML =
         `<b>${esc(drawing.source)} — 統合ビュー</b><br>` +
-        `GL標高 ${glElev.toFixed(1)} m ／ 立坑深 ${depthValue} m(底 EL${(glElev - depthValue).toFixed(1)}) ／ 掘削 約${(area * depthValue).toFixed(1)} ㎥ ／ 断面 ${geoSections.length} 本` + nav;
+        `GL標高 ${glElev.toFixed(1)} m ${shaftTxt}${utilTxt}／ 断面 ${geoSections.length} 本` + nav;
     } else if (dview === 'ground' && geoGroup) {
       const box = new THREE.Box3().setFromObject(geoGroup);
       const sz = box.getSize(new THREE.Vector3());
       hud.innerHTML =
         `<b>${esc(drawing.source)} — 現況地盤</b><br>` +
         `断面 ${geoSections.length} 本 ／ 標高 ${box.min.y.toFixed(1)}〜${box.max.y.toFixed(1)} m ／ 幅 ${sz.x.toFixed(1)} m` + nav;
-    } else if (dview === 'shaft' && shaftGroup) {
-      const s = shaftGroup.getObjectByName('shaft');
+    } else if (dview === 'shaft' && has3D()) {
+      const s = shaftGroup?.getObjectByName('shaft');
       const area = s?.userData?.ring ? polygonArea(s.userData.ring) : 0;
       const glTxt = hasGround() ? `／ GL EL${glElev.toFixed(1)}m ` : '';
+      const shaftTxt = shaftGroup ? `深さ ${depthValue} m ／ 底面積 約${area.toFixed(1)} ㎡ ／ 掘削体積 約${(area * depthValue).toFixed(1)} ㎥ ` : '';
       hud.innerHTML =
-        `<b>${esc(drawing.source)} — 3D立坑</b><br>` +
-        `深さ ${depthValue} m ／ 底面積 約${area.toFixed(1)} ㎡ ／ 掘削体積 約${(area * depthValue).toFixed(1)} ㎥ ${glTxt}` + nav;
+        `<b>${esc(drawing.source)} — 3Dモデル</b><br>` +
+        `${shaftTxt}${utilTxt}${glTxt}` + nav;
     } else {
       const sz = drawing.worldBox.getSize(new THREE.Vector3());
       hud.innerHTML =
@@ -907,7 +1044,7 @@ function buildDrawingPanel() {
     <div class="group">
       <div class="title">3D起こし（押し出し）</div>
       ${inShaft
-        ? `<div class="note">深さ ${depthValue}m で生成済み。輪郭をやり直す場合は図面に戻ってください。</div>
+        ? `<div class="note">${hasShaft() ? `立坑を深さ ${depthValue}m で生成済み。輪郭をやり直す場合は図面に戻ってください。` : '立坑は未生成です。図面に戻って輪郭をトレースできます。'}</div>
            ${hasGround() ? `<div class="row" style="margin-top:6px"><label>GL標高(m)</label><input id="glElev" type="number" value="${glElev.toFixed(1)}" step="0.1" style="width:70px;${inpStyle}"/></div>` : ''}
            <div class="row" style="margin-top:8px"><button id="backBtn" class="primary">◀ 図面に戻る</button></div>`
         : `<div class="row"><label>深さ(m)</label><input type="number" id="depth" value="${depthValue}" min="0.1" step="0.1" style="width:70px;background:#1a1f27;color:#e6e9ef;border:1px solid #333c48;border-radius:6px;padding:3px 6px"/></div>
@@ -916,7 +1053,27 @@ function buildDrawingPanel() {
            <div class="row" style="margin-top:6px"><button id="genBtn" class="primary" disabled>3Dを生成</button></div>
            <div class="note">平面図の土留め/掘削の輪郭を順にクリック。矢板長 L=3500 等を深さに入力します。</div>`}
     </div>
-    ${inShaft ? `
+    ${!inShaft ? `
+    <div class="group">
+      <div class="title">埋設物・土留め壁（平面ルート→3D）</div>
+      <div class="row"><label>種別</label><select id="pKind" style="${inpStyle}">${Object.keys(PIPE_KINDS).map((k) => `<option ${k === pipeSpec.kind ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
+      <div class="row"><label>管径(mm)</label><input id="pDia" type="number" value="${pipeSpec.dia}" min="10" step="10" style="width:70px;${inpStyle}"/></div>
+      <div class="row"><label>土被りDP 始→終(mm)</label><span><input id="pDp1" type="number" value="${pipeSpec.dp1}" step="10" style="width:60px;${inpStyle}"/>→<input id="pDp2" type="number" value="${pipeSpec.dp2}" step="10" style="width:60px;${inpStyle}"/></span></div>
+      <div class="row" style="margin-top:6px"><button id="pipeTraceBtn">▶ 管ルートをトレース</button></div>
+      <div class="row" style="margin-top:6px"><button id="pipeGenBtn" class="primary" disabled>埋設管を生成</button></div>
+      <div style="border-top:1px solid #262d38;margin:8px 0 4px"></div>
+      <div class="row"><label>壁の深さ(m)</label><input id="wDepth" type="number" value="${wallSpec.depth}" min="0.1" step="0.1" style="width:70px;${inpStyle}"/></div>
+      <div class="row" style="margin-top:6px"><button id="wallTraceBtn">▶ 土留めラインをトレース</button></div>
+      <div class="row" style="margin-top:6px"><button id="wallGenBtn" class="primary" disabled>土留め壁を生成</button></div>
+      <div id="utilList">${utilListHtml()}</div>
+      <div class="note">位置・形は図面の線をなぞって取得。深さは図面注記（DP=600 等）の値を入力します（平面図には深さ情報が入っていないため）。</div>
+    </div>` : ''}
+    ${inShaft && hasUtils() ? `
+    <div class="group">
+      <div class="title">埋設物・土留め壁</div>
+      <div id="utilList">${utilListHtml()}</div>
+    </div>` : ''}
+    ${inShaft && hasShaft() ? `
     <div class="group">
       <div class="title">試験掘り（柱状図）</div>
       <div class="note" style="margin-bottom:6px">土層を「名前,層厚(m)」で改行区切り入力し、配置ボタン→GL面をクリック。</div>
@@ -947,14 +1104,13 @@ function buildDrawingPanel() {
   if (inShaft) {
     panel.querySelector('#backBtn').addEventListener('click', backToDrawing);
     panel.querySelector('#glElev')?.addEventListener('input', (e) => setGlElev(parseFloat(e.target.value) || 0));
-    const ta = panel.querySelector('#pitLayers');
-    ta.addEventListener('input', (e) => (pitLayersText = e.target.value));
-    panel.querySelector('#placePit').addEventListener('click', startPlacePit);
+    panel.querySelector('#pitLayers')?.addEventListener('input', (e) => (pitLayersText = e.target.value));
+    panel.querySelector('#placePit')?.addEventListener('click', startPlacePit);
     panel.querySelectorAll('button[data-rmpit]').forEach((b) =>
       b.addEventListener('click', () => removePit(b.dataset.rmpit))
     );
     const bind = (sel, key, num) =>
-      panel.querySelector(sel).addEventListener('input', (e) => {
+      panel.querySelector(sel)?.addEventListener('input', (e) => {
         structSpec[key] = num ? Math.max(0, parseFloat(e.target.value) || 0) : e.target.value;
       });
     bind('#stName', 'name', false);
@@ -962,7 +1118,7 @@ function buildDrawingPanel() {
     bind('#stL', 'l', true);
     bind('#stH', 'h', true);
     bind('#stSink', 'sink', true);
-    panel.querySelector('#placeStruct').addEventListener('click', startPlaceStruct);
+    panel.querySelector('#placeStruct')?.addEventListener('click', startPlaceStruct);
     panel.querySelectorAll('button[data-rmstr]').forEach((b) =>
       b.addEventListener('click', () => removeStruct(b.dataset.rmstr))
     );
@@ -971,8 +1127,8 @@ function buildDrawingPanel() {
       depthValue = Math.max(0.1, parseFloat(e.target.value) || 3.5);
     });
     panel.querySelector('#traceBtn').addEventListener('click', () => {
-      if (tracing) stopTrace();
-      else startTrace();
+      if (tracing && traceTarget === 'shaft') stopTrace();
+      else startTrace('shaft');
     });
     panel.querySelector('#undoBtn').addEventListener('click', () => {
       tracePts.pop();
@@ -980,6 +1136,22 @@ function buildDrawingPanel() {
       updateTraceButtons();
     });
     panel.querySelector('#genBtn').addEventListener('click', generate3D);
+    // 埋設物・土留め壁の配線
+    panel.querySelector('#pKind').addEventListener('change', (e) => (pipeSpec.kind = e.target.value));
+    panel.querySelector('#pDia').addEventListener('input', (e) => (pipeSpec.dia = Math.max(10, parseFloat(e.target.value) || 100)));
+    panel.querySelector('#pDp1').addEventListener('input', (e) => (pipeSpec.dp1 = Math.max(0, parseFloat(e.target.value) || 0)));
+    panel.querySelector('#pDp2').addEventListener('input', (e) => (pipeSpec.dp2 = Math.max(0, parseFloat(e.target.value) || 0)));
+    panel.querySelector('#wDepth').addEventListener('input', (e) => (wallSpec.depth = Math.max(0.1, parseFloat(e.target.value) || 3.5)));
+    panel.querySelector('#pipeTraceBtn').addEventListener('click', () => {
+      if (tracing && traceTarget === 'pipe') stopTrace();
+      else startTrace('pipe');
+    });
+    panel.querySelector('#pipeGenBtn').addEventListener('click', generatePipe);
+    panel.querySelector('#wallTraceBtn').addEventListener('click', () => {
+      if (tracing && traceTarget === 'wall') stopTrace();
+      else startTrace('wall');
+    });
+    panel.querySelector('#wallGenBtn').addEventListener('click', generateWall);
     updateTraceButtons();
     // 断面ジオリファレンスの配線
     panel.querySelector('#el1')?.addEventListener('input', (e) => (el1Value = parseFloat(e.target.value) || 0));
@@ -996,6 +1168,9 @@ function buildDrawingPanel() {
       b.addEventListener('click', () => removeGeoSection(+b.dataset.rmgeo))
     );
   }
+  panel.querySelectorAll('button[data-rmutil]').forEach((b) =>
+    b.addEventListener('click', () => removeUtil(b.dataset.rmutil))
+  );
   panel.querySelectorAll('input[data-lyr]').forEach((cb) =>
     cb.addEventListener('change', () => {
       drawingVis[cb.dataset.lyr] = cb.checked;
