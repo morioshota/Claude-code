@@ -41,7 +41,12 @@ cd civil-3d
 npm install
 npm run dev      # http://localhost:5180
 npm run build    # dist/ に本番ビルド
+npm run preview  # 本番ビルドをローカル確認
 ```
+
+**ブラウザのURLから開きたい場合**（銘柄図鑑と同様に Vercel 等へデプロイ）は
+[`docs/DEPLOY.md`](docs/DEPLOY.md) を参照。Root Directory を `civil-3d` に指定するだけで、
+wasm 込みで公開されます（Node.js のローカル起動は不要になります）。
 
 ## 設計上の考え方（重要 / 正直な線引き）
 
