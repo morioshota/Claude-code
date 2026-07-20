@@ -92,7 +92,7 @@ function BadgeModal({ stocks, onClose }) {
   );
 }
 
-function DataPortModal({ stocks, onExport, onImport, onClose }) {
+function DataPortModal({ stocks, onExport, onImport, onBackupDone, onClose }) {
   const [preview, setPreview] = useState(null); // 読み込んだバックアップの中身 {data, stockCount, noteCount}
   const [mode, setMode] = useState("merge"); // 'merge'|'replace'
   const [busy, setBusy] = useState(false);
@@ -112,6 +112,7 @@ function DataPortModal({ stocks, onExport, onImport, onClose }) {
       a.download = `kabu-dex-backup-${today()}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      if (onBackupDone) onBackupDone(); // 最終バックアップ日を更新(リマインダーを止める)
       setMsg({ ok: true, text: `${data.stocks.length}銘柄・${totalNotes(data.notes)}件の記録を書き出しました` });
     } catch (e) {
       setMsg({ ok: false, text: "書き出しに失敗しました。もう一度お試しください" });

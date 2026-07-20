@@ -27,7 +27,7 @@ import { evoPoolFor, rollEvoFx } from "./data/evolution.js";
 import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/activity.js";
 import { sfx, soundEnabled, setSoundEnabled } from "./lib/sound.js";
 import { calcLevel, stageOf, freshInfo, evalAchievements } from "./lib/stock.js";
-import { today, uid } from "./lib/util.js";
+import { today, uid, daysSince } from "./lib/util.js";
 
 export default function KabuDex() {
   const [stocks, setStocks] = useState(null);
@@ -49,6 +49,13 @@ export default function KabuDex() {
   const [soundOn, setSoundOn] = useState(soundEnabled());
   const [checkNagDismissed, setCheckNagDismissed] = useState(() => {
     try { return localStorage.getItem("kabu-checknag") === today(); } catch (e) { return false; }
+  });
+  // 最終バックアップ日(書き出し成功時に記録)。データ消失対策のリマインダー用
+  const [lastBackup, setLastBackup] = useState(() => {
+    try { return localStorage.getItem("kabu-lastbackup") || ""; } catch (e) { return ""; }
+  });
+  const [backupNagDismissed, setBackupNagDismissed] = useState(() => {
+    try { return localStorage.getItem("kabu-backupnag") === today(); } catch (e) { return false; }
   });
 
   /* 読み込み(初回のみ。1回リトライ。失敗時は既存データを守るため上書きしない) */
@@ -279,6 +286,14 @@ export default function KabuDex() {
     return { app: "kabu-dex", format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), stocks, notes, activity: act };
   };
 
+  /* 書き出しが完了したら最終バックアップ日を記録(リマインダーの起点) */
+  const markBackupDone = () => {
+    const d = today();
+    setLastBackup(d);
+    setBackupNagDismissed(true); // 今日はもう催促しない
+    try { localStorage.setItem("kabu-lastbackup", d); } catch (e) { /* 保存不可でも本体は動く */ }
+  };
+
   /* 草カレンダーの取り込み: replaceは上書き、mergeは日ごとに大きい方を採用(二重加算を防ぐ) */
   const importActivity = async (data, mode) => {
     const src = data.activity && typeof data.activity.days === "object" ? data.activity : null;
@@ -377,6 +392,14 @@ export default function KabuDex() {
   const unlockedCount = evalAchievements(stocks).size;
   const staleCount = stocks.filter((s) => { const f = freshInfo(s); return f && f.days !== null && f.days > 90; }).length;
 
+  // バックアップ催促: ユーザーが実際に研究した痕跡があり(初期シードだけの状態では出さない)、
+  // かつ長期間バックアップしていない/未実施のとき
+  const backupDays = lastBackup ? (daysSince(lastBackup) ?? 999) : null;
+  const hasWorthSaving = stocks.some((s) =>
+    (s.noteCount || 0) > 0 || (s.logs || []).length > 0 || s.lastResearch || s.shiny || s.status === "sold"
+  );
+  const backupStale = hasWorthSaving && (backupDays === null || backupDays >= 14);
+
   return (
     <div style={pageStyle}>
       <style>{`
@@ -443,7 +466,26 @@ export default function KabuDex() {
               🥀 90日以上調査していない銘柄が{staleCount}件あります（記録が風化中）
             </div>
           )}
+          <div style={{ marginTop: 8, fontSize: 10.5, color: backupStale ? "#fca5a5" : "#5b6284" }}>
+            💾 最終バックアップ: {lastBackup ? `${backupDays === 0 ? "今日" : `${backupDays}日前`}（${lastBackup}）` : "まだ書き出していません"}
+          </div>
         </div>
+
+        {/* バックアップ催促(データ消失対策。記録があり14日以上未バックアップ/未実施のとき・1日1回) */}
+        {backupStale && !backupNagDismissed && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#2a1414", border: "1.5px solid #f8717166", borderRadius: 12, padding: "10px 14px", marginBottom: 12 }}>
+            <span style={{ fontSize: 20 }}>💾</span>
+            <span style={{ flex: 1, fontSize: 12.5, color: "#fca5a5", lineHeight: 1.6 }}>
+              {lastBackup ? `前回のバックアップから${backupDays}日たっています。` : "まだ一度もバックアップしていません。"}
+              端末の都合でデータが消えることがあります。<b>いま書き出しておくと安心です</b>
+            </span>
+            <button onClick={() => setPanel("data")} style={{ all: "unset", cursor: "pointer", background: "#f87171", color: "#2a0505", fontWeight: 800, fontSize: 12, borderRadius: 8, padding: "7px 12px", whiteSpace: "nowrap" }}>書き出す</button>
+            <button onClick={() => {
+              setBackupNagDismissed(true);
+              try { localStorage.setItem("kabu-backupnag", today()); } catch (e) { /* 保存できなくても今セッションは消える */ }
+            }} style={{ all: "unset", cursor: "pointer", color: "#8b93b8", fontSize: 16, padding: 4 }}>✕</button>
+          </div>
+        )}
 
         {/* 研究活動の草カレンダー */}
         {activity && <Heatmap activity={activity} />}
@@ -564,7 +606,7 @@ export default function KabuDex() {
       )}
       {panel === "party" && <PartyModal stocks={stocks} onClose={() => setPanel(null)} />}
       {panel === "badges" && <BadgeModal stocks={stocks} onClose={() => setPanel(null)} />}
-      {panel === "data" && <DataPortModal stocks={stocks} onExport={exportAll} onImport={importAll} onClose={() => setPanel(null)} />}
+      {panel === "data" && <DataPortModal stocks={stocks} onExport={exportAll} onImport={importAll} onBackupDone={markBackupDone} onClose={() => setPanel(null)} />}
       {panel === "check" && <TriggerCheckModal due={due} onAnswer={answerTriggerCheck} onClose={() => setPanel(null)} />}
       {graduating && <GraduationModal stock={graduating} onConfirm={confirmGraduation} onCancel={() => setGraduating(null)} />}
     </div>

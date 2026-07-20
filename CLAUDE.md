@@ -112,7 +112,7 @@ npm run build    # 本番ビルド(dist/)
 
 ## バックログ（優先度順の提案）
 
-1. ~~データのエクスポート/インポート（JSON）~~ ✅ 実装済み（図鑑の「💾 バックアップ」ボタン）
+1. ~~データのエクスポート/インポート（JSON）~~ ✅ 実装済み（図鑑の「💾 バックアップ」ボタン）。書き出し日を`kabu-lastbackup`に記録し、ヘッダーに経過日数を表示。研究痕跡があり14日以上未実施/未バックアップなら催促バナー(1日1回・`kabu-backupnag`)。iOSのlocalStorage消失対策
 2. ~~`KabuDex.jsx` のモジュール分割（data / lib / components）~~ ✅ 実装済み
 3. ~~three.js公式OrbitControlsへの置換（慣性つき操作）~~ ✅ 実装済み
 4. ~~AIプロキシの実装~~ ✅ 実装済み（`api/ai-draft.js`）
