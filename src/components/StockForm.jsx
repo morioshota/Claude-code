@@ -76,6 +76,30 @@ function StockForm({ initial, onSave, onCancel }) {
           ))}
         </div>
 
+        {/* 保有情報(任意): 時価・含み損益の事実表示に使う。推奨表示には使わない(CLAUDE.md) */}
+        {f.status === "hold" && (
+          <div style={{ background: "#10142a", border: "1px solid #262d4d", borderRadius: 10, padding: "4px 12px 12px", marginTop: 12 }}>
+            <label style={label}>ほかく情報（任意・時価と含み損益の表示に使います）</label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ ...label, marginTop: 0 }}>株数</label>
+                <input style={input} type="number" inputMode="decimal" min="0" step="any"
+                  value={f.shares ?? ""} placeholder="例: 100"
+                  onChange={(e) => { const v = parseFloat(e.target.value); set("shares", Number.isFinite(v) ? v : null); }} />
+              </div>
+              <div>
+                <label style={{ ...label, marginTop: 0 }}>平均取得単価</label>
+                <input style={input} type="number" inputMode="decimal" min="0" step="any"
+                  value={f.avgPrice ?? ""} placeholder="例: 3952（米国株はドル）"
+                  onChange={(e) => { const v = parseFloat(e.target.value); set("avgPrice", Number.isFinite(v) ? v : null); }} />
+              </div>
+            </div>
+            <div style={{ fontSize: 10, color: "#5b6284", marginTop: 6, lineHeight: 1.6 }}>
+              日本株は円・米国株はドルで入力。時価と含み損益は事実として表示されるだけで、売買判断の指標ではありません
+            </div>
+          </div>
+        )}
+
         <label style={label}>マクロ仮説（この銘柄を調べる背景）</label>
         <textarea style={{ ...input, minHeight: 54, resize: "vertical" }} value={f.hypothesis}
           onChange={(e) => set("hypothesis", e.target.value)} placeholder="例: 宇宙産業は政府支出拡大で中長期成長" />

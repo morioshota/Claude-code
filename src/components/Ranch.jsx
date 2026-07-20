@@ -1,16 +1,20 @@
-/* 牧場モード: three.jsの3D牧場(WebGL不可なら2Dにフォールバック) */
+/* 牧場モード: カイロソフト風2Dアイソメぼくじょう
+   - 斜め見下ろしのタイル世界をcanvas 2Dで自前描画(WebGL不要・全端末で動く)
+   - 銘柄ごとに「研究小屋」が建ち、研究ステージが上がるほど建物が育つ
+   - クリーチャーは日課をこなす: 保有=はたけ仕事、ウォッチ=見学さんぽ、鮮度切れ=おひるね
+   - 吹き出しでオーナー自身のメモ(仮説・わざ・トリガー・学び)を喋る
+   - 保有の含み損益(事実)は「ようす」= 動きの元気さ・✨/💧に映る(推奨表示はしない)
+   - 季節(月)・天気(日付ハッシュ)・昼夜(端末時計)の実時間演出。株価は演出に絡めない */
 
 import { useState, useEffect, useRef } from "react";
-import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { Creature } from "./ui.jsx";
-import { spriteCanvasFor } from "../lib/sprites.js";
+import { buildPixels } from "../lib/sprites.js";
 import { calcLevel, stageOf, moveTierOf, evalAchievements } from "../lib/stock.js";
-import { ACHIEVEMENTS } from "../data/constants.js";
-import { hashStr, today } from "../lib/util.js";
+import { ACHIEVEMENTS, TYPES } from "../data/constants.js";
+import { hashStr, mulberry32, today } from "../lib/util.js";
+import { pnlOf, moodOf, fmtMoney, fetchHeldQuotes } from "../lib/holdings.js";
+import { streaks } from "../lib/activity.js";
+
+/* ---- 実時間の演出パラメータ(旧3D牧場から継承) ---- */
 
 const dayPhase = () => {
   const h = new Date().getHours() + new Date().getMinutes() / 60;
@@ -20,575 +24,924 @@ const dayPhase = () => {
 };
 
 const PHASE_INFO = {
-  day:   { label: "☀️ ひる",   sky: 0x87c5eb, amb: 0.9,  sun: 0.95, stars: 0 },
-  dusk:  { label: "🌆 ゆうがた", sky: 0xd97a52, amb: 0.62, sun: 0.5,  stars: 0.2 },
-  night: { label: "🌙 よる",   sky: 0x0d1230, amb: 0.34, sun: 0.1,  stars: 0.9 },
+  day:   { label: "☀️ ひる",    sky: ["#8ecfef", "#c8ecf8"], tint: null,                 stars: 0 },
+  dusk:  { label: "🌆 ゆうがた", sky: ["#e08a54", "#f4c98a"], tint: "rgba(90,45,80,.22)",  stars: 0.25 },
+  night: { label: "🌙 よる",    sky: ["#0c1130", "#1c2a58"], tint: "rgba(10,16,60,.44)",  stars: 1 },
 };
 
-/* 季節(月で決まる)と天気(日付ハッシュで決まる)。実時間だけの演出で株価・市場とは無関係 */
 const seasonOf = (m) => {
-  if (m >= 3 && m <= 5)  return { key: "spring", label: "🌸はる", leaf: 0xe58fb4, ground: 0x4a9455, wild: 0x437a42, particle: { color: 0xffb7d5, size: 0.34, speed: 1.3, sway: 1.6 } };
-  if (m >= 6 && m <= 8)  return { key: "summer", label: "🌻なつ", leaf: 0x1f5c33, ground: 0x3d8a4e, wild: 0x3a6b35, particle: null };
-  if (m >= 9 && m <= 11) return { key: "autumn", label: "🍁あき", leaf: 0xc2622d, ground: 0x7d8a45, wild: 0x6b7a3a, particle: { color: 0xd97a3a, size: 0.38, speed: 1.9, sway: 2.2 } };
-  return { key: "winter", label: "⛄ふゆ", leaf: 0x2d5a44, ground: 0xb9c8c3, wild: 0x9fb3ac, particle: { color: 0xffffff, size: 0.3, speed: 1.1, sway: 0.9 } };
+  if (m >= 3 && m <= 5)  return { key: "spring", label: "🌸はる", g1: "#5aa860", g2: "#56a25c", wild: "#7cbf6e", leaf: "#e58fb4", trunk: "#8a6242", particle: { kind: "petal", color: "#ffc2d8" } };
+  if (m >= 6 && m <= 8)  return { key: "summer", label: "🌻なつ", g1: "#4d9e55", g2: "#489850", wild: "#61a851", leaf: "#2e6e3c", trunk: "#7a5638", particle: null };
+  if (m >= 9 && m <= 11) return { key: "autumn", label: "🍁あき", g1: "#8a944c", g2: "#859048", wild: "#a89a50", leaf: "#c2622d", trunk: "#7a5638", particle: { kind: "leaf", color: "#d9873a" } };
+  return { key: "winter", label: "⛄ふゆ", g1: "#c2cfc9", g2: "#bcc9c3", wild: "#a8bab2", leaf: "#3d6e54", trunk: "#6b4e38", particle: { kind: "snow", color: "#ffffff" } };
 };
-const isRainyToday = () => hashStr(today()) % 10 < 3; // 3割の日は雨(冬なら雪が強まる)
+const isRainyToday = () => hashStr(today()) % 10 < 3; // 3割の日は雨(冬は雪が強まる)
 
-/* ---- 3D牧場(2.5D: ドット絵スプライト×3D地形) ---- */
+/* ---- アイソメ座標系(アートピクセル単位) ----
+   タイル: 幅TW=24px・高さTH=12px のひし形。screen = iso(i, j) */
+const TW = 24, TH = 12;
+const isoX = (i, j) => (i - j) * (TW / 2);
+const isoY = (i, j) => (i + j) * (TH / 2);
 
-function Ranch3D({ stocks, onSelect, onFallback }) {
-  const mountRef = useRef(null);
+/* ひし形タイルを1pxの横帯で塗る(パス塗りのにじみを避けてカクカクに保つ) */
+const fillDia = (ctx, cx, topY, hw, colL, colR) => {
+  const h = hw; // 高さ=半幅(2:1タイル)
+  for (let r = 0; r < h; r++) {
+    const k = r < h / 2 ? r : h - 1 - r;
+    const w = Math.max(1, Math.round((k + 1) * 2 * (hw / h)));
+    ctx.fillStyle = colL;
+    ctx.fillRect(cx - w, topY + r, w, 1);
+    ctx.fillStyle = colR;
+    ctx.fillRect(cx, topY + r, w, 1);
+  }
+};
+const fillTile = (ctx, i, j, ox, oy, colL, colR) => {
+  fillDia(ctx, ox + isoX(i, j), oy + isoY(i, j) - TH / 2, TH, colL, colR);
+};
+
+const shadeHex = (hex, f) => { // f<1で暗く f>1で明るく
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return `rgb(${c(r)},${c(g)},${c(b)})`;
+};
+
+/* ---- 建物(研究小屋)の描画。ステージが上がるほど立派に育つ ---- */
+
+const BUILD_DIMS = [null,
+  { hw: 9,  wall: 5,  roof: 5 },   // ST1 ちいさな小屋
+  { hw: 11, wall: 8,  roof: 7 },   // ST2 小屋
+  { hw: 13, wall: 11, roof: 8 },   // ST3 いえ
+  { hw: 15, wall: 16, roof: 10 },  // ST4 ごてん(2階建て+旗)
+];
+
+function buildingCanvas(stock, phase, season) {
+  const stage = stageOf(calcLevel(stock)).no;
+  const d = BUILD_DIMS[stage];
+  const t = TYPES[stock.type] || TYPES.metal;
+  const W = d.hw * 2 + 10, H = d.wall + d.hw + d.roof + 14;
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d");
+  const cx = Math.floor(W / 2), baseY = H - 2;
+
+  const wallR = stage === 1 ? "#d8c49a" : "#ead9b5";
+  const wallL = shadeHex(stage === 1 ? "#d8c49a" : "#ead9b5", 0.72);
+  const roofR = t.color;
+  const roofL = shadeHex(t.color, 0.68);
+
+  // 壁: 南角からE/Wへ伸びる2面(1px列で斜めに追従)
+  for (let x = 0; x <= d.hw; x++) {
+    const yBot = baseY - Math.round(x / 2);
+    ctx.fillStyle = wallR;
+    ctx.fillRect(cx + x, yBot - d.wall, 1, d.wall);
+    ctx.fillStyle = wallL;
+    ctx.fillRect(cx - x, yBot - d.wall, 1, d.wall);
+  }
+  // 南角の稜線
+  ctx.fillStyle = shadeHex("#ead9b5", 0.55);
+  ctx.fillRect(cx, baseY - d.wall, 1, d.wall);
+
+  // とびら(右面の南寄り)
+  ctx.fillStyle = "#6b4a2b";
+  for (let x = 2; x <= 5; x++) ctx.fillRect(cx + x, baseY - Math.round(x / 2) - 7, 1, 7);
+  // まど(右面)。夜・夕方はあかりが灯る
+  const lit = phase !== "day";
+  const winCol = lit ? "#ffd166" : "#9cc3de";
+  const wins = stage >= 4 ? [[8, 8], [12, 8], [8, 14], [12, 14]] : stage === 3 ? [[8, 7], [11, 7]] : stage === 2 ? [[7, 5]] : [];
+  wins.forEach(([fx, fy]) => {
+    if (fx > d.hw - 2) return;
+    ctx.fillStyle = winCol;
+    ctx.fillRect(cx + fx, baseY - Math.round(fx / 2) - fy - 3, 3, 3);
+    ctx.fillStyle = lit ? "#fff2c2" : "#c8e2f2";
+    ctx.fillRect(cx + fx, baseY - Math.round(fx / 2) - fy - 3, 1, 1);
+    // 左面にも対称のまど
+    ctx.fillStyle = shadeHex(lit ? "#ffd166" : "#9cc3de", 0.8);
+    ctx.fillRect(cx - fx - 3, baseY - Math.round(fx / 2) - fy - 3, 3, 3);
+  });
+  // ST4は金の帯(軒下)
+  if (stage >= 4) {
+    for (let x = 0; x <= d.hw; x++) {
+      const yBot = baseY - Math.round(x / 2);
+      ctx.fillStyle = "#ffd166";
+      ctx.fillRect(cx + x, yBot - d.wall, 1, 1);
+      ctx.fillRect(cx - x, yBot - d.wall, 1, 1);
+    }
+  }
+
+  // 屋根: 縮むひし形を1pxずつ積んでピラミッドに(輪郭がカクカクに残る)
+  const roofTopCorner = baseY - d.wall - d.hw; // 屋根の底ひし形の上角y
+  for (let l = 0; l <= d.roof; l++) {
+    const hwl = Math.max(2, Math.round(d.hw * (1 - l / (d.roof + 1))));
+    const cyTop = roofTopCorner - l + (d.hw - hwl) / 2;
+    fillDia(ctx, cx, Math.round(cyTop), hwl, roofL, roofR);
+  }
+  // 冬は屋根に雪
+  if (season.key === "winter") {
+    for (let l = Math.round(d.roof * 0.45); l <= d.roof; l++) {
+      const hwl = Math.max(2, Math.round(d.hw * (1 - l / (d.roof + 1))));
+      const cyTop = roofTopCorner - l + (d.hw - hwl) / 2;
+      fillDia(ctx, cx, Math.round(cyTop), hwl, "#dfe9ee", "#f4f9fc");
+    }
+  }
+  // ST4は旗(タイプ色)
+  if (stage >= 4) {
+    const apexY = Math.round(roofTopCorner - d.roof + d.hw / 2) - 2;
+    ctx.fillStyle = "#8a6a3a";
+    ctx.fillRect(cx, apexY - 8, 1, 9);
+    ctx.fillStyle = t.color;
+    ctx.fillRect(cx + 1, apexY - 8, 5, 3);
+  }
+  // 色違い持ちの家は屋根に✨
+  if (stock.shiny) {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(cx + 3, roofTopCorner - 2, 1, 1);
+    ctx.fillStyle = "#ffd166";
+    ctx.fillRect(cx - 4, roofTopCorner + 2, 1, 1);
+  }
+  return { cv, anchorX: cx, anchorY: baseY }; // anchor=敷地ひし形の南角
+}
+
+/* ---- 木(そびえるので建物と同じく奥行きソートで描く) ---- */
+function treeCanvas(season, big) {
+  const s = big ? 1.4 : 1;
+  const W = Math.round(22 * s), H = Math.round(30 * s);
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d");
+  const cx = Math.floor(W / 2);
+  ctx.fillStyle = season.trunk;
+  ctx.fillRect(cx - 1, H - Math.round(9 * s), 3, Math.round(9 * s));
+  const leafL = shadeHex(season.leaf, 0.75);
+  for (let l = 0; l < Math.round(16 * s); l++) {
+    const rel = l / (16 * s);
+    const hw = Math.max(1, Math.round((10 * s) * Math.sin(Math.PI * (0.15 + rel * 0.85)) ));
+    const y = H - Math.round(9 * s) - l;
+    ctx.fillStyle = leafL;
+    ctx.fillRect(cx - hw, y, hw, 1);
+    ctx.fillStyle = season.leaf;
+    ctx.fillRect(cx, y, hw, 1);
+  }
+  if (season.key === "winter") {
+    ctx.fillStyle = "#eef4f8";
+    for (let l = Math.round(10 * s); l < Math.round(16 * s); l++) {
+      const rel = l / (16 * s);
+      const hw = Math.max(1, Math.round((10 * s) * Math.sin(Math.PI * (0.15 + rel * 0.85))));
+      ctx.fillRect(cx - hw, H - Math.round(9 * s) - l, hw * 2, 1);
+    }
+  }
+  return { cv, anchorX: cx, anchorY: H - 1 };
+}
+
+/* クリーチャーのドット絵(1セル=1px)。牧場ではズームに合わせて整数倍で拡大する */
+function creatureArt(stock, sleeping) {
+  const { grid, w, h } = buildPixels(stock, sleeping);
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d");
+  grid.forEach((row, y) => row.forEach((col, x) => {
+    if (col) { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); }
+  }));
+  return cv;
+}
+
+const clip = (t, n = 16) => {
+  const s = String(t || "").replace(/\s+/g, " ").trim();
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+};
+
+/* 吹き出しのセリフ候補: オーナー自身のメモが素材(復習をかねた遊び) */
+function bubblePool(stock, mood, phase) {
+  const arr = [];
+  if (stock.hypothesis) arr.push(clip(stock.hypothesis));
+  (stock.bullets || []).forEach((b) => arr.push("🔥" + clip(b, 14)));
+  (stock.triggers || []).forEach((b) => arr.push("🚪" + clip(b, 14)));
+  const lastLog = (stock.logs || []).slice(-1)[0];
+  if (lastLog && lastLog.text) arr.push("📝" + clip(lastLog.text, 14));
+  const greet = phase === "night" ? "こんばんは〜" : phase === "dusk" ? "ゆうやけだ〜" : "こんにちは！";
+  arr.push(greet, "♪");
+  if (mood) {
+    if (mood.key === "peak") arr.push("ぜっこうちょう！");
+    if (mood.key === "good") arr.push("げんき！");
+    if (mood.key === "low" || mood.key === "tired") arr.push("きょうはのんびり…");
+  }
+  return arr;
+}
+
+/* ================= メインの牧場キャンバス ================= */
+
+function RanchKairo({ stocks, quotes, onSelect }) {
+  const wrapRef = useRef(null);
+  const canvasRef = useRef(null);
   const stocksRef = useRef(stocks); stocksRef.current = stocks;
+  const quotesRef = useRef(quotes); quotesRef.current = quotes;
   const onSelectRef = useRef(onSelect); onSelectRef.current = onSelect;
+  const zoomRef = useRef(typeof window !== "undefined" && window.innerWidth >= 900 ? 3 : 2);
+  const [, setZoomTick] = useState(0); // ズームボタンの表示更新用
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // メンバー・ステータス・睡眠・ステージが変わったときだけシーンを作り直す
-  const sceneKey = stocks
-    .filter((s) => s.status !== "sold")
-    .map((s) => `${s.id}:${s.status}:${moveTierOf(s) === 3 ? "z" : "a"}:${stageOf(calcLevel(s)).no}:${s.shiny ? "S" : ""}:${s.evoPattern || ""}`)
+  const actives = stocks.filter((s) => s.status !== "sold");
+  // シーンの作り直しが必要な変化だけをキーにする(位置や吹き出しは作り直さない)
+  const sceneKey = actives
+    .map((s) => `${s.id}:${s.status}:${stageOf(calcLevel(s)).no}:${moveTierOf(s)}:${s.shiny ? "S" : ""}:${s.evoPattern || ""}`)
     .join("|") + `|s:${seasonOf(new Date().getMonth() + 1).key}|r:${isRainyToday() ? 1 : 0}|a:${evalAchievements(stocks).size}`;
 
   useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return;
-    let renderer, raf = 0;
-    try {
-      renderer = new THREE.WebGLRenderer({ antialias: false });
-      if (!renderer.getContext()) throw new Error("no webgl");
-    } catch (e) { onFallback(); return; }
+    const wrap = wrapRef.current, canvas = canvasRef.current;
+    if (!wrap || !canvas) return;
+    const ctx = canvas.getContext("2d");
+    let raf = 0;
 
-    const W = () => Math.max(1, mount.clientWidth);
-    const H = () => Math.max(1, mount.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setSize(W(), H());
-    mount.appendChild(renderer.domElement);
-    const el = renderer.domElement;
-    el.style.touchAction = "none";
-
-    const scene = new THREE.Scene();
     const season = seasonOf(new Date().getMonth() + 1);
     const rainy = isRainyToday();
-    const camera = new THREE.PerspectiveCamera(50, W() / H(), 0.1, 400);
-    // 初期アングルは旧自作オービット(az=0.5, pol=1.02, r=27)と同じ位置
-    const AZ0 = 0.5, POL0 = 1.02, R0 = 27;
-    camera.position.set(
-      R0 * Math.sin(POL0) * Math.sin(AZ0),
-      R0 * Math.cos(POL0) + 1.5,
-      R0 * Math.sin(POL0) * Math.cos(AZ0)
-    );
-    // 公式OrbitControls(慣性つき)。回転とズームのみ・パンなし。可動域は旧実装と同じ
-    const controls = new OrbitControls(camera, el);
-    controls.target.set(0, 1, 0);
-    controls.enablePan = false;
-    controls.enableDamping = !reduced; // 動きを減らす設定では慣性もオフ
-    controls.dampingFactor = 0.08;
-    controls.minDistance = 11;
-    controls.maxDistance = 55;
-    controls.minPolarAngle = 0.28;
-    controls.maxPolarAngle = 1.35;
-    controls.update();
-
-    // HD-2D風ポストプロセス: 光のにじみ(ブルーム)。非対応環境では素のレンダラーに落とす
-    // ⚠ 強度・しきい値は時間帯で変える(applyTime参照)。昼の明るい空に強いブルームを
-    //   掛けると画面全体が白飛びするため、昼は控えめ・夜はしっかり光らせる
-    let composer = null, bloomPass = null;
-    try {
-      composer = new EffectComposer(renderer);
-      composer.addPass(new RenderPass(scene, camera));
-      bloomPass = new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.3, 0.7, 0.9);
-      composer.addPass(bloomPass);
-      composer.setSize(W(), H());
-    } catch (e) { composer = null; bloomPass = null; }
-
-    // ライト(時間帯で変化)
-    const amb = new THREE.AmbientLight(0xffffff, 0.7);
-    const sun = new THREE.DirectionalLight(0xfff4e0, 0.8);
-    sun.position.set(12, 22, 8);
-    scene.add(amb, sun);
-
-    // 地形: 柵(x=4)の左=ぼくじょう、右=やせい
-    const gPast = new THREE.Mesh(new THREE.PlaneGeometry(20, 24), new THREE.MeshLambertMaterial({ color: season.ground }));
-    gPast.rotation.x = -Math.PI / 2; gPast.position.set(-6, 0, 0);
-    const gWild = new THREE.Mesh(new THREE.PlaneGeometry(13, 24), new THREE.MeshLambertMaterial({ color: season.wild }));
-    gWild.rotation.x = -Math.PI / 2; gWild.position.set(10.5, 0, 0);
-    scene.add(gPast, gWild);
-
-    // 柵
-    const fenceMat = new THREE.MeshLambertMaterial({ color: 0x8a6a3a });
-    for (let z = -12; z <= 12; z += 3) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.32, 1.7, 0.32), fenceMat);
-      post.position.set(4, 0.85, z);
-      scene.add(post);
-    }
-    [0.6, 1.25].forEach((y) => {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.13, 24.4), fenceMat);
-      rail.position.set(4, y, 0);
-      scene.add(rail);
-    });
-
-    // 木・池・岩
-    const mkTree = (x, z, s = 1) => {
-      const g = new THREE.Group();
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * s, 0.34 * s, 1.2 * s, 6), new THREE.MeshLambertMaterial({ color: 0x6b4a2b }));
-      trunk.position.y = 0.6 * s;
-      const leaf = new THREE.Mesh(new THREE.ConeGeometry(1.3 * s, 2.5 * s, 7), new THREE.MeshLambertMaterial({ color: season.leaf }));
-      leaf.position.y = 2.3 * s;
-      g.add(trunk, leaf);
-      g.position.set(x, 0, z);
-      scene.add(g);
-    };
-    mkTree(9, -9); mkTree(13.5, -3.5, 1.25); mkTree(11, 7.5, 0.9); mkTree(-14.5, -10, 1.15); mkTree(-13, 9, 0.85);
-    const pond = new THREE.Mesh(new THREE.CircleGeometry(2.5, 22), new THREE.MeshLambertMaterial({ color: 0x3aa0c9 }));
-    pond.rotation.x = -Math.PI / 2; pond.position.set(-11, 0.02, 5.5);
-    scene.add(pond);
-    [[-3, -10], [12, 3], [-15, 0]].forEach(([x, z]) => {
-      const rock = new THREE.Mesh(new THREE.SphereGeometry(0.55, 5, 4), new THREE.MeshLambertMaterial({ color: 0x6b7280 }));
-      rock.position.set(x, 0.3, z);
-      scene.add(rock);
-    });
-
-    // 星(夜だけ見える)
-    const starPos = [];
-    for (let i = 0; i < 140; i++) {
-      const th = Math.random() * Math.PI * 2, ph = Math.random() * Math.PI * 0.45, R = 150;
-      starPos.push(R * Math.sin(ph) * Math.cos(th), R * Math.cos(ph) + 5, R * Math.sin(ph) * Math.sin(th));
-    }
-    const starGeo = new THREE.BufferGeometry();
-    starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
-    const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.8, transparent: true, opacity: 0 }));
-    scene.add(stars);
-
-    // 季節・天気のパーティクル(花びら/落ち葉/雪/雨)。動きを減らす設定では出さない
-    let drops = null, dropVel = null, dropCfg = null;
-    const pcfg = rainy
-      ? (season.key === "winter"
-        ? { color: 0xffffff, size: 0.32, speed: 2.4, sway: 0.8 }   // 冬の雨日は本降りの雪
-        : { color: 0x9db8e8, size: 0.2, speed: 16, sway: 0.1 })    // 雨すじ
-      : season.particle;
-    if (pcfg && !reduced) {
-      const N = rainy ? 240 : 140;
-      const pos = new Float32Array(N * 3);
-      dropVel = new Float32Array(N);
-      for (let i = 0; i < N; i++) {
-        pos[i * 3] = -18 + Math.random() * 36;
-        pos[i * 3 + 1] = Math.random() * 15;
-        pos[i * 3 + 2] = -13 + Math.random() * 26;
-        dropVel[i] = 0.7 + Math.random() * 0.6;
-      }
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-      drops = new THREE.Points(geo, new THREE.PointsMaterial({ color: pcfg.color, size: pcfg.size, transparent: true, opacity: rainy && season.key !== "winter" ? 0.5 : 0.9 }));
-      dropCfg = pcfg;
-      scene.add(drops);
-    }
-
-    // 実績で解放される飾り(研究の蓄積が牧場を豊かにする)
     const unlocked = evalAchievements(stocksRef.current).size;
-    if (unlocked >= 3) { // 🌼花壇
-      [[-13.5, -5.5], [-12.7, -6.3], [-13.9, -6.6], [-12.9, -5.2], [-13.4, -7.1], [-12.3, -5.8]].forEach(([x, z], i) => {
-        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 4), new THREE.MeshLambertMaterial({ color: 0x2f7a3d }));
-        stem.position.set(x, 0.25, z);
-        const bud = new THREE.Mesh(new THREE.SphereGeometry(0.17, 6, 5), new THREE.MeshLambertMaterial({ color: [0xff8fb3, 0xffd166, 0xc4b5fd, 0xff8f6b, 0xffffff, 0x93c5fd][i % 6] }));
-        bud.position.set(x, 0.55, z);
-        scene.add(stem, bud);
-      });
-    }
-    if (unlocked >= 6) { // 🪧かんばん
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.7, 0.18), fenceMat);
-      post.position.set(-6, 0.85, 11.3);
-      const cv2 = document.createElement("canvas");
-      cv2.width = 256; cv2.height = 96;
-      const c2 = cv2.getContext("2d");
-      c2.fillStyle = "#8a6a3a"; c2.fillRect(0, 0, 256, 96);
-      c2.fillStyle = "#5c4526"; c2.fillRect(6, 6, 244, 84);
-      c2.fillStyle = "#ffe9c9"; c2.font = "bold 30px sans-serif"; c2.textAlign = "center"; c2.textBaseline = "middle";
-      c2.fillText("KABUぼくじょう", 128, 50);
-      const signTex = new THREE.CanvasTexture(cv2);
-      const panel = new THREE.Mesh(new THREE.BoxGeometry(2.7, 1.0, 0.12), new THREE.MeshLambertMaterial({ map: signTex }));
-      panel.position.set(-6, 1.75, 11.3);
-      scene.add(post, panel);
-    }
-    if (unlocked >= 9) { // 🔥かがり火(ブルームで夜に光る)
-      [[-1.6, -8], [-1.6, 8]].forEach(([x, z]) => {
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 1.4, 5), fenceMat);
-        pole.position.set(x, 0.7, z);
-        const flame = new THREE.Mesh(new THREE.SphereGeometry(0.24, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffb54d }));
-        flame.position.set(x, 1.55, z);
-        scene.add(pole, flame);
-      });
-    }
-    if (unlocked >= ACHIEVEMENTS.length) { // 🏆全実績: 金の像
-      const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.7, 0.5, 8), new THREE.MeshLambertMaterial({ color: 0x9ca3af }));
-      ped.position.set(-9.5, 0.25, -9);
-      const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 7), new THREE.MeshBasicMaterial({ color: 0xffd166 }));
-      body.position.set(-9.5, 1.0, -9);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 7), new THREE.MeshBasicMaterial({ color: 0xffd166 }));
-      head.position.set(-9.5, 1.62, -9);
-      scene.add(ped, body, head);
-    }
+    const members = stocksRef.current.filter((s) => s.status !== "sold");
 
-    // 実時間の昼夜(1分ごとに再判定)
-    const applyTime = () => {
-      const phase = dayPhase();
-      const p = PHASE_INFO[phase];
-      const sky = new THREE.Color(p.sky);
-      if (rainy) sky.lerp(new THREE.Color(0x6b7280), 0.45); // 雨の日は空を鈍色に
-      scene.background = sky;
-      scene.fog = new THREE.Fog(sky, rainy ? 22 : 30, rainy ? 72 : 100); // HD-2D風の空気遠近(雨は濃く)
-      amb.intensity = p.amb * (rainy ? 0.72 : 1);
-      sun.intensity = p.sun * (rainy ? 0.45 : 1);
-      stars.material.opacity = rainy ? 0 : p.stars;
-      if (bloomPass) {
-        // 昼: 空が明るいのでほぼ光らせない / 夕方: ほどほど / 夜: しっかり発光
-        const b = phase === "day" ? { s: 0.22, t: 0.92 } : phase === "dusk" ? { s: 0.5, t: 0.75 } : { s: 0.85, t: 0.55 };
-        bloomPass.strength = b.s;
-        bloomPass.threshold = b.t;
-      }
-    };
-    applyTime();
-    const timeIv = setInterval(applyTime, 60000);
-
-    // クリーチャー(ビルボードスプライト)
-    const zoneOf = (s) => (s.status === "hold"
-      ? { x0: -15, x1: 2.6, z0: -10.5, z1: 10.5 }
-      : { x0: 5.4, x1: 15.5, z0: -10.5, z1: 10.5 });
-    const members = new Map();
-    stocksRef.current.filter((s) => s.status !== "sold").forEach((s) => {
-      const tier = moveTierOf(s);
-      const cv = spriteCanvasFor(s, tier === 3);
-      const tex = new THREE.CanvasTexture(cv);
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
-      const hgt = 3.2, aspect = cv.width / cv.height;
-      sp.scale.set(hgt * aspect, hgt, 1);
-      sp.userData.stockId = s.id;
-      const z = zoneOf(s);
-      const st = { x: z.x0 + Math.random() * (z.x1 - z.x0), z: z.z0 + Math.random() * (z.z1 - z.z0) };
-      st.tx = st.x; st.tz = st.z; st.hop = Math.random() * 6;
-      sp.position.set(st.x, hgt / 2, st.z);
-      scene.add(sp);
-      // 足元の柔らかい落とし影(HD-2D風)。ジャンプ中は小さく薄くなる
-      const sh = new THREE.Mesh(
-        new THREE.CircleGeometry(1, 18),
-        new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.26, depthWrite: false })
-      );
-      sh.rotation.x = -Math.PI / 2;
-      sh.scale.set(1.15, 0.72, 1);
-      sh.position.set(st.x, 0.03, st.z + 0.15);
-      scene.add(sh);
-      members.set(s.id, { sp, sh, st, tex, hgt, tier });
+    /* ---- レイアウト: 建物スロットは登録順で安定配置 ---- */
+    const cols = 3;
+    const rows = Math.max(1, Math.ceil(members.length / cols));
+    const N = Math.max(20, 6 + rows * 7 + 4); // グリッド一辺(タイル数)
+    const ordered = [...members].sort((a, b) => (a.no || 0) - (b.no || 0));
+    const slotOf = new Map(); // stockId -> {si, sj}
+    ordered.forEach((s, k) => {
+      slotOf.set(s.id, { si: 3 + (k % cols) * 7, sj: 3 + Math.floor(k / cols) * 7 });
     });
 
-    // すれ違い挨拶: 近づいたペアの間に♪が浮かぶ(ペアごと20秒クールダウン)
-    const greets = [];
-    const greetTex = (() => {
-      const gcv = document.createElement("canvas");
-      gcv.width = 64; gcv.height = 64;
-      const gctx = gcv.getContext("2d");
-      gctx.font = "bold 44px sans-serif"; gctx.textAlign = "center"; gctx.textBaseline = "middle";
-      gctx.strokeStyle = "#1f2430"; gctx.lineWidth = 6; // 昼の明るい空でも見えるように縁取り
-      gctx.strokeText("♪", 32, 34);
-      gctx.fillStyle = "#ffffff";
-      gctx.fillText("♪", 32, 34);
-      return new THREE.CanvasTexture(gcv);
-    })();
-    const spawnGreet = (x, z) => {
-      const gsp = new THREE.Sprite(new THREE.SpriteMaterial({ map: greetTex, transparent: true, depthTest: false }));
-      gsp.scale.set(1.3, 1.3, 1);
-      gsp.position.set(x, 4.0, z);
-      scene.add(gsp);
-      greets.push({ sp: gsp, born: performance.now() });
-    };
-    const lastGreet = new Map();
+    // 池(右手前)・木の配置
+    const pond = [];
+    for (let i = N - 7; i <= N - 3; i++) {
+      for (let j = 2; j <= 5; j++) {
+        if (Math.hypot(i - (N - 5), j - 3.5) < 2.6) pond.push([i, j]);
+      }
+    }
+    const rngMap = mulberry32(hashStr("kabu-ranch-map"));
+    const trees = [];
+    for (let k = 0; k < 14; k++) {
+      const edge = Math.floor(rngMap() * 4);
+      const p = 1 + Math.floor(rngMap() * (N - 2));
+      const pos = edge === 0 ? [p, 0] : edge === 1 ? [0, p] : edge === 2 ? [p, N - 1] : [N - 1, p];
+      trees.push({ i: pos[0], j: pos[1], big: rngMap() < 0.4 });
+    }
+    // 内側にもぽつぽつ木を植える(建物のまわりと池は避ける)
+    const nearSlot = (i, j) => [...slotOf.values()].some(({ si, sj }) => i >= si - 2 && i <= si + 5 && j >= sj - 2 && j <= sj + 3);
+    for (let k = 0; k < 6; k++) {
+      for (let t2 = 0; t2 < 20; t2++) {
+        const i = 2 + Math.floor(rngMap() * (N - 4)), j = 2 + Math.floor(rngMap() * (N - 4));
+        if (nearSlot(i, j) || pond.some(([pi, pj]) => Math.hypot(pi - i, pj - j) < 2.4)) continue;
+        trees.push({ i, j, big: rngMap() < 0.3 });
+        break;
+      }
+    }
 
-    // 徘徊(鮮度で速さ・頻度が変化)
-    const moveIv = setInterval(() => {
-      if (reduced) return;
-      members.forEach((o, id) => {
+    // 通行不可タイル(建物・池・木)
+    const blocked = new Set();
+    const bkey = (i, j) => i * 1000 + j;
+    slotOf.forEach(({ si, sj }) => {
+      for (let di = -1; di <= 2; di++) for (let dj = -1; dj <= 2; dj++) blocked.add(bkey(si + di, sj + dj));
+    });
+    pond.forEach(([i, j]) => blocked.add(bkey(i, j)));
+    trees.forEach((tr) => blocked.add(bkey(tr.i, tr.j)));
+    const walkable = (i, j) => i >= 1 && j >= 1 && i <= N - 2 && j <= N - 2 && !blocked.has(bkey(Math.round(i), Math.round(j)));
+    const pathClear = (a, b) => {
+      const steps = Math.ceil(Math.hypot(b.i - a.i, b.j - a.j) * 2);
+      for (let s = 1; s <= steps; s++) {
+        const i = a.i + ((b.i - a.i) * s) / steps, j = a.j + ((b.j - a.j) * s) / steps;
+        if (!walkable(i, j)) return false;
+      }
+      return true;
+    };
+    const randWalkable = (rng2) => {
+      for (let tries = 0; tries < 30; tries++) {
+        const i = 1 + rng2() * (N - 2), j = 1 + rng2() * (N - 2);
+        if (walkable(i, j)) return { i, j };
+      }
+      return { i: N / 2, j: N - 3 };
+    };
+
+    // ワールドの大きさ(アートpx)とオフセット
+    const oy = 46; // 空とそびえる建物のための上マージン
+    const ox = (N - 1) * (TW / 2) + TW;
+    const worldW = (N - 1) * TW + TW * 2;
+    const worldH = (N - 1) * TH + oy + 40;
+
+    /* ---- 静的レイヤー(地面・はたけ・みち・池・花) ---- */
+    const ground = document.createElement("canvas");
+    ground.width = worldW; ground.height = worldH;
+    const g = ground.getContext("2d");
+    const rngTuft = mulberry32(hashStr("kabu-ranch-tuft"));
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const base = (i + j) % 2 === 0 ? season.g1 : season.g2;
+        fillTile(g, i, j, ox, oy, shadeHex(base, 0.97), base);
+        if (rngTuft() < 0.12) { // 草むらのアクセント
+          g.fillStyle = shadeHex(base, 0.8);
+          g.fillRect(ox + isoX(i, j) - 2, oy + isoY(i, j) - 2, 2, 1);
+          g.fillRect(ox + isoX(i, j) + 3, oy + isoY(i, j) + 1, 2, 1);
+        }
+      }
+    }
+    // 建物の前のみち(横方向)と、敷地の石だたみ・はたけ
+    slotOf.forEach(({ si, sj }, id) => {
+      for (let i = 1; i <= N - 2; i++) fillTile(g, i, sj + 2, ox, oy, "#d0ba8e", "#d8c49a"); // みち
+      for (let di = -1; di <= 2; di++) for (let dj = -1; dj <= 1; dj++) {
+        fillTile(g, si + di, sj + dj, ox, oy, "#c1bba9", "#c8c2b0"); // 石だたみ
+      }
+      const st = stocksRef.current.find((s) => s.id === id);
+      if (st && st.status === "hold") { // 保有銘柄の家にははたけ
+        for (let di = 3; di <= 4; di++) for (let dj = 0; dj <= 1; dj++) {
+          fillTile(g, si + di, sj + dj, ox, oy, "#6b4e2c", "#7a5a33");
+          const px = ox + isoX(si + di, sj + dj), py = oy + isoY(si + di, sj + dj);
+          g.fillStyle = season.key === "winter" ? "#9fb3ac" : "#4d9e55";
+          g.fillRect(px - 4, py - 2, 2, 2);
+          g.fillRect(px + 2, py, 2, 2);
+        }
+      }
+    });
+    // 池
+    pond.forEach(([i, j]) => fillTile(g, i, j, ox, oy, "#3d94c4", "#4aa8d8"));
+    pond.forEach(([i, j], k) => {
+      if (k % 3 === 0) {
+        g.fillStyle = "#9fd8f0";
+        g.fillRect(ox + isoX(i, j) - 3, oy + isoY(i, j) - 1, 3, 1);
+      }
+    });
+    // 実績デコ: 花だん(3+) / かんばん(6+)は下のスプライト列 / かがり火(9+) / 金の像(全部)
+    if (unlocked >= 3) {
+      const cols2 = ["#ff8fb3", "#ffd166", "#c4b5fd", "#ff8f6b", "#ffffff", "#93c5fd"];
+      for (let k = 0; k < 12; k++) {
+        const i = N - 4 + (k % 3), j = N - 5 + Math.floor(k / 6);
+        const px = ox + isoX(i, j) + ((k * 7) % 11) - 5, py = oy + isoY(i, j) + ((k * 5) % 5) - 2;
+        g.fillStyle = "#2f7a3d"; g.fillRect(px, py + 1, 1, 2);
+        g.fillStyle = cols2[k % 6]; g.fillRect(px - 1, py - 1, 2, 2);
+      }
+    }
+
+    /* ---- そびえるスプライト(建物・木・かんばん等)を奥行きソート用に用意 ---- */
+    const buildCache = new Map();
+    const buildingFor = (s, phase) => {
+      const key = `${s.id}:${stageOf(calcLevel(s)).no}:${phase}:${s.shiny ? "S" : ""}`;
+      if (!buildCache.has(key)) buildCache.set(key, buildingCanvas(s, phase, season));
+      return buildCache.get(key);
+    };
+    const treeSprites = trees.map((tr) => ({ ...treeCanvas(season, tr.big), i: tr.i, j: tr.j }));
+    let signSprite = null;
+    if (unlocked >= 6) {
+      const cv = document.createElement("canvas");
+      cv.width = 46; cv.height = 26;
+      const c2 = cv.getContext("2d");
+      c2.fillStyle = "#8a6a3a"; c2.fillRect(10, 12, 3, 14); c2.fillRect(33, 12, 3, 14);
+      c2.fillStyle = "#a8834c"; c2.fillRect(2, 2, 42, 12);
+      c2.fillStyle = "#5c4526"; c2.fillRect(3, 3, 40, 10);
+      c2.fillStyle = "#ffe9c9"; c2.font = "bold 7px sans-serif"; c2.textAlign = "center";
+      c2.fillText("KABU牧場", 23, 11);
+      signSprite = { cv, anchorX: 23, anchorY: 25, i: Math.floor(N / 2), j: N - 2.2 };
+    }
+    let statueSprite = null;
+    if (unlocked >= ACHIEVEMENTS.length) {
+      const cv = document.createElement("canvas");
+      cv.width = 18; cv.height = 22;
+      const c2 = cv.getContext("2d");
+      c2.fillStyle = "#9ca3af"; c2.fillRect(3, 17, 12, 5);
+      c2.fillStyle = "#7c8391"; c2.fillRect(3, 17, 12, 1);
+      c2.fillStyle = "#ffd166"; c2.fillRect(6, 7, 6, 10); c2.fillRect(5, 3, 8, 6);
+      c2.fillStyle = "#fff2c2"; c2.fillRect(6, 4, 2, 2);
+      statueSprite = { cv, anchorX: 9, anchorY: 21, i: 2.2, j: N - 3 };
+    }
+    const torchPos = unlocked >= 9 ? [{ i: Math.floor(N / 2) - 3, j: N - 3 }, { i: Math.floor(N / 2) + 3, j: N - 3 }] : [];
+
+    /* ---- クリーチャーの状態 ---- */
+    const artCache = new Map();
+    const artFor = (s, sleeping) => {
+      const key = `${s.id}:${sleeping ? "z" : "a"}:${s.shiny ? "S" : ""}:${stageOf(calcLevel(s)).no}:${s.evoPattern || ""}`;
+      if (!artCache.has(key)) artCache.set(key, creatureArt(s, sleeping));
+      return artCache.get(key);
+    };
+    const crit = new Map(); // stockId -> 状態
+    members.forEach((s) => {
+      const { si, sj } = slotOf.get(s.id);
+      const home = { i: si + 0.5, j: sj + 2.6 }; // 家の前(建物より手前=南)
+      const rng2 = mulberry32(hashStr(String(s.code || s.id)) ^ 0x9e3779b9);
+      crit.set(s.id, {
+        home, field: { i: si + 3.5, j: sj + 0.8 },
+        i: home.i, j: home.j, ti: home.i, tj: home.j, legs: [],
+        state: "idle", stateUntil: 0, bob: rng2() * 6.28, rng: rng2,
+        workTickAt: 0,
+      });
+    });
+
+    /* ---- 演出キュー(吹き出し・エモート・パーティクル) ---- */
+    const bubbles = []; // {id, text, until}
+    const emotes = [];  // {i, j, txt, born, life}
+    let nextBubbleAt = performance.now() + 3000;
+    const lastGreet = new Map();
+    const NPART = rainy ? 110 : 60;
+    const parts = [];
+    const pKind = rainy ? (season.key === "winter" ? "snowstorm" : "rain") : (season.particle ? season.particle.kind : null);
+    if (pKind && !reduced) {
+      for (let k = 0; k < NPART; k++) {
+        parts.push({ x: Math.random(), y: Math.random(), v: 0.6 + Math.random() * 0.8, ph: Math.random() * 6.28 });
+      }
+    }
+    // 星(夜)。画面座標に固定
+    const starRng = mulberry32(hashStr("kabu-stars"));
+    const starPts = Array.from({ length: 60 }, () => ({ x: starRng(), y: starRng() * 0.5, tw: starRng() * 6.28 }));
+
+    /* ---- ビューポート(パン・ズーム) ---- */
+    let cw = 0, chh = 0, dpr = 1;
+    const pan = { x: worldW / 2, y: oy + (N * TH) / 2 - 20 }; // 画面中心が指すワールド座標
+    const clampPan = () => {
+      const z = zoomRef.current;
+      pan.x = Math.max(cw / (2 * z) - 30, Math.min(worldW - cw / (2 * z) + 30, pan.x));
+      pan.y = Math.max(chh / (2 * z) - 20, Math.min(worldH - chh / (2 * z) + 20, pan.y));
+    };
+    const resize = () => {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cw = Math.max(1, wrap.clientWidth);
+      chh = Math.max(1, wrap.clientHeight);
+      canvas.width = Math.round(cw * dpr);
+      canvas.height = Math.round(chh * dpr);
+      canvas.style.width = cw + "px";
+      canvas.style.height = chh + "px";
+      clampPan();
+    };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(wrap);
+
+    const toScreen = (wx, wy) => {
+      const z = zoomRef.current;
+      return { x: (wx - pan.x) * z + cw / 2, y: (wy - pan.y) * z + chh / 2 };
+    };
+
+    /* ---- 行動AI(ゆっくりtick) ---- */
+    const think = () => {
+      const now = performance.now();
+      crit.forEach((c, id) => {
         const s = stocksRef.current.find((x) => x.id === id);
         if (!s) return;
         const tier = moveTierOf(s);
-        o.tier = tier;
-        if (tier === 3) return;
-        const speed = [0.6, 0.32, 0.14][tier];
-        const restart = [0.3, 0.14, 0.05][tier];
-        const dx = o.st.tx - o.st.x, dz = o.st.tz - o.st.z, d = Math.hypot(dx, dz);
-        if (d < 0.25) {
-          if (Math.random() < restart) {
-            const z = zoneOf(s);
-            o.st.tx = z.x0 + Math.random() * (z.x1 - z.x0);
-            o.st.tz = z.z0 + Math.random() * (z.z1 - z.z0);
-          }
-        } else {
-          o.st.x += (dx / d) * Math.min(speed, d);
-          o.st.z += (dz / d) * Math.min(speed, d);
+        if (tier === 3) {
+          if (c.state !== "sleep") { c.state = "sleep"; c.legs = []; c.i = c.home.i; c.j = c.home.j; }
+          return;
         }
+        if (c.state === "sleep") c.state = "idle";
+        if (c.state === "walk" || now < c.stateUntil) return;
+        // 次の行動を選ぶ: 保有=はたけ仕事多め / ウォッチ=さんぽ
+        const r = c.rng();
+        let target = null, nextState = "walk";
+        const holding = s.status === "hold";
+        if (holding && r < 0.45) target = { i: c.field.i + (c.rng() - 0.5), j: c.field.j + (c.rng() - 0.5) * 0.8, then: "work" };
+        else if (r < (holding ? 0.6 : 0.35)) target = { i: c.home.i + (c.rng() - 0.5) * 2, j: c.home.j + c.rng() * 1.5, then: "idle" };
+        else if (r < 0.8) target = { ...randWalkable(c.rng), then: "idle" };
+        else { c.state = "idle"; c.stateUntil = now + 1500 + c.rng() * 2500; return; }
+        // 経路: 直線が塞がっていたら中継点を試す
+        const from = { i: c.i, j: c.j };
+        if (pathClear(from, target)) c.legs = [target];
+        else {
+          const mids = [{ i: from.i, j: target.j }, { i: target.i, j: from.j }];
+          let done = false;
+          for (const m of mids) {
+            if (walkable(m.i, m.j) && pathClear(from, m) && pathClear(m, target)) { c.legs = [m, target]; done = true; break; }
+          }
+          if (!done) { c.state = "idle"; c.stateUntil = now + 1200; return; }
+        }
+        c.state = nextState;
+        c.pending = target.then;
+        const leg = c.legs.shift();
+        c.ti = leg.i; c.tj = leg.j;
       });
-      // すれ違い判定(眠っている子は挨拶しない)
+      // すれ違いあいさつ(眠っている子は除く)
       if (!reduced) {
-        const arr = [...members.entries()];
-        const now = Date.now();
-        for (let i = 0; i < arr.length; i++) {
-          for (let j = i + 1; j < arr.length; j++) {
-            const [ida, a] = arr[i], [idb, b] = arr[j];
-            if (a.tier === 3 || b.tier === 3) continue;
-            const d2 = Math.hypot(a.sp.position.x - b.sp.position.x, a.sp.position.z - b.sp.position.z);
-            const key = ida < idb ? ida + idb : idb + ida;
-            if (d2 < 2.4 && (!lastGreet.has(key) || now - lastGreet.get(key) > 20000)) {
-              lastGreet.set(key, now);
-              spawnGreet((a.sp.position.x + b.sp.position.x) / 2, (a.sp.position.z + b.sp.position.z) / 2);
+        const arr = [...crit.entries()];
+        const now2 = Date.now();
+        for (let a = 0; a < arr.length; a++) {
+          for (let b = a + 1; b < arr.length; b++) {
+            const [ida, ca] = arr[a], [idb, cb] = arr[b];
+            if (ca.state === "sleep" || cb.state === "sleep") continue;
+            if (Math.hypot(ca.i - cb.i, ca.j - cb.j) < 1.6) {
+              const key = ida < idb ? ida + idb : idb + ida;
+              if (!lastGreet.has(key) || now2 - lastGreet.get(key) > 20000) {
+                lastGreet.set(key, now2);
+                emotes.push({ i: (ca.i + cb.i) / 2, j: (ca.j + cb.j) / 2, txt: "♪", born: performance.now(), life: 1300 });
+              }
             }
           }
         }
       }
-    }, 480);
+    };
+    const thinkIv = setInterval(think, 700);
+    think();
 
-    // 描画ループ(位置補間＋ぴょんぴょん)
-    const clock = new THREE.Clock();
+    /* ---- 描画ループ ---- */
+    let last = performance.now();
     const loop = () => {
       raf = requestAnimationFrame(loop);
-      const t = clock.getElapsedTime();
-      members.forEach((o) => {
-        const p = o.sp.position;
-        p.x += (o.st.x - p.x) * 0.08;
-        p.z += (o.st.z - p.z) * 0.08;
-        const moving = Math.hypot(o.st.tx - p.x, o.st.tz - p.z) > 0.35;
-        const hopY = o.tier === 0 && moving && !reduced ? Math.abs(Math.sin(t * 6 + o.st.hop)) * 0.5 : 0;
-        p.y = o.hgt / 2 + hopY;
-        // 影はキャラの真下。ジャンプの高さに応じて小さく・薄く
-        const k = 1 - hopY * 0.35;
-        o.sh.position.set(p.x, 0.03, p.z + 0.15);
-        o.sh.scale.set(1.15 * k, 0.72 * k, 1);
-        o.sh.material.opacity = 0.26 - hopY * 0.12;
-      });
-      // 季節・天気パーティクルの落下(下まで行ったら上に戻す)
-      if (drops) {
-        const pos = drops.geometry.attributes.position;
-        for (let i = 0; i < pos.count; i++) {
-          let y = pos.getY(i) - dropCfg.speed * dropVel[i] * 0.016;
-          if (y < 0) {
-            y = 14 + Math.random() * 2;
-            pos.setX(i, -18 + Math.random() * 36);
-            pos.setZ(i, -13 + Math.random() * 26);
-          } else if (dropCfg.sway > 0.2) {
-            pos.setX(i, pos.getX(i) + Math.sin(t * 2 + i) * dropCfg.sway * 0.008);
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const z = zoomRef.current;
+      const phase = dayPhase();
+      const P = PHASE_INFO[phase];
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+
+      // 空
+      const grd = ctx.createLinearGradient(0, 0, 0, chh);
+      let s0 = P.sky[0], s1 = P.sky[1];
+      grd.addColorStop(0, s0); grd.addColorStop(1, s1);
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, cw, chh);
+      if (rainy) { ctx.fillStyle = "rgba(90,100,115,.5)"; ctx.fillRect(0, 0, cw, chh); }
+      // 星
+      if (P.stars > 0 && !rainy) {
+        ctx.fillStyle = "#ffffff";
+        starPts.forEach((st, k) => {
+          const a = P.stars * (0.4 + 0.6 * Math.abs(Math.sin(now / 900 + st.tw)));
+          ctx.globalAlpha = a;
+          ctx.fillRect(Math.round(st.x * cw), Math.round(st.y * chh), k % 5 === 0 ? 2 : 1, k % 5 === 0 ? 2 : 1);
+        });
+        ctx.globalAlpha = 1;
+      }
+
+      // 地面レイヤー
+      const org = toScreen(0, 0);
+      ctx.drawImage(ground, Math.round(org.x), Math.round(org.y), worldW * z, worldH * z);
+
+      /* クリーチャーの移動更新 */
+      const moods = {};
+      crit.forEach((c, id) => {
+        const s = stocksRef.current.find((x) => x.id === id);
+        if (!s) return;
+        const tier = moveTierOf(s);
+        const mood = moodOf(pnlOf(s, quotesRef.current[id]));
+        moods[id] = mood;
+        if (c.state === "walk" && !reduced) {
+          const spdBase = [1.7, 1.1, 0.55, 0][tier];
+          const spd = spdBase * (mood ? { peak: 1.2, good: 1.1, flat: 1, low: 0.8, tired: 0.65 }[mood.key] : 1);
+          const dx = c.ti - c.i, dy = c.tj - c.j, d = Math.hypot(dx, dy);
+          if (d < 0.08) {
+            if (c.legs.length > 0) { const leg = c.legs.shift(); c.ti = leg.i; c.tj = leg.j; }
+            else {
+              c.state = c.pending || "idle";
+              const dur = c.state === "work" ? 3500 + c.rng() * 3500 : 1500 + c.rng() * 2500;
+              c.stateUntil = now + dur;
+            }
+          } else {
+            const step = Math.min(spd * dt, d);
+            c.i += (dx / d) * step; c.j += (dy / d) * step;
           }
-          pos.setY(i, y);
         }
-        pos.needsUpdate = true;
+        // はたけ仕事の途中経過(装飾のみ)。ようす=事実により✨/💧が混ざる
+        if (c.state === "work" && !reduced && now > c.workTickAt) {
+          c.workTickAt = now + 1400 + c.rng() * 900;
+          const txt = mood && mood.key === "peak" ? "✨" : mood && (mood.key === "low" || mood.key === "tired") && c.rng() < 0.5 ? "💧" : "🌱";
+          emotes.push({ i: c.i, j: c.j, txt, born: now, life: 1100 });
+        }
+        if (c.state === "sleep" && !reduced && c.rng() < 0.004) {
+          emotes.push({ i: c.i, j: c.j, txt: "💤", born: now, life: 1800 });
+        }
+      });
+
+      /* 吹き出しの発生 */
+      if (!reduced && now > nextBubbleAt) {
+        nextBubbleAt = now + 4500 + Math.random() * 4500;
+        const awake = [...crit.entries()].filter(([, c]) => c.state !== "sleep");
+        if (awake.length > 0 && bubbles.length < 2) {
+          const [id] = awake[Math.floor(Math.random() * awake.length)];
+          const s = stocksRef.current.find((x) => x.id === id);
+          if (s) {
+            const pool = bubblePool(s, moods[id], phase);
+            bubbles.push({ id, text: pool[Math.floor(Math.random() * pool.length)], until: now + 3400 });
+          }
+        }
       }
-      // ♪はふわっと浮かんで消える
-      for (let i = greets.length - 1; i >= 0; i--) {
-        const g2 = greets[i];
-        const age = (performance.now() - g2.born) / 1300;
-        if (age >= 1) {
-          scene.remove(g2.sp);
-          g2.sp.material.dispose();
-          greets.splice(i, 1);
+      for (let k = bubbles.length - 1; k >= 0; k--) if (now > bubbles[k].until) bubbles.splice(k, 1);
+
+      /* そびえ物＋クリーチャーを奥行き(i+j)ソートで描画 */
+      const sprites = [];
+      members.forEach((s) => {
+        const { si, sj } = slotOf.get(s.id);
+        const b = buildingFor(s, phase);
+        sprites.push({ depth: si + 1.3 + sj + 1.3, cv: b.cv, ax: b.anchorX, ay: b.anchorY, wi: si + 1.3, wj: sj + 1.3, kind: "bld", id: s.id });
+      });
+      treeSprites.forEach((tr) => sprites.push({ depth: tr.i + tr.j, cv: tr.cv, ax: tr.anchorX, ay: tr.anchorY, wi: tr.i, wj: tr.j, kind: "tree" }));
+      if (signSprite) sprites.push({ depth: signSprite.i + signSprite.j, cv: signSprite.cv, ax: signSprite.anchorX, ay: signSprite.anchorY, wi: signSprite.i, wj: signSprite.j, kind: "sign" });
+      if (statueSprite) sprites.push({ depth: statueSprite.i + statueSprite.j, cv: statueSprite.cv, ax: statueSprite.anchorX, ay: statueSprite.anchorY, wi: statueSprite.i, wj: statueSprite.j, kind: "statue" });
+      crit.forEach((c, id) => {
+        const s = stocksRef.current.find((x) => x.id === id);
+        if (!s) return;
+        sprites.push({ depth: c.i + c.j + 0.01, kind: "crit", id, c, s });
+      });
+      sprites.sort((a, b) => a.depth - b.depth);
+
+      const hitRects = []; // タップ判定(描画順=手前優先で後勝ち)
+      sprites.forEach((sp) => {
+        if (sp.kind === "crit") {
+          const { c, s, id } = sp;
+          const tier = moveTierOf(s);
+          const sleeping = tier === 3;
+          const art = artFor(s, sleeping);
+          const wx = ox + isoX(c.i, c.j), wy = oy + isoY(c.i, c.j);
+          const scr = toScreen(wx, wy);
+          const mood = moods[id];
+          const walking = c.state === "walk";
+          const hopAmp = tier === 0 ? 3 : tier === 1 ? 1.5 : 0;
+          const bob = !reduced && walking && hopAmp ? Math.abs(Math.sin(now / 130 + c.bob)) * hopAmp * z : 0;
+          const workBob = !reduced && c.state === "work" ? Math.abs(Math.sin(now / 200 + c.bob)) * 1.5 * z : 0;
+          const squish = mood && mood.key === "tired" ? 0.94 : 1;
+          const w = art.width * z * 0.9, h = art.height * z * 0.9 * squish;
+          // 影
+          ctx.fillStyle = "rgba(0,0,0,.25)";
+          ctx.beginPath();
+          ctx.ellipse(scr.x, scr.y, w * 0.32, 3.2 * z * 0.5, 0, 0, 6.29);
+          ctx.fill();
+          ctx.drawImage(art, Math.round(scr.x - w / 2), Math.round(scr.y - h + 2 - bob - workBob), Math.round(w), Math.round(h));
+          if (sleeping) {
+            ctx.font = `${Math.round(6 * z)}px sans-serif`;
+            ctx.fillText("💤", scr.x + w * 0.3, scr.y - h);
+          }
+          // なまえ
+          const nm = (s.shiny ? "✨" : "") + clip(s.name, 8);
+          ctx.font = "bold 10px sans-serif";
+          const tw2 = ctx.measureText(nm).width + 8;
+          ctx.fillStyle = "rgba(14,17,34,.72)";
+          ctx.fillRect(Math.round(scr.x - tw2 / 2), Math.round(scr.y + 3), Math.round(tw2), 13);
+          ctx.fillStyle = "#fff";
+          ctx.textAlign = "center";
+          ctx.fillText(nm, Math.round(scr.x), Math.round(scr.y + 13));
+          ctx.textAlign = "start";
+          hitRects.push({ x: scr.x - Math.max(w, tw2) / 2, y: scr.y - h - 4, w: Math.max(w, tw2), h: h + 20, id });
+          c.scr = { x: scr.x, y: scr.y - h - bob - workBob }; // 吹き出しのアンカー
         } else {
-          g2.sp.position.y = 4.0 + age * 1.4;
-          g2.sp.material.opacity = 1 - age * age;
+          const wx = ox + isoX(sp.wi, sp.wj), wy = oy + isoY(sp.wi, sp.wj);
+          const scr = toScreen(wx, wy);
+          const dw = sp.cv.width * z, dh = sp.cv.height * z;
+          ctx.drawImage(sp.cv, Math.round(scr.x - sp.ax * z), Math.round(scr.y - sp.ay * z), dw, dh);
+          if (sp.kind === "bld") hitRects.push({ x: scr.x - sp.ax * z, y: scr.y - sp.ay * z, w: dw, h: dh, id: sp.id, low: true });
         }
+      });
+
+      // かがり火(実績9+): ちらつく炎と夜のあかり
+      torchPos.forEach((tp, k) => {
+        const scr = toScreen(ox + isoX(tp.i, tp.j), oy + isoY(tp.i, tp.j));
+        ctx.fillStyle = "#8a6a3a";
+        ctx.fillRect(Math.round(scr.x - z / 2), Math.round(scr.y - 10 * z), z, 10 * z);
+        const fl = Math.sin(now / 90 + k * 2) > 0;
+        ctx.fillStyle = fl ? "#ffb54d" : "#ff8f3d";
+        ctx.fillRect(Math.round(scr.x - 1.5 * z), Math.round(scr.y - 13 * z), 3 * z, 3 * z);
+        ctx.fillStyle = "#fff2c2";
+        ctx.fillRect(Math.round(scr.x - 0.5 * z), Math.round(scr.y - 12.5 * z), z, z);
+      });
+
+      /* 昼夜のトーン(multiplyで世界ごと染める) */
+      if (P.tint) {
+        ctx.globalCompositeOperation = "multiply";
+        ctx.fillStyle = P.tint;
+        ctx.fillRect(0, 0, cw, chh);
+        ctx.globalCompositeOperation = "source-over";
       }
-      controls.update(); // 慣性(damping)の反映
-      if (composer) composer.render(); else renderer.render(scene, camera);
+      // 夜のあかり(まど・かがり火のグロー)
+      if (phase !== "day") {
+        ctx.globalCompositeOperation = "lighter";
+        torchPos.forEach((tp) => {
+          const scr = toScreen(ox + isoX(tp.i, tp.j), oy + isoY(tp.i, tp.j));
+          const gr2 = ctx.createRadialGradient(scr.x, scr.y - 12 * z, 2, scr.x, scr.y - 12 * z, 26 * z);
+          gr2.addColorStop(0, "rgba(255,180,80,.30)");
+          gr2.addColorStop(1, "rgba(255,180,80,0)");
+          ctx.fillStyle = gr2;
+          ctx.fillRect(scr.x - 26 * z, scr.y - 38 * z, 52 * z, 52 * z);
+        });
+        ctx.globalCompositeOperation = "source-over";
+      }
+
+      /* 天気パーティクル(画面座標) */
+      if (parts.length > 0) {
+        parts.forEach((p) => {
+          if (pKind === "rain") {
+            p.y += p.v * dt * 1.6; p.x += dt * 0.06;
+          } else {
+            p.y += p.v * dt * (pKind === "snowstorm" ? 0.28 : 0.12);
+            p.x += Math.sin(now / 900 + p.ph) * dt * 0.05;
+          }
+          if (p.y > 1) { p.y = -0.02; p.x = Math.random(); }
+          if (p.x > 1) p.x = 0;
+          const sx = p.x * cw, sy = p.y * chh;
+          if (pKind === "rain") {
+            ctx.strokeStyle = "rgba(190,210,240,.55)";
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx - 2, sy + 9); ctx.stroke();
+          } else {
+            ctx.fillStyle = pKind === "petal" ? "#ffc2d8" : pKind === "leaf" ? "#d9873a" : "#ffffff";
+            ctx.fillRect(Math.round(sx), Math.round(sy), 2, 2);
+          }
+        });
+      }
+
+      /* エモート(♪✨💧💤)と吹き出し */
+      for (let k = emotes.length - 1; k >= 0; k--) {
+        const e = emotes[k];
+        const age = (now - e.born) / e.life;
+        if (age >= 1) { emotes.splice(k, 1); continue; }
+        const scr = toScreen(ox + isoX(e.i, e.j), oy + isoY(e.i, e.j));
+        ctx.globalAlpha = 1 - age * age;
+        ctx.font = `${Math.round(6.5 * z)}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.fillText(e.txt, scr.x, scr.y - (14 + age * 10) * z * 0.55 - 20);
+        ctx.textAlign = "start";
+        ctx.globalAlpha = 1;
+      }
+      bubbles.forEach((bb) => {
+        const c = crit.get(bb.id);
+        if (!c || !c.scr) return;
+        ctx.font = "bold 11px 'Hiragino Kaku Gothic ProN', sans-serif";
+        const tw2 = Math.min(170, ctx.measureText(bb.text).width) + 14;
+        const bx = Math.round(c.scr.x - tw2 / 2), by = Math.round(c.scr.y - 30);
+        ctx.fillStyle = "#fffef2";
+        ctx.strokeStyle = "#6b5a36";
+        ctx.lineWidth = 1.5;
+        const r = 7;
+        ctx.beginPath();
+        ctx.moveTo(bx + r, by);
+        ctx.arcTo(bx + tw2, by, bx + tw2, by + 22, r);
+        ctx.arcTo(bx + tw2, by + 22, bx, by + 22, r);
+        ctx.lineTo(c.scr.x + 5, by + 22);
+        ctx.lineTo(c.scr.x, by + 29);
+        ctx.lineTo(c.scr.x - 5, by + 22);
+        ctx.arcTo(bx, by + 22, bx, by, r);
+        ctx.arcTo(bx, by, bx + tw2, by, r);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#2b2416";
+        ctx.textAlign = "center";
+        ctx.fillText(bb.text, c.scr.x, by + 15, 168);
+        ctx.textAlign = "start";
+      });
+
+      canvas._hitRects = hitRects; // タップ判定用
     };
     loop();
 
-    // タップ/クリック=選択。回転・ピンチ・ホイールはOrbitControlsが担当
-    // ドラッグ後(7px以上の移動)と2本指操作では選択しない(旧実装と同じ挙動)
-    let downAt = null, multi = false;
+    /* ---- 操作: ドラッグ=パン / タップ=選択 / ホイール・ボタン=ズーム ---- */
+    let down = null, moved = 0, multi = false;
     const onDown = (e) => {
-      if (downAt === null) { downAt = { x: e.clientX, y: e.clientY }; multi = false; }
-      else multi = true;
+      if (down) { multi = true; return; }
+      down = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+      moved = 0; multi = false;
+      canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+    };
+    const onMove = (e) => {
+      if (!down || multi) return;
+      const dx = e.clientX - down.x, dy = e.clientY - down.y;
+      moved = Math.max(moved, Math.hypot(dx, dy));
+      if (moved >= 4) {
+        const zz = zoomRef.current;
+        pan.x = down.px - dx / zz;
+        pan.y = down.py - dy / zz;
+        clampPan();
+      }
     };
     const onUp = (e) => {
-      if (downAt === null) return;
-      const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
-      const wasMulti = multi;
-      downAt = null;
-      if (wasMulti || moved >= 7) return;
-      const rect = el.getBoundingClientRect();
-      const m = new THREE.Vector2(
-        ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -((e.clientY - rect.top) / rect.height) * 2 + 1
-      );
-      const rc = new THREE.Raycaster();
-      rc.setFromCamera(m, camera);
-      const hits = rc.intersectObjects([...members.values()].map((o) => o.sp));
-      if (hits.length > 0) onSelectRef.current(hits[0].object.userData.stockId);
+      const wasMulti = multi, wasMoved = moved;
+      const start = down;
+      down = null; multi = false;
+      if (!start || wasMulti || wasMoved >= 7) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left, y = e.clientY - rect.top;
+      const hits = (canvas._hitRects || []).filter((h) => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+      if (hits.length > 0) {
+        const top = hits.find((h) => !h.low) || hits[hits.length - 1]; // クリーチャー優先
+        onSelectRef.current(top.id);
+      }
     };
-    const onCancel = () => { downAt = null; };
-    el.addEventListener("pointerdown", onDown);
-    el.addEventListener("pointerup", onUp);
-    el.addEventListener("pointercancel", onCancel);
-
-    // リサイズ追従
-    const ro = new ResizeObserver(() => {
-      camera.aspect = W() / H();
-      camera.updateProjectionMatrix();
-      renderer.setSize(W(), H());
-      if (composer) composer.setSize(W(), H());
-    });
-    ro.observe(mount);
+    const onWheel = (e) => {
+      e.preventDefault();
+      const zs = [1, 2, 3, 4];
+      const cur = zs.indexOf(zoomRef.current);
+      const next = zs[Math.max(0, Math.min(zs.length - 1, cur + (e.deltaY < 0 ? 1 : -1)))];
+      if (next !== zoomRef.current) { zoomRef.current = next; clampPan(); setZoomTick((n) => n + 1); }
+    };
+    canvas.style.touchAction = "none";
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", () => { down = null; multi = false; });
+    canvas.addEventListener("wheel", onWheel, { passive: false });
 
     return () => {
       cancelAnimationFrame(raf);
-      clearInterval(moveIv);
-      clearInterval(timeIv);
+      clearInterval(thinkIv);
       ro.disconnect();
-      controls.dispose();
-      el.removeEventListener("pointerdown", onDown);
-      el.removeEventListener("pointerup", onUp);
-      el.removeEventListener("pointercancel", onCancel);
-      scene.traverse((o) => {
-        if (o.geometry) o.geometry.dispose();
-        if (o.material) {
-          (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
-            if (m.map) m.map.dispose();
-            m.dispose();
-          });
-        }
-      });
-      starGeo.dispose();
-      if (composer) { composer.renderTarget1.dispose(); composer.renderTarget2.dispose(); }
-      renderer.dispose();
-      if (el.parentNode === mount) mount.removeChild(el);
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("wheel", onWheel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneKey]);
 
+  const zoomBtn = (dir) => {
+    const zs = [1, 2, 3, 4];
+    const cur = zs.indexOf(zoomRef.current);
+    const next = zs[Math.max(0, Math.min(zs.length - 1, cur + dir))];
+    zoomRef.current = next;
+    setZoomTick((n) => n + 1);
+  };
+
   return (
-    <div ref={mountRef} style={{
-      width: "100%", height: "min(64vh, 540px)", borderRadius: 18,
-      overflow: "hidden", border: "2px solid #3b4470", background: "#0d1230",
-    }} />
-  );
-}
-
-/* ---- 2Dフォールバック(WebGL不可の端末用) ---- */
-
-function Ranch2D({ stocks, onSelect }) {
-  const actives = stocks.filter((s) => s.status !== "sold");
-  const holds = actives.filter((s) => s.status === "hold");
-  const posRef = useRef({});
-  const [, force] = useState(0);
-  const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const zoneOf = (s) => (s.status === "hold"
-    ? { x0: 5, x1: 52, y0: 32, y1: 80 }
-    : { x0: 66, x1: 91, y0: 32, y1: 80 });
-
-  useEffect(() => {
-    const p = posRef.current;
-    actives.forEach((s) => {
-      const z = zoneOf(s);
-      const cur = p[s.id];
-      const inZone = cur && cur.x >= z.x0 - 2 && cur.x <= z.x1 + 2;
-      if (!cur || !inZone) {
-        const x = z.x0 + Math.random() * (z.x1 - z.x0);
-        const y = z.y0 + Math.random() * (z.y1 - z.y0);
-        p[s.id] = { x, y, tx: x, ty: y };
-      }
-    });
-    Object.keys(p).forEach((id) => { if (!actives.some((s) => s.id === id)) delete p[id]; });
-    force((n) => n + 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stocks]);
-
-  useEffect(() => {
-    if (reduced) return;
-    const iv = setInterval(() => {
-      const p = posRef.current;
-      actives.forEach((s) => {
-        const c = p[s.id]; if (!c) return;
-        const tier = moveTierOf(s);
-        if (tier === 3) return;
-        const speed = [3.0, 1.6, 0.7][tier];
-        const restart = [0.3, 0.14, 0.05][tier];
-        const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
-        if (d < 1) {
-          if (Math.random() < restart) {
-            const z = zoneOf(s);
-            c.tx = z.x0 + Math.random() * (z.x1 - z.x0);
-            c.ty = z.y0 + Math.random() * (z.y1 - z.y0);
-          }
-        } else {
-          const step = Math.min(speed, d);
-          c.x += (dx / d) * step; c.y += (dy / d) * step;
-        }
-      });
-      force((n) => n + 1);
-    }, 480);
-    return () => clearInterval(iv);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stocks, reduced]);
-
-  const sorted = [...actives].sort((a, b) => (posRef.current[a.id]?.y || 0) - (posRef.current[b.id]?.y || 0));
-  return (
-    <div style={{
-      position: "relative", width: "100%", height: "min(64vh, 540px)", borderRadius: 18,
-      overflow: "hidden", border: "2px solid #3b4470",
-      background: "linear-gradient(180deg, #16204a 0%, #1b2f63 22%, #1d4d33 26%, #17402b 60%, #123322 100%)",
-    }}>
-      <div style={{ position: "absolute", left: "59%", top: "27%", bottom: 0, width: 0, borderLeft: "3px dashed #8a6a3a" }} />
-      <div style={{ position: "absolute", left: "3%", top: "20%", fontFamily: "'DotGothic16', monospace", fontSize: 11, color: "#ffd166", background: "#0e1122cc", border: "1px solid #ffd16655", borderRadius: 8, padding: "3px 9px" }}>
-        ⭐ ぼくじょう（{holds.length}）
+    <div ref={wrapRef} style={{ position: "relative", width: "100%", height: "min(66vh, 560px)", borderRadius: 18, overflow: "hidden", border: "2px solid #8a6a3a", background: "#0d1230" }}>
+      <canvas ref={canvasRef} style={{ display: "block", imageRendering: "pixelated" }} />
+      {/* ズーム(カイロ風ボタン) */}
+      <div style={{ position: "absolute", right: 10, bottom: 10, display: "flex", gap: 6 }}>
+        {[["−", -1], ["＋", 1]].map(([lbl, dir]) => (
+          <button key={lbl} onClick={() => zoomBtn(dir)} style={{
+            all: "unset", cursor: "pointer", width: 34, height: 34, textAlign: "center", lineHeight: "34px",
+            background: "#f4e7c8", color: "#4a3a1a", fontWeight: 800, fontSize: 17,
+            border: "2px solid #8a6a3a", borderRadius: 8, boxShadow: "0 2px 0 #6b5228",
+            opacity: (dir === -1 && zoomRef.current === 1) || (dir === 1 && zoomRef.current === 4) ? 0.4 : 1,
+          }}>{lbl}</button>
+        ))}
       </div>
-      <div style={{ position: "absolute", right: "3%", top: "20%", fontFamily: "'DotGothic16', monospace", fontSize: 11, color: "#60a5fa", background: "#0e1122cc", border: "1px solid #60a5fa55", borderRadius: 8, padding: "3px 9px" }}>
-        👀 やせい（{actives.length - holds.length}）
-      </div>
-      {sorted.map((s) => {
-        const c = posRef.current[s.id];
-        if (!c) return null;
-        const tier = moveTierOf(s);
-        const moving = tier < 3 && Math.hypot(c.tx - c.x, c.ty - c.y) >= 1;
-        return (
-          <button key={s.id} onClick={() => onSelect(s.id)} style={{
-            all: "unset", cursor: "pointer", position: "absolute",
-            left: `${c.x}%`, top: `${c.y}%`, transform: "translate(-50%,-70%)",
-            transition: reduced ? "none" : "left .48s linear, top .48s linear",
-            textAlign: "center", zIndex: Math.round(c.y),
-          }}>
-            <div style={{ position: "relative", display: "inline-block", animation: !reduced && moving && tier === 0 ? "kzHop .48s ease-in-out infinite" : "none" }}>
-              <Creature stock={s} size={44} sleeping={tier === 3} />
-              {tier === 3 && <span style={{ position: "absolute", top: -8, right: -14, fontSize: 12 }}>💤</span>}
-            </div>
-            <div style={{ fontSize: 9.5, fontWeight: 700, color: "#eef1ff", background: "#0e1122bb", borderRadius: 999, padding: "1px 7px", marginTop: 2, whiteSpace: "nowrap" }}>
-              {s.name}
-            </div>
-          </button>
-        );
-      })}
     </div>
   );
 }
 
-/* ---- 牧場ビュー(WebGL判定つき) ---- */
+/* ---- ようすバー(カイロ風の下部パネル)＋牧場ビュー ---- */
 
-function RanchView({ stocks, onSelect }) {
-  const [mode, setMode] = useState(() => {
-    try {
-      const c = document.createElement("canvas");
-      return (c.getContext("webgl") || c.getContext("experimental-webgl")) ? "3d" : "2d";
-    } catch (e) { return "2d"; }
-  });
+function RanchView({ stocks, activity, onSelect }) {
+  const [quotes, setQuotes] = useState({});
   const phase = PHASE_INFO[dayPhase()];
   const season = seasonOf(new Date().getMonth() + 1);
   const rainy = isRainyToday();
+  const actives = stocks.filter((s) => s.status !== "sold");
+
+  // 保有情報つき銘柄の参考株価(キャッシュに乗る)。失敗しても牧場は動く
+  useEffect(() => {
+    let alive = true;
+    fetchHeldQuotes(stocks).then((m) => { if (alive) setQuotes(m); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stocks.map((s) => `${s.id}:${s.shares}:${s.avgPrice}:${s.status}`).join("|")]);
+
+  // 通貨ごとの時価合計・含み損益合計(事実のみ・為替換算なし)
+  const totals = {};
+  stocks.forEach((s) => {
+    const pnl = pnlOf(s, quotes[s.id]);
+    if (!pnl) return;
+    if (!totals[pnl.currency]) totals[pnl.currency] = { value: 0, pnl: 0 };
+    totals[pnl.currency].value += pnl.value;
+    totals[pnl.currency].pnl += pnl.pnl;
+  });
+  const days = activity ? activity.days : {};
+  const todayN = days[today()] || 0;
+  const { current } = streaks(days);
+  const d = new Date();
+
+  const panel = {
+    background: "#f4e7c8", border: "2px solid #8a6a3a", borderRadius: 10,
+    color: "#4a3a1a", fontFamily: "'DotGothic16', monospace", fontSize: 12,
+    padding: "6px 12px", boxShadow: "0 2px 0 #6b5228",
+  };
+
   return (
     <div>
-      {mode === "3d"
-        ? <Ranch3D stocks={stocks} onSelect={onSelect} onFallback={() => setMode("2d")} />
-        : <Ranch2D stocks={stocks} onSelect={onSelect} />}
+      {/* 上部バー: 日付・季節・時間帯(カイロ風) */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={panel}>{d.getMonth() + 1}月{d.getDate()}日・{season.label}・{phase.label}{rainy ? "・☔" : ""}</div>
+        <div style={panel}>なかま {actives.length}匹</div>
+        <div style={{ ...panel, marginLeft: "auto" }}>🌱きょうの研究 {todayN}件{current > 0 ? `・🔥${current}日` : ""}</div>
+      </div>
+
+      {actives.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "50px 20px", color: "#5b6284", border: "2px dashed #2a3050", borderRadius: 16, fontSize: 13 }}>
+          <div style={{ fontSize: 34, marginBottom: 8 }}>🏞</div>
+          まだなかまがいません。図鑑で銘柄をゲットすると牧場に小屋が建ちます
+        </div>
+      ) : (
+        <RanchKairo stocks={stocks} quotes={quotes} onSelect={onSelect} />
+      )}
+
+      {/* ようすバー: 保有の時価・含み損益(事実のみ・通貨ごと) */}
+      {Object.keys(totals).length > 0 && (
+        <div style={{ ...panel, marginTop: 8, display: "flex", gap: 14, flexWrap: "wrap" }}>
+          <span>💼 ほゆう</span>
+          {Object.entries(totals).map(([cur, t]) => (
+            <span key={cur}>
+              時価 {fmtMoney(t.value, cur)}（含み損益 {fmtMoney(t.pnl, cur, true)}）
+            </span>
+          ))}
+        </div>
+      )}
+
       <div style={{ fontSize: 10.5, color: "#5b6284", marginTop: 8, lineHeight: 1.7 }}>
-        {mode === "3d"
-          ? <>いまは{season.label}の{phase.label}{rainy ? "・☔あめもよう" : ""}（季節は月、天気は日替わり、時刻は端末の時計と連動）。<b style={{ color: "#8b93b8" }}>ドラッグで回転、ピンチ/ホイールでズーム、タップで詳細</b>が開きます。柵の左がぼくじょう（保有）、右がやせい（ウォッチ中）。</>
-          : <>この端末では3D表示が使えないため2D表示です。タップで詳細が開きます。柵の左がぼくじょう（保有）、右がやせい（ウォッチ中）。</>}
-        🌱新鮮な銘柄ほど元気に跳ね、🍂古いとのんびり、🥀90日超は眠ります（動き＝記録の鮮度で、株価とは無関係です）。リリースした銘柄は野生に帰るため現れません。
+        銘柄ごとに研究小屋が建ち、研究ステージが上がるほど立派に育ちます。保有銘柄ははたけ仕事、ウォッチ中はさんぽ、
+        🥀90日超は家の前でおひるね。<b style={{ color: "#8b93b8" }}>ドラッグで移動、＋−/ホイールでズーム、タップで詳細</b>。
+        吹き出しはあなたが書いた仮説・メモの復習です。
+        クリーチャーの「ようす」(✨/💧・足どり)は記録の鮮度と含み損益の事実を映した遊び演出で、
+        数値はすべて参考表示。売買推奨ではありません。
       </div>
     </div>
   );
 }
 
-export { dayPhase, PHASE_INFO, Ranch3D, Ranch2D, RanchView };
+export { dayPhase, PHASE_INFO, seasonOf, isRainyToday, RanchView };

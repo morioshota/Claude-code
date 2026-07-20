@@ -6,27 +6,48 @@ import { Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay 
 import { TYPES, RARITIES, STAGES } from "../data/constants.js";
 import { calcLevel, calcCP, stageOf, freshInfo } from "../lib/stock.js";
 import { fetchQuote } from "../lib/quotes.js";
+import { holdingOf, pnlOf, moodOf, fmtMoney, fmtPct } from "../lib/holdings.js";
 
-/* 参考株価(表示のみ・推奨なし)。取得できないときは何も表示しない。
-   色付けや前日比などの演出は意図的に入れない(事実の提示のみ) */
+/* 参考株価と保有情報(表示のみ・推奨なし)。取得できないときは株価行を出さない。
+   色付けや前日比・矢印などの演出は意図的に入れない(事実の提示のみ) */
 function QuoteRow({ stock }) {
   const [quote, setQuote] = useState(null);
   useEffect(() => {
     let alive = true;
+    setQuote(null);
     fetchQuote(stock).then((q) => { if (alive) setQuote(q); });
     return () => { alive = false; };
   }, [stock.id, stock.code]);
 
-  if (!quote) return null;
-  const price = quote.currency === "JPY"
-    ? `${quote.close.toLocaleString("ja-JP")}円`
-    : `$${quote.close.toLocaleString("en-US")}`;
-  const d = (quote.date || "").slice(5).replace("-", "/");
-  const t = (quote.time || "").slice(0, 5);
+  const holding = holdingOf(stock);
+  const pnl = pnlOf(stock, quote);
+  const mood = moodOf(pnl);
+  if (!quote && !holding) return null;
+
+  const d = (quote?.date || "").slice(5).replace("-", "/");
+  const t = (quote?.time || "").slice(0, 5);
+  const cur = quote?.currency || "JPY";
   return (
-    <div style={{ fontSize: 11.5, color: "#8b93b8", marginTop: 3 }}>
-      参考株価 <span style={{ color: "#dfe4ff", fontWeight: 700 }}>{price}</span>
-      <span style={{ fontSize: 10, color: "#5b6284" }}>（{d} {t}・{quote.source}・売買判断には使用しないでください）</span>
+    <div style={{ fontSize: 11.5, color: "#8b93b8", marginTop: 3, lineHeight: 1.7 }}>
+      {quote && (
+        <div>
+          参考株価 <span style={{ color: "#dfe4ff", fontWeight: 700 }}>{fmtMoney(quote.close, cur)}</span>
+          <span style={{ fontSize: 10, color: "#5b6284" }}>（{d} {t}・{quote.source}・売買判断には使用しないでください）</span>
+        </div>
+      )}
+      {holding && (
+        <div>
+          保有 <span style={{ color: "#dfe4ff" }}>{holding.shares.toLocaleString()}株</span>
+          ・平均 <span style={{ color: "#dfe4ff" }}>{fmtMoney(holding.avg, cur)}</span>
+        </div>
+      )}
+      {pnl && (
+        <div>
+          時価 <span style={{ color: "#dfe4ff", fontWeight: 700 }}>{fmtMoney(pnl.value, pnl.currency)}</span>
+          ・含み損益 <span style={{ color: "#dfe4ff", fontWeight: 700 }}>{fmtMoney(pnl.pnl, pnl.currency, true)}（{fmtPct(pnl.pct)}）</span>
+          {mood && <span style={{ fontSize: 10.5 }}>　ようす: {mood.icon}{mood.label}</span>}
+        </div>
+      )}
     </div>
   );
 }
