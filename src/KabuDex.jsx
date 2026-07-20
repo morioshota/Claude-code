@@ -524,7 +524,7 @@ export default function KabuDex() {
           </button>
         </div>
 
-        {view === "ranch" && <RanchView stocks={stocks} onSelect={openDetail} />}
+        {view === "ranch" && <RanchView stocks={stocks} activity={activity} onSelect={openDetail} />}
         {view === "album" && <AlbumView stocks={stocks} onSelect={openDetail} onSaveLesson={saveLesson} />}
 
         {view === "dex" && (<>
