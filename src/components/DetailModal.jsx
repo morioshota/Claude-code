@@ -1,6 +1,7 @@
 /* 銘柄詳細モーダル */
 
 import { useState, useEffect } from "react";
+import { AnalysisPanel } from "./Analysis.jsx";
 import { NoteItem } from "./notes.jsx";
 import { Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay } from "./ui.jsx";
 import { TYPES, RARITIES, STAGES } from "../data/constants.js";
@@ -52,7 +53,7 @@ function QuoteRow({ stock }) {
   );
 }
 
-function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, onLog, onOpenNoteEditor, onOpenAi, onDeleteNote }) {
+function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, onLog, onOpenNoteEditor, onOpenAi, onDeleteNote, onSaveFundamentals }) {
   const t = TYPES[stock.type] || TYPES.metal;
   const r = RARITIES.find((x) => x.key === stock.rarity) || RARITIES[0];
   const lv = calcLevel(stock);
@@ -62,6 +63,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
   const [logText, setLogText] = useState("");
   const [flash, setFlash] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [tab, setTab] = useState("research"); // 'research'|'analysis'
 
   const addLog = () => {
     if (!logText.trim()) return;
@@ -119,6 +121,24 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
         </div>
 
         <div style={{ padding: 16 }}>
+          {/* タブ: 研究(記録・仮説) と 分析(指標・チャート) */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            {[["research", "🔬 研究"], ["analysis", "📊 分析"]].map(([k, label]) => (
+              <button key={k} onClick={() => setTab(k)} style={{
+                all: "unset", cursor: "pointer", padding: "7px 16px", borderRadius: 9,
+                fontFamily: "'DotGothic16', monospace", fontSize: 12.5, letterSpacing: 1,
+                border: `1.5px solid ${tab === k ? t.color : "#252b48"}`,
+                background: tab === k ? `${t.color}1a` : "transparent",
+                color: tab === k ? t.color : "#5b6284",
+              }}>{label}</button>
+            ))}
+          </div>
+
+          {tab === "analysis" && (
+            <AnalysisPanel stock={stock} onSaveFundamentals={onSaveFundamentals} />
+          )}
+
+          {tab === "research" && (<>
           {/* ステータス */}
           <div style={section}>
             <div style={h}>STATUS ─ {stage.desc}</div>
@@ -233,6 +253,8 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
                 </div>
               ))}
           </div>
+
+          </>)}
 
           {/* 操作 */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
