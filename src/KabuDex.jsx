@@ -12,6 +12,7 @@ import { useState, useEffect } from "react";
 import { storage } from "./lib/storage.js";
 import { AiAssistant } from "./components/AiAssistant.jsx";
 import { GraduationModal, AlbumView } from "./components/Album.jsx";
+import { AnalysisView } from "./components/Analysis.jsx";
 import { DetailModal } from "./components/DetailModal.jsx";
 import { DexCard } from "./components/DexCard.jsx";
 import { Heatmap } from "./components/Heatmap.jsx";
@@ -43,7 +44,7 @@ export default function KabuDex() {
   const [getFlash, setGetFlash] = useState(null);
   const [evoFlash, setEvoFlash] = useState(null); // {stock, stage, tier} 進化セレモニー
   const [shinyFlash, setShinyFlash] = useState(null); // 色違い当選セレモニー(進化と重なったら後で表示)
-  const [view, setView] = useState("dex"); // 'dex'|'ranch'|'album'
+  const [view, setView] = useState("dex"); // 'dex'|'ranch'|'analysis'|'album'
   const [graduating, setGraduating] = useState(null); // 卒業式モーダル対象のstock
   const [activity, setActivity] = useState(null); // 草カレンダー用 {days, seeded}
   const [soundOn, setSoundOn] = useState(soundEnabled());
@@ -172,6 +173,17 @@ export default function KabuDex() {
 
   const saveLesson = (id, text) => {
     persist(stocks.map((s) => (s.id === id ? { ...s, lesson: text } : s)));
+  };
+
+  /* 分析タブの手入力指標。空オブジェクトならフィールドごと消して自動取得に戻す */
+  const saveFundamentals = (id, values) => {
+    persist(stocks.map((s) => {
+      if (s.id !== id) return s;
+      const ns = { ...s };
+      if (values && Object.keys(values).length > 0) ns.fundamentals = values;
+      else delete ns.fundamentals;
+      return ns;
+    }));
   };
 
   const saveEdit = (f) => {
@@ -507,7 +519,7 @@ export default function KabuDex() {
 
         {/* ビュー切り替え */}
         <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-          {[["dex", "📕 図鑑"], ["ranch", "🏞 ぼくじょう"], ["album", "🎓 アルバム"]].map(([k, label]) => (
+          {[["dex", "📕 図鑑"], ["ranch", "🏞 ぼくじょう"], ["analysis", "📊 分析"], ["album", "🎓 アルバム"]].map(([k, label]) => (
             <button key={k} onClick={() => setView(k)} style={{
               all: "unset", cursor: "pointer", padding: "8px 18px", borderRadius: 10,
               fontFamily: "'DotGothic16', monospace", fontSize: 13, letterSpacing: 1,
@@ -525,6 +537,7 @@ export default function KabuDex() {
         </div>
 
         {view === "ranch" && <RanchView stocks={stocks} activity={activity} onSelect={openDetail} />}
+        {view === "analysis" && <AnalysisView stocks={stocks} onSelect={openDetail} />}
         {view === "album" && <AlbumView stocks={stocks} onSelect={openDetail} onSaveLesson={saveLesson} />}
 
         {view === "dex" && (<>
@@ -594,6 +607,7 @@ export default function KabuDex() {
           onOpenNoteEditor={() => setPanel("noteEditor")}
           onOpenAi={() => setPanel("ai")}
           onDeleteNote={deleteNote}
+          onSaveFundamentals={saveFundamentals}
         />
       )}
       {formMode === "add" && <StockForm onSave={addStock} onCancel={() => setFormMode(null)} />}
