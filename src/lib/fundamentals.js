@@ -12,7 +12,27 @@ import { symbolFor } from "./quotes.js";
 
 const TTL_MS = 12 * 60 * 60 * 1000;      // 指標は日次で十分
 const NEG_TTL_MS = 6 * 60 * 60 * 1000;   // 未対応銘柄は6時間再問い合わせしない
-const cacheKey = (symbol) => `kabu-fund:${symbol}`;
+
+/* ⚠ キャッシュのバージョン: 取得ロジックやAPIの返す項目を変えたら必ず上げること。
+   上げないと、直したはずの値が端末のキャッシュ(最大12時間)に隠れて反映されない
+   ——実際に自己資本比率の修正がこれで丸1日見えなくなった(2026-07)。 */
+const CACHE_VER = 2;
+const cacheKey = (symbol) => `kabu-fund${CACHE_VER}:${symbol}`;
+const chartKey = (symbol, range) => `kabu-chart${CACHE_VER}:${symbol}:${range}`;
+
+/* 古い版のキャッシュを掃除する(端末の容量を無駄に食わないように)。
+   前方一致だと新しい版まで消してしまうので、必ず旧プレフィックスを完全一致で指定する */
+const purgeOldCaches = () => {
+  try {
+    const stale = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith("kabu-fund:") || k.startsWith("kabu-chart:"))) stale.push(k);
+    }
+    stale.forEach((k) => localStorage.removeItem(k));
+  } catch (e) { /* 掃除できなくても動作に影響はない */ }
+};
+purgeOldCaches();
 
 /* ---- 指標の定義(表示順・ラベル・書式) ----
    fmt: x=倍率 / pct=比率(0.102→10.2%) / pctRaw=すでに%の値 / money=通貨 / cap=時価総額 / num=素の数値 */
@@ -111,21 +131,26 @@ export const toManualInput = (metric, v) => {
   return String(metric.fmt === "pct" ? Math.round(v * 10000) / 100 : v);
 };
 
-/* ---- 取得 ---- */
-export const fetchFundamentals = async (stock) => {
+/* ---- 取得 ----
+   force=true のときは端末キャッシュを読まず、URLに時刻を足してCDNのキャッシュも避ける
+   (「🔄 更新」ボタン用。指標が古いまま張り付くのを人の操作で必ず解消できるようにする) */
+export const fetchFundamentals = async (stock, { force = false } = {}) => {
   const symbol = symbolFor(stock);
   if (!symbol) return null;
 
-  try {
-    const cached = JSON.parse(localStorage.getItem(cacheKey(symbol)) || "null");
-    if (cached && Date.now() - cached.at < (cached.data ? TTL_MS : NEG_TTL_MS)) return cached.data;
-  } catch (e) { /* キャッシュ破損は無視して取得へ */ }
+  if (!force) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey(symbol)) || "null");
+      if (cached && Date.now() - cached.at < (cached.data ? TTL_MS : NEG_TTL_MS)) return cached.data;
+    } catch (e) { /* キャッシュ破損は無視して取得へ */ }
+  }
 
   const endpoint = import.meta.env?.VITE_FUND_PROXY || "/api/fundamentals";
   let data = null;
   let cacheable = false; // 一時的な失敗(オフライン等)はキャッシュせず次回再試行する
   try {
-    const res = await fetch(`${endpoint}?symbol=${encodeURIComponent(symbol)}`);
+    const bust = force ? `&_=${Date.now()}` : "";
+    const res = await fetch(`${endpoint}?symbol=${encodeURIComponent(symbol)}${bust}`);
     if (res.ok) {
       const j = await res.json();
       if (j && typeof j === "object" && !j.error) { data = j; cacheable = true; }
@@ -154,22 +179,24 @@ export const mergeMetrics = (auto, stock) => {
 };
 
 /* チャート用の時系列。範囲ごとにキャッシュ(失敗時はnull=行ごと非表示) */
-const chartKey = (symbol, range) => `kabu-chart:${symbol}:${range}`;
 const CHART_TTL_MS = 60 * 60 * 1000;
 
-export const fetchChart = async (stock, range) => {
+export const fetchChart = async (stock, range, { force = false } = {}) => {
   const symbol = symbolFor(stock);
   if (!symbol) return null;
-  try {
-    const cached = JSON.parse(localStorage.getItem(chartKey(symbol, range)) || "null");
-    if (cached && Date.now() - cached.at < CHART_TTL_MS) return cached.data;
-  } catch (e) { /* 破損は無視 */ }
+  if (!force) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(chartKey(symbol, range)) || "null");
+      if (cached && Date.now() - cached.at < CHART_TTL_MS) return cached.data;
+    } catch (e) { /* 破損は無視 */ }
+  }
 
   const endpoint = import.meta.env?.VITE_CHART_PROXY || "/api/chart";
   let data = null;
   let cacheable = false;
   try {
-    const res = await fetch(`${endpoint}?symbol=${encodeURIComponent(symbol)}&range=${encodeURIComponent(range)}`);
+    const bust = force ? `&_=${Date.now()}` : "";
+    const res = await fetch(`${endpoint}?symbol=${encodeURIComponent(symbol)}&range=${encodeURIComponent(range)}${bust}`);
     if (res.ok) {
       const j = await res.json();
       if (j && Array.isArray(j.points) && j.points.length > 1) { data = j; cacheable = true; }
