@@ -82,6 +82,62 @@ async function fetchSummary(symbol) {
   return res;
 }
 
+/* ---- 自己資本比率(自己資本÷総資産) ----
+   旧 balanceSheetHistoryQuarterly モジュールはYahooが実質廃止しており、
+   貸借対照表の項目が返ってこない(2026-07時点で全銘柄が空だった)。
+   Yahoo自身のサイトが使う fundamentals-timeseries から総資産・自己資本を取り直す。
+   StockholdersEquity は非支配株主持分を含まないので日本の「自己資本」とほぼ一致する。 */
+
+const TS_TYPES = [
+  "quarterlyTotalAssets", "quarterlyStockholdersEquity",
+  "annualTotalAssets", "annualStockholdersEquity",
+];
+
+/* timeseriesのレスポンスから型ごとの最新値を拾う(テストのためexportしている) */
+export const pickLatestSeries = (json) => {
+  const out = {};
+  const results = json && json.timeseries && Array.isArray(json.timeseries.result) ? json.timeseries.result : [];
+  for (const r of results) {
+    const type = r && r.meta && Array.isArray(r.meta.type) ? r.meta.type[0] : null;
+    if (!type || !Array.isArray(r[type])) continue;
+    for (let i = r[type].length - 1; i >= 0; i--) {   // 新しい順に見て最初の有効値
+      const e = r[type][i];
+      const v = e ? num(e.reportedValue) : null;
+      if (v !== null) { out[type] = v; break; }
+    }
+  }
+  return out;
+};
+
+/* 四半期が揃っていれば四半期、無ければ通期。期がちぐはぐな組み合わせは使わない */
+export const equityRatioOf = (series) => {
+  const q = div(series.quarterlyStockholdersEquity ?? null, series.quarterlyTotalAssets ?? null);
+  if (q !== null) return q;
+  return div(series.annualStockholdersEquity ?? null, series.annualTotalAssets ?? null);
+};
+
+async function fetchEquityRatio(symbol) {
+  const now = Math.floor(Date.now() / 1000);
+  const from = now - 3 * 365 * 24 * 3600; // 3年ぶんあれば直近の期は必ず含まれる
+  const call = async (force) => {
+    const { crumb, cookie } = await getCrumb(force);
+    const url = `${YF2}/ws/fundamentals-timeseries/v1/finance/timeseries/${encodeURIComponent(symbol)}`
+      + `?symbol=${encodeURIComponent(symbol)}&type=${TS_TYPES.join(",")}`
+      + `&period1=${from}&period2=${now}&merge=false&crumb=${encodeURIComponent(crumb)}`;
+    return fetch(url, {
+      headers: { "User-Agent": UA, Accept: "application/json", ...(cookie ? { Cookie: cookie } : {}) },
+    });
+  };
+  try {
+    let res = await call(false);
+    if (res.status === 401 || res.status === 403) res = await call(true);
+    if (!res.ok) return null;
+    return equityRatioOf(pickLatestSeries(await res.json()));
+  } catch (e) {
+    return null; // 取れなければ手入力にまかせる(画面は成立する)
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -107,10 +163,12 @@ export default async function handler(req, res) {
     const bs = (r.balanceSheetHistoryQuarterly && r.balanceSheetHistoryQuarterly.balanceSheetStatements) || [];
     const b0 = bs[0] || {};
 
-    // 自己資本比率は指標として直接返ってこないので四半期BSから算出(自己資本÷総資産)
-    const equity = num(b0.totalStockholderEquity);
+    // 自己資本比率(自己資本÷総資産)。まず旧BSモジュール、空ならtimeseriesへ。
+    // 項目名はYahooの版によって揺れるため候補を順に見る
+    const equity = num(b0.totalStockholderEquity) ?? num(b0.stockholdersEquity) ?? num(b0.totalEquityGrossMinorityInterest);
     const assets = num(b0.totalAssets);
-    const equityRatio = div(equity, assets);
+    let equityRatio = div(equity, assets);
+    if (equityRatio === null) equityRatio = await fetchEquityRatio(symbol);
 
     const currency = str(sd.currency) || str(fd.financialCurrency) || (symbol.endsWith(".T") ? "JPY" : "USD");
 
