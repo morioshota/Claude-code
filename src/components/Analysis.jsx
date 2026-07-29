@@ -16,24 +16,27 @@ import {
 
 /* ---- 株価チャート(単一色の折れ線。騰落の色分けはしない) ---- */
 
-function PriceChart({ stock, color }) {
+function PriceChart({ stock, color, reload }) {
   const [range, setRange] = useState("1y");
   const [data, setData] = useState(null);
   const [state, setState] = useState("loading"); // loading|ok|none
   const [hover, setHover] = useState(null);
   const svgRef = useRef(null);
+  const forcedRef = useRef(0); // 「更新」1回につき1度だけキャッシュを無視する
 
   useEffect(() => {
     let alive = true;
+    const force = reload > forcedRef.current;
+    forcedRef.current = Math.max(forcedRef.current, reload);
     setState("loading");
     setHover(null);
-    fetchChart(stock, range).then((d) => {
+    fetchChart(stock, range, { force }).then((d) => {
       if (!alive) return;
       setData(d);
       setState(d ? "ok" : "none");
     });
     return () => { alive = false; };
-  }, [stock.id, stock.code, range]);
+  }, [stock.id, stock.code, range, reload]);
 
   const rangeBar = (
     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -217,17 +220,18 @@ export function AnalysisPanel({ stock, onSaveFundamentals }) {
   const [auto, setAuto] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [reload, setReload] = useState(0); // 🔄更新のたびに増やしてキャッシュを迂回する
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    fetchFundamentals(stock).then((d) => {
+    fetchFundamentals(stock, { force: reload > 0 }).then((d) => {
       if (!alive) return;
       setAuto(d);
       setLoading(false);
     });
     return () => { alive = false; };
-  }, [stock.id, stock.code]);
+  }, [stock.id, stock.code, reload]);
 
   const currency = (auto && auto.currency) || (/^[0-9]/.test(String(stock.code)) ? "JPY" : "USD");
   const cells = mergeMetrics(auto, stock);
@@ -242,7 +246,7 @@ export function AnalysisPanel({ stock, onSaveFundamentals }) {
     <div>
       {/* チャート */}
       <div style={section}>
-        <PriceChart stock={stock} color={t.color} />
+        <PriceChart stock={stock} color={t.color} reload={reload} />
       </div>
 
       {/* 指標カード */}
@@ -295,6 +299,13 @@ export function AnalysisPanel({ stock, onSaveFundamentals }) {
       ) : (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
           <button onClick={() => setEditing(true)} style={{ ...btnStyle("#fbbf24"), padding: "7px 12px", fontSize: 12 }}>✏️ 指標を手入力</button>
+          <button
+            onClick={() => { if (!loading) setReload((n) => n + 1); }}
+            title="キャッシュを無視して取り直します"
+            style={{ ...btnStyle("#60a5fa"), padding: "7px 12px", fontSize: 12, opacity: loading ? 0.5 : 1 }}
+          >
+            {loading ? "🔄 更新中…" : "🔄 更新"}
+          </button>
           <span style={{ fontSize: 10.5, color: "#5b6284" }}>
             {loading ? "指標を取得中…" : `${filled}/${ALL_METRIC_KEYS.length}項目を表示中${auto ? "" : "（自動取得なし・手入力のみ）"}`}
           </span>
@@ -318,11 +329,12 @@ export function AnalysisView({ stocks, onSelect }) {
   const [rows, setRows] = useState({});
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState("no");
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    Promise.all(actives.map((s) => fetchFundamentals(s).catch(() => null))).then((res) => {
+    Promise.all(actives.map((s) => fetchFundamentals(s, { force: reload > 0 }).catch(() => null))).then((res) => {
       if (!alive) return;
       const m = {};
       actives.forEach((s, i) => { m[s.id] = res[i]; });
@@ -331,7 +343,7 @@ export function AnalysisView({ stocks, onSelect }) {
     });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actives.map((s) => s.id).join("|")]);
+  }, [actives.map((s) => s.id).join("|"), reload]);
 
   if (actives.length === 0) {
     return (
@@ -360,13 +372,22 @@ export function AnalysisView({ stocks, onSelect }) {
 
   return (
     <div>
-      <div style={{ fontSize: 11.5, color: "#8b93b8", marginBottom: 10, lineHeight: 1.7 }}>
-        📊 登録銘柄の指標を並べて見比べます（見出しをタップで並べ替え）。
-        {loading ? "　指標を取得中…" : ""}
-        <br />
-        <span style={{ fontSize: 10.5, color: "#5b6284" }}>
-          並び順は数値の大小によるもので、銘柄の優劣やおすすめ順ではありません。取れない指標は「—」になります
-        </span>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200, fontSize: 11.5, color: "#8b93b8", lineHeight: 1.7 }}>
+          📊 登録銘柄の指標を並べて見比べます（見出しをタップで並べ替え）。
+          {loading ? "　指標を取得中…" : ""}
+          <br />
+          <span style={{ fontSize: 10.5, color: "#5b6284" }}>
+            並び順は数値の大小によるもので、銘柄の優劣やおすすめ順ではありません。取れない指標は「—」になります
+          </span>
+        </div>
+        <button
+          onClick={() => { if (!loading) setReload((n) => n + 1); }}
+          title="キャッシュを無視して全銘柄を取り直します"
+          style={{ ...btnStyle("#60a5fa"), padding: "7px 12px", fontSize: 12, whiteSpace: "nowrap", opacity: loading ? 0.5 : 1 }}
+        >
+          {loading ? "🔄 更新中…" : "🔄 更新"}
+        </button>
       </div>
       <div style={{ overflowX: "auto", border: "1px solid #262d4d", borderRadius: 12, background: "#10142a" }}>
         <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 520 }}>
