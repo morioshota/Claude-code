@@ -92,7 +92,10 @@ state = {
 | `pedpath` | 歩行者通路 | `pts[]`, `width`(m) |
 | `conerow` | コーン列/バリケード列 | `pts[]`, `interval`(m), `bar`(コーンバー有無), `kind`(並べる記号: `cone`/`abarricade`/`drum`。省略=cone。v2.2)。cone以外は経路方向に回転して連続配置 |
 | `dim` | 寸法線 | `a, b`(端点), `off`(引出し量), `text`(空欄=実測値自動) |
+| `dimchain` | 連続寸法（v2.7） | `pts[]`（区切り点。1本の寸法線上に射影し区間ごとに実測長を連結表示）, `off`, `texts?`(区間別上書き) |
 | `text` | 文字 | `x, y, text, size, rot` |
+
+> 記号(`symbol`)の建設車両（v2.7）: `truck`(作業車) に加え `dump2t`/`dump10t`(ダンプ)・`kiseisha`(規制車)・`backhoe`(バックホウ)・`unic`(ユニック車)。いずれも実寸(m)の平面ビューで縮尺連動（`truckBody`/`vehLabel`）。
 
 座標は「世界座標(px)」。実寸は `px * settings.mPerPx` で算出。
 

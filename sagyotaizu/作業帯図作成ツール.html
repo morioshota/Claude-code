@@ -307,8 +307,10 @@ footer b{color:#fff; font-weight:600;}
       記号を選択して右パネルの「ラベル」に文字(工事件名・連絡先など)を入れると、引き出し線付きで表示されます。「引出し向き」「引出し長さ」で位置を調整できます。
       <h5>画面操作</h5>
       マウスホイールで拡大縮小、<kbd>Space</kbd>+ドラッグ または 右ドラッグで画面移動。
-      <h5>線を描くツール(作業帯・歩行者通路・コーン列・寸法線)</h5>
-      クリックで点を追加、<b>ダブルクリックまたは Enter で確定</b>、<kbd>Esc</kbd> で中止。
+      <h5>線を描くツール(作業帯・歩行者通路・コーン列・寸法線・連続寸法)</h5>
+      クリックで点を追加、<b>ダブルクリックまたは Enter で確定</b>、<kbd>Esc</kbd> で中止。<b>連続寸法</b>は区切り点を順にクリックすると、3.5m・4.8m のように各区間を1本の寸法線上に連結して表示します（値は実測を自動表示）。
+      <h5>建設車両</h5>
+      パレット「人・車両」に、作業車・<b>ダンプ(2〜4t/10tクラス)・規制車・バックホウ・ユニック車</b>があります。いずれも縮尺に連動した実寸の平面ビューで、<kbd>R</kbd>回転・大きさ調整・ラベル付けができます。
       <h5>予告標示板の自動配置</h5>
       ヘッダーの「予告標示板 配置」を押し、設置する距離（<b>50m / 100m / 200m</b>、必要な分だけ）と看板の間隔・向きを選んで図面をクリックすると、予告標示板を<b>縦1列</b>に並べます。各看板は個別に移動でき、右パネルの「予告距離(m)」で表示距離を変えられます（パレットの「工事予告標示板(距離)」から手置きも可）。
       <h5>面積・延長の集計</h5>
@@ -410,6 +412,9 @@ footer b{color:#fff; font-weight:600;}
    v2.6: 出力範囲枠のドラッグ編集(角=用紙比固定リサイズ/枠線=移動。frameHandleAt/
          frameResizeRect) (H2)。予告標示板の自動配置(距離50/100/200を選択、縦1列・間隔つき。
          距離パラメータ付き記号board_yokoku1、placeYokoku/yokokuParams) (R5)
+   v2.7: 建設車両を追加(ダンプ2〜4t/10t・規制車・バックホウ・ユニック車。縮尺連動の平面ビュー。
+         truckBody/vehLabel)。連続寸法dimchainを追加(複数点を1本の寸法線に射影し区間ごとに
+         実測長を連結表示。dimChainGeo/drawDimChain、poly:dimchainツール)
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -579,6 +584,25 @@ function boardSign(ctx, p, lines, opt = {}) {
   ctx.font = `bold ${fs}px sans-serif`;
   lines.forEach((l, i) => ctx.fillText(l, 0, (i - (lines.length - 1) / 2) * fs * 1.15));
 }
+// 建設車両の平面ビュー(上=進行方向前方)。実寸(m)で描画=縮尺連動。cab=運転席側
+function truckBody(ctx, p, lenM, widM, opt = {}) {
+  const w = p * widM, l = p * lenM;
+  ctx.fillStyle = opt.color || '#f5d312';
+  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1, p * 0.06);
+  r_round(ctx, -w / 2, -l / 2, w, l, p * 0.16); ctx.fill(); ctx.stroke();
+  const cabL = Math.min(l * 0.3, p * 1.7);
+  ctx.fillStyle = 'rgba(0,0,0,.13)';
+  ctx.fillRect(-w / 2 + p * 0.06, -l / 2 + p * 0.06, w - p * 0.12, cabL - p * 0.06);
+  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.7, p * 0.05);
+  ctx.beginPath(); ctx.moveTo(-w / 2, -l / 2 + cabL); ctx.lineTo(w / 2, -l / 2 + cabL); ctx.stroke();
+  return { w, l, cabL };
+}
+function vehLabel(ctx, p, text, widM, cy) {
+  ctx.fillStyle = '#111'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const fs = Math.min(p * 0.95, (widM * p * 0.9) / (text.length * 0.62 + 0.4));
+  ctx.font = `bold ${fs}px sans-serif`;
+  ctx.fillText(text, 0, cy);
+}
 const KINDS = {
   guardman: { name: 'ガードマン', size: 1.0, draw(ctx, p) {
     const s = p * 1.0;
@@ -638,6 +662,65 @@ const KINDS = {
     ctx.beginPath(); ctx.moveTo(-w / 2, -l / 2 + l * 0.26); ctx.lineTo(w / 2, -l / 2 + l * 0.26); ctx.stroke();
     ctx.fillStyle = 'rgba(0,0,0,.15)';
     ctx.beginPath(); ctx.rect(-w * 0.32, -l / 2 + l * 0.05, w * 0.64, l * 0.14); ctx.fill();
+  }},
+  dump2t: { name: 'ダンプ(2〜4tクラス)', size: 5.0, draw(ctx, p) {
+    const { l } = truckBody(ctx, p, 5.0, 1.9, { color: '#eab308' });
+    // 荷台の外枠(ダンプベッド)
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.7, p * 0.05);
+    ctx.strokeRect(-p * 1.9 / 2 + p * 0.12, -l / 2 + Math.min(l * 0.3, p * 1.7) + p * 0.1, p * 1.9 - p * 0.24, l * 0.5);
+    vehLabel(ctx, p, '2-4t', 1.9, l * 0.13);
+  }},
+  dump10t: { name: 'ダンプ(10tクラス)', size: 7.6, draw(ctx, p) {
+    const { w, l } = truckBody(ctx, p, 7.6, 2.5, { color: '#eab308' });
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.7, p * 0.05);
+    ctx.strokeRect(-w / 2 + p * 0.14, -l / 2 + Math.min(l * 0.3, p * 1.7) + p * 0.12, w - p * 0.28, l * 0.5);
+    // 後2軸(タイヤ)ヒント
+    ctx.fillStyle = 'rgba(0,0,0,.3)';
+    [0.3, 0.42].forEach(t => { ctx.fillRect(-w / 2 - p * 0.02, l / 2 - l * t, p * 0.16, p * 0.5); ctx.fillRect(w / 2 - p * 0.14, l / 2 - l * t, p * 0.16, p * 0.5); });
+    vehLabel(ctx, p, '10t', 2.5, l * 0.1);
+  }},
+  kiseisha: { name: '規制車(標識車)', size: 5.2, draw(ctx, p) {
+    const { w, l } = truckBody(ctx, p, 5.2, 2.0, { color: '#f39c12' });
+    // 後部の矢印板パネル(車線移動指示)
+    const pw = w * 0.82, ph = Math.min(l * 0.22, p * 1.1), py = l / 2 - ph / 2 - p * 0.2;
+    ctx.fillStyle = '#1a63b0'; ctx.strokeStyle = '#0c3b6b'; ctx.lineWidth = Math.max(0.7, p * 0.05);
+    ctx.beginPath(); ctx.rect(-pw / 2, py - ph / 2, pw, ph); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1, p * 0.08); ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-pw * 0.3, py); ctx.lineTo(pw * 0.3, py);
+    ctx.moveTo(-pw * 0.3, py); ctx.lineTo(-pw * 0.15, py - ph * 0.22); ctx.moveTo(-pw * 0.3, py); ctx.lineTo(-pw * 0.15, py + ph * 0.22);
+    ctx.moveTo(pw * 0.3, py); ctx.lineTo(pw * 0.15, py - ph * 0.22); ctx.moveTo(pw * 0.3, py); ctx.lineTo(pw * 0.15, py + ph * 0.22);
+    ctx.stroke(); ctx.lineCap = 'butt';
+  }},
+  backhoe: { name: 'バックホウ', size: 6.2, draw(ctx, p) {
+    const bw = p * 2.6, bl = p * 3.2;
+    // クローラ(履帯)左右
+    ctx.fillStyle = '#4a5568'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.7, p * 0.05);
+    const tw = bw * 0.28;
+    [-1, 1].forEach(s => { ctx.beginPath(); ctx.rect(s * (bw / 2 - tw / 2) - tw / 2, -bl / 2, tw, bl); ctx.fill(); ctx.stroke(); });
+    // 上部旋回体(黄)
+    ctx.fillStyle = '#eab308';
+    r_round(ctx, -bw * 0.34, -bl * 0.36, bw * 0.68, bl * 0.72, p * 0.14); ctx.fill(); ctx.stroke();
+    // キャブ
+    ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.fillRect(-bw * 0.26, -bl * 0.28, bw * 0.32, bl * 0.34);
+    // ブーム＋バケット(前方)
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1.4, p * 0.13);
+    const by = -bl / 2 - p * 1.7;
+    ctx.beginPath(); ctx.moveTo(0, -bl * 0.18); ctx.lineTo(0, by); ctx.stroke();
+    ctx.fillStyle = '#eab308';
+    ctx.beginPath(); ctx.moveTo(-p * 0.5, by); ctx.lineTo(p * 0.5, by); ctx.lineTo(p * 0.35, by - p * 0.55); ctx.lineTo(-p * 0.35, by - p * 0.55); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }},
+  unic: { name: 'ユニック車(クレーン付)', size: 7.2, draw(ctx, p) {
+    const { w, l } = truckBody(ctx, p, 6.8, 2.2, { color: '#3aa0dd' });
+    const y0 = -l / 2 + Math.min(l * 0.3, p * 1.7) + p * 0.25; // キャブ直後
+    // クレーンブーム(キャブ後ろ→後方)
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1.5, p * 0.14);
+    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(0, l / 2 - p * 0.3); ctx.stroke();
+    // フック
+    ctx.lineWidth = Math.max(0.8, p * 0.05);
+    ctx.beginPath(); ctx.arc(0, l / 2 - p * 0.12, p * 0.16, 0, 7); ctx.stroke();
+    // アウトリガー(左右張り出し)
+    [-1, 1].forEach(s => { ctx.beginPath(); ctx.moveTo(s * w / 2, y0); ctx.lineTo(s * (w / 2 + p * 0.8), y0); ctx.stroke(); });
   }},
   arrowboard: { name: '矢印板', size: 1.3, draw(ctx, p) {
     const w = p * 1.5, h = p * 0.8;
@@ -891,7 +974,7 @@ function drawSheet(c, opt = {}) {
     c.globalAlpha = 1;
   }
   // オブジェクト (描画順: 通路 → 作業帯 → コーン列 → 記号 → 寸法 → 文字)
-  const order = { pedpath: 0, divzone: 1, zone: 1, conerow: 2, symbol: 3, dim: 4, text: 5 };
+  const order = { pedpath: 0, divzone: 1, zone: 1, conerow: 2, symbol: 3, dim: 4, dimchain: 4, text: 5 };
   const objs = [...state.objects].sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9));
   objs.forEach(o => drawObj(c, o));
   c.restore(); // view変換を戻す
@@ -981,6 +1064,8 @@ function drawObj(c, o) {
     });
   } else if (o.type === 'dim') {
     drawDim(c, o);
+  } else if (o.type === 'dimchain') {
+    drawDimChain(c, o);
   } else if (o.type === 'text') {
     c.save(); c.translate(o.x, o.y); c.rotate((o.rot || 0) * Math.PI / 180);
     c.fillStyle = '#111'; c.font = `bold ${o.size || 18}px sans-serif`;
@@ -1038,6 +1123,41 @@ function drawDim(c, o) {
   c.textAlign = 'center'; c.textBaseline = 'bottom';
   c.fillText(label, 0, -3);
   c.restore();
+}
+// 連続寸法(dimchain): pts[]をひとつの寸法線上に射影し、区間ごとに実測長を並べて連結表示
+function dimChainGeo(o) {
+  const pts = o.pts, B = pts[0], last = pts[pts.length - 1];
+  let u = V.norm(V.sub(last, B));
+  if (!isFinite(u.x) || (u.x === 0 && u.y === 0)) u = { x: 1, y: 0 };
+  const n = V.perp(u), off = o.off ?? 16;
+  const proj = pts.map(pp => (pp.x - B.x) * u.x + (pp.y - B.y) * u.y);
+  const D = proj.map(pr => ({ x: B.x + u.x * pr + n.x * off, y: B.y + u.y * pr + n.y * off }));
+  return { u, n, off, proj, D };
+}
+function drawDimChain(c, o) {
+  if (!o.pts || o.pts.length < 2) return;
+  const g = dimChainGeo(o), D = g.D, u = g.u, n = g.n;
+  c.strokeStyle = '#111'; c.lineWidth = 1.4; c.setLineDash([]);
+  // 引出し線(各点→寸法線)
+  for (let i = 0; i < o.pts.length; i++) { c.beginPath(); c.moveTo(o.pts[i].x, o.pts[i].y); c.lineTo(D[i].x, D[i].y); c.stroke(); }
+  // 寸法線(通し)
+  c.beginPath(); c.moveTo(D[0].x, D[0].y); c.lineTo(D[D.length - 1].x, D[D.length - 1].y); c.stroke();
+  // 各分割点に斜めチック
+  const tk = 5;
+  D.forEach(d => {
+    c.beginPath();
+    c.moveTo(d.x + (-u.x + n.x) * tk, d.y + (-u.y + n.y) * tk);
+    c.lineTo(d.x + (u.x - n.x) * tk, d.y + (u.y - n.y) * tk); c.stroke();
+  });
+  // 区間ごとの寸法値
+  let ang = Math.atan2(u.y, u.x); if (ang > Math.PI / 2 || ang < -Math.PI / 2) ang += Math.PI;
+  c.fillStyle = '#111'; c.font = 'bold 15px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'bottom';
+  for (let i = 0; i < D.length - 1; i++) {
+    const mid = { x: (D[i].x + D[i + 1].x) / 2, y: (D[i].y + D[i + 1].y) / 2 };
+    const meters = Math.abs(g.proj[i + 1] - g.proj[i]) * state.settings.mPerPx;
+    const label = (o.texts && o.texts[i]) || meters.toFixed(2);
+    c.save(); c.translate(mid.x, mid.y); c.rotate(ang); c.fillText(label, 0, -3); c.restore();
+  }
 }
 function bboxOf(pts) {
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -1174,6 +1294,7 @@ function objBBox(o) {
     return { x: o.x - w / 2, y: o.y - h / 2, w, h };
   }
   if (o.type === 'dim') return bboxOf([o.a, o.b]);
+  if (o.type === 'dimchain') return bboxOf(o.pts.concat(dimChainGeo(o).D));
   const b = bboxOf(o.pts);
   return { x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 };
 }
@@ -1351,7 +1472,7 @@ function drawOverlays(c) {
 function hitTest(w) {
   const tol = 7 / state.view.z;
   // 逆順(上のものから)
-  const order = { pedpath: 0, divzone: 1, zone: 1, conerow: 2, symbol: 3, dim: 4, text: 5 };
+  const order = { pedpath: 0, divzone: 1, zone: 1, conerow: 2, symbol: 3, dim: 4, dimchain: 4, text: 5 };
   const objs = [...state.objects].sort((a, b) => (order[b.type] ?? 9) - (order[a.type] ?? 9));
   for (const o of objs) {
     if (o.type === 'symbol') {
@@ -1367,6 +1488,10 @@ function hitTest(w) {
       const u = V.norm(V.sub(o.b, o.a)), n = V.perp(u), off = o.off ?? 16;
       const A = V.add(o.a, V.mul(n, off)), B = V.add(o.b, V.mul(n, off));
       if (distToSeg(w, A, B) <= tol || distToSeg(w, o.a, A) <= tol || distToSeg(w, o.b, B) <= tol) return o;
+    } else if (o.type === 'dimchain') {
+      const D = dimChainGeo(o).D;
+      if (distToSeg(w, D[0], D[D.length - 1]) <= tol) return o;
+      for (let i = 0; i < o.pts.length; i++) if (distToSeg(w, o.pts[i], D[i]) <= tol) return o;
     } else if (o.type === 'conerow' || o.type === 'pedpath') {
       const lw = o.type === 'pedpath' ? Math.max(4, (o.width || 1.5) * pxPerM()) / 2 : tol;
       for (let i = 0; i < o.pts.length - 1; i++)
@@ -1454,7 +1579,8 @@ function setTool(t, hint) {
     t === 'calib' ? '縮尺設定' : t === 'frame' ? '出力範囲指定' : t === 'yokoku' ? '予告標示板 配置' : t.startsWith('wizard') ? 'パターン配置' :
     t === 'dim' ? '寸法線' : t === 'text' ? '文字' :
     t === 'poly:zone' ? '作業帯 作図' : t === 'poly:divzone' ? '導流帯 作図' : t === 'poly:pedpath' ? '歩行者通路 作図' :
-    t === 'poly:conerow' ? 'コーン列 作図' : t === 'poly:barricaderow' ? 'A型バリケード列 作図' : t);
+    t === 'poly:conerow' ? 'コーン列 作図' : t === 'poly:barricaderow' ? 'A型バリケード列 作図' :
+    t === 'poly:dimchain' ? '連続寸法 作図' : t);
   setHint(hint || '');
   render();
 }
@@ -1678,6 +1804,7 @@ function finishDraft() {
     if (d.mode === 'poly:pedpath') state.objects.push({ id: uid(), type: 'pedpath', pts: d.pts, width: 1.5 });
     if (d.mode === 'poly:conerow') state.objects.push({ id: uid(), type: 'conerow', kind: 'cone', pts: d.pts, interval: 2, bar: true });
     if (d.mode === 'poly:barricaderow') state.objects.push({ id: uid(), type: 'conerow', kind: 'abarricade', pts: d.pts, interval: 1.8, bar: false });
+    if (d.mode === 'poly:dimchain') state.objects.push({ id: uid(), type: 'dimchain', pts: d.pts, off: 16 });
   }
   state.draft = null; render();
 }
@@ -1836,7 +1963,11 @@ const PALETTE = [
     ['place:abarricade', 'abarricade'], ['poly:barricaderow', null, 'A型バリケード列', 'barricaderow'],
     ['place:drum', 'drum'], ['place:light', 'light'],
   ]},
-  { title: '人・車両', items: [['place:guardman', 'guardman'], ['place:truck', 'truck']] },
+  { title: '人・車両', items: [
+    ['place:guardman', 'guardman'], ['place:truck', 'truck'],
+    ['place:dump2t', 'dump2t'], ['place:dump10t', 'dump10t'],
+    ['place:kiseisha', 'kiseisha'], ['place:backhoe', 'backhoe'], ['place:unic', 'unic'],
+  ]},
   { title: '標示板・標識', items: [
     ['place:arrowboard', 'arrowboard'], ['place:sign_katagawa', 'sign_katagawa'],
     ['place:sign_stop', 'sign_stop'], ['place:sign_ukai', 'sign_ukai'],
@@ -1853,7 +1984,7 @@ const PALETTE = [
     ['poly:zone', null, '作業帯 (多角形)', 'zone'],
     ['poly:divzone', null, '導流帯', 'divzone'],
     ['poly:pedpath', null, '歩行者通路', 'ped'],
-    ['dim', null, '寸法線', 'dim'], ['text', null, '文字', 'text'],
+    ['dim', null, '寸法線', 'dim'], ['poly:dimchain', null, '連続寸法', 'dimchain'], ['text', null, '文字', 'text'],
   ]},
 ];
 function buildPalette() {
@@ -1885,6 +2016,7 @@ function buildPalette() {
           'poly:conerow': 'コーン列: 経路をクリック → ダブルクリック/Enterで確定',
           'poly:barricaderow': 'A型バリケード列: 経路をクリック → ダブルクリック/Enterで確定（バリケードが経路方向に連続配置）',
           'dim': '寸法線: 1点目 → 2点目をクリック',
+          'poly:dimchain': '連続寸法: 区切り点を順にクリック → ダブルクリック/Enterで確定（3.5m・4.8mなどを連結表示）',
           'text': '文字を置く位置をクリック',
         };
         setTool(tool, hints[tool] || (kind ? KINDS[kind].name + ': 配置する位置をクリック (Escで終了)' : ''));
@@ -1934,6 +2066,13 @@ function drawToolIcon(c, icon) {
     c.moveTo(-12, -5); c.lineTo(-12, 5); c.moveTo(12, -5); c.lineTo(12, 5); c.stroke();
     c.font = 'bold 8px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#111';
     c.fillText('3.5', 0, -3);
+  } else if (icon === 'dimchain') {
+    c.strokeStyle = '#111';
+    c.beginPath(); c.moveTo(-13, 2); c.lineTo(13, 2);
+    for (const x of [-13, -1, 13]) { c.moveTo(x, -3); c.lineTo(x, 7); }
+    c.stroke();
+    c.font = 'bold 7px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#111';
+    c.fillText('3.5', -7, -1); c.fillText('4.8', 6, -1);
   } else if (icon === 'text') {
     c.font = 'bold 18px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
     c.fillStyle = '#111'; c.fillText('あ', 0, 1);
@@ -1996,6 +2135,14 @@ function objMetricsHtml(o) {
     rows.push(['延長', fmtNum(polyLenM(o.pts, false), 1) + ' m']);
   } else if (o.type === 'dim') {
     rows.push(['実測長', fmtNum(V.len(V.sub(o.b, o.a)) * state.settings.mPerPx, 2) + ' m']);
+  } else if (o.type === 'dimchain') {
+    const g = dimChainGeo(o);
+    let total = 0;
+    for (let i = 0; i < g.proj.length - 1; i++) {
+      const m = Math.abs(g.proj[i + 1] - g.proj[i]) * state.settings.mPerPx; total += m;
+      rows.push([`区間${i + 1}`, fmtNum(m, 2) + ' m']);
+    }
+    rows.push(['合計', fmtNum(total, 2) + ' m']);
   }
   return rows.length ? `<div class="pmetrics">${rows.map(([k, v]) => _mrow(k, v)).join('')}</div>` : '';
 }
@@ -2037,7 +2184,7 @@ function renderProps() {
   const o = state.objects.find(x => x.id === state.sel);
   const typeLabel = ob => ob.type === 'symbol' ? KINDS[ob.kind].name
     : ob.type === 'conerow' ? KINDS[ob.kind || 'cone'].name + '列'
-    : ({ zone: '作業帯', divzone: '導流帯', pedpath: '歩行者通路', dim: '寸法線', text: '文字' })[ob.type];
+    : ({ zone: '作業帯', divzone: '導流帯', pedpath: '歩行者通路', dim: '寸法線', dimchain: '連続寸法', text: '文字' })[ob.type];
   document.getElementById('selLabel').textContent = o
     ? '選択中: ' + typeLabel(o)
     : (state.sel === '_legend' ? '選択中: 凡例' : '');
@@ -2086,6 +2233,10 @@ function renderProps() {
     const descD = (o.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
     html += `<div class="prow"><label>表示値</label><input type="text" id="pDimText" value="${descD}" placeholder="空欄=自動 (実測値)"></div>`;
     html += `<div class="prow"><label>引出し量</label><input type="range" id="pOff" min="-60" max="60" value="${o.off ?? 16}"><span class="val" id="pOffV">${o.off ?? 16}</span></div>`;
+  }
+  if (o.type === 'dimchain') {
+    html += `<div class="prow"><label>引出し量</label><input type="range" id="pOff" min="-60" max="60" value="${o.off ?? 16}"><span class="val" id="pOffV">${o.off ?? 16}</span></div>`;
+    html += `<p class="pnote">各区間の値は実測値を自動表示します。点を追加/移動すると区間が増減します。</p>`;
   }
   if (o.type === 'text') {
     const esc = (o.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');

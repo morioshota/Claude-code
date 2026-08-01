@@ -359,6 +359,41 @@ const tests = `
   // board_yokoku1 draw honors o.dist (no throw, uses text)
   calls.length=0; drawObj(makeCtx(), {type:'symbol',kind:'board_yokoku1',x:0,y:0,rot:0,scl:1,dist:100});
   ok(calls.some(c=>c.indexOf('fillText:')===0 && c.includes('100')), 'board_yokoku1 renders its distance text');
+
+  // ---- CONSTRUCTION VEHICLES ----
+  ['truck','dump2t','dump10t','kiseisha','backhoe','unic'].forEach(function(k){
+    ok(KINDS[k] && typeof KINDS[k].draw==='function' && KINDS[k].size>0, 'vehicle KIND exists: '+k);
+    var threw=null; try{ drawObj(makeCtx(), {type:'symbol',kind:k,x:100,y:100,rot:30,scl:1}); }catch(e){ threw=e; }
+    ok(!threw, 'drawObj('+k+') no-throw'+(threw?': '+threw.message:''));
+  });
+  // scale-linked: dump10t bbox larger than dump2t at same scale
+  state.settings.symScale=1; state.settings.mPerPx=0.1;
+  var b2=objBBox({type:'symbol',kind:'dump2t',x:0,y:0}), b10=objBBox({type:'symbol',kind:'dump10t',x:0,y:0});
+  ok(b10.w>b2.w && b10.h>b2.h, 'dump10t bbox > dump2t (scale-linked size)');
+  // legend picks up vehicle names
+  state.objects=[{type:'symbol',kind:'backhoe',x:0,y:0}];
+  ok(usedLegendItems().some(it=>it.name==='バックホウ'), 'legend lists バックホウ');
+
+  // ---- DIMCHAIN (連続寸法) ----
+  state.settings.mPerPx=0.1; // 10px=1m
+  var dc={type:'dimchain', pts:[{x:0,y:0},{x:35,y:0},{x:83,y:0}], off:16}; // 3.5m + 4.8m
+  var g=dimChainGeo(dc);
+  ok(g.D.length===3 && Math.abs(g.D[0].y-16)<1e-6, 'dimChainGeo offsets points by off');
+  ok(Math.abs(g.proj[1]-35)<1e-6 && Math.abs(g.proj[2]-83)<1e-6, 'dimChainGeo projects along axis');
+  calls.length=0; drawDimChain(makeCtx(), dc);
+  ok(calls.some(c=>c.indexOf('fillText:')===0 && c.includes('3.50')) && calls.some(c=>c.includes('4.80')), 'dimchain draws each segment length (3.50 / 4.80)');
+  // metrics: two segments + total
+  var mh=objMetricsHtml(dc);
+  ok(mh.includes('区間1') && mh.includes('区間2') && mh.includes('合計') && mh.includes('8.3'), 'dimchain metrics show segments+total (8.3m)');
+  // finishDraft builds a dimchain
+  state.objects=[]; state.draft={mode:'poly:dimchain', pts:[{x:0,y:0},{x:35,y:0},{x:83,y:0}]}; finishDraft();
+  var last=state.objects[state.objects.length-1];
+  ok(last && last.type==='dimchain' && last.pts.length===3, 'finishDraft builds dimchain from poly tool');
+  // hitTest picks the dimchain on its dimension line
+  state.view={z:1,ox:0,oy:0}; state.objects=[dc];
+  ok(hitTest({x:40, y:16})===dc, 'hitTest finds dimchain on its dimension line');
+  // bbox includes offset dimension line
+  ok(objBBox(dc).h >= 16, 'dimchain bbox includes offset line');
   console.log(fails? ('\\n'+fails+' FAILURES') : '\\nALL PASS ('+(0)+')');
   return fails;
 })();
