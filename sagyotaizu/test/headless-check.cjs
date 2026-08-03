@@ -466,6 +466,13 @@ const tests = `
   ok(htm.includes('pSegReset'), 'props panel has reset-to-auto button');
   setSel(['dm1']); renderProps();
   ok(els.objProps.innerHTML.includes('pDimText'), 'props panel has dim value input');
+
+  // ---- A型バリケードの絵柄(A型スタンド＋標示板) ----
+  calls.length=0; KINDS.abarricade.draw(makeCtx(), 40);
+  ok(calls.some(c=>c.indexOf('stroke:')===0) && calls.some(c=>c.indexOf('fill')===0 || c.indexOf('fillRect')===0 || c.indexOf('rect:')===0), 'abarricade draws frame+panel');
+  ok(KINDS.abarricade.size===1.8, 'abarricade keeps 1.8m width for layout/hit-test');
+  var threwB=null; try{ drawLegendIcon(makeCtx(),'abarricade'); drawToolIcon(makeCtx(),'barricaderow'); }catch(e){ threwB=e; }
+  ok(!threwB, 'barricade legend/palette icons draw'+(threwB?': '+threwB.message:''));
   console.log(fails? ('\\n'+fails+' FAILURES') : '\\nALL PASS ('+(0)+')');
   return fails;
 })();

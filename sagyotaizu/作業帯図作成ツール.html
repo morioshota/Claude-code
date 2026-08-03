@@ -428,6 +428,8 @@ footer b{color:#fff; font-weight:600;}
          その実寸になる(setDimLengthM/setChainSegLengthM/applyDimValue)。dimは基準
          (始点/終点/中央)を選択可、連続寸法は先頭固定で以降の点をずらし他区間長は保持。
          数値以外(W=4.8等)は従来どおり表記のみ
+   v3.0: A型バリケードの絵柄を現物準拠に刷新(白箱+×印 → 黄橙のA型スタンド＋「安全第一」
+         標示板: オレンジ地に外向きの黒山形＋緑十字)。列ツールのパレットアイコンも更新
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -641,12 +643,44 @@ const KINDS = {
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(0, 0, s * 0.16, 0, 7); ctx.fill();
   }},
+  // A型バリケード: 黄橙のA型スタンド＋「安全第一」標示板(オレンジ地に黒の山形)を模式化
   abarricade: { name: 'A型バリケード', size: 1.8, draw(ctx, p) {
-    const w = p * 1.8, h = p * 0.75;
-    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1, p * 0.07);
-    ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-w / 2, -h / 2); ctx.lineTo(w / 2, h / 2);
-    ctx.moveTo(w / 2, -h / 2); ctx.lineTo(-w / 2, h / 2); ctx.stroke();
+    const w = p * 1.8, h = p * 1.0;
+    const topY = -h * 0.46, botY = h * 0.5;
+    const topX = w * 0.28, botX = w * 0.5;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // スタンド(脚・上桟・下桟)
+    ctx.strokeStyle = '#e69017'; ctx.lineWidth = Math.max(1.1, p * 0.085);
+    ctx.beginPath();
+    ctx.moveTo(-topX, topY); ctx.lineTo(-botX, botY);          // 左脚
+    ctx.moveTo(topX, topY); ctx.lineTo(botX, botY);            // 右脚
+    ctx.moveTo(-topX, topY); ctx.lineTo(topX, topY);           // 上桟
+    ctx.moveTo(-w * 0.44, h * 0.34); ctx.lineTo(w * 0.44, h * 0.34); // 下桟
+    ctx.stroke();
+    // 標示板(フレーム上部に吊る)
+    const pw = w * 0.92, ph = h * 0.32, py = -h * 0.17;
+    ctx.fillStyle = '#f0a022'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.7, p * 0.045);
+    ctx.beginPath(); ctx.rect(-pw / 2, py - ph / 2, pw, ph); ctx.fill(); ctx.stroke();
+    // 黒の山形(中央から外向き)＋中央の緑十字
+    ctx.save();
+    ctx.beginPath(); ctx.rect(-pw / 2, py - ph / 2, pw, ph); ctx.clip();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.9, ph * 0.17);
+    const cw = pw * 0.075;
+    [-0.42, -0.32, -0.22, 0.22, 0.32, 0.42].forEach(f => {
+      const x = pw * f, dir = f < 0 ? -1 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x - dir * cw * 0.5, py - ph * 0.26);
+      ctx.lineTo(x + dir * cw * 0.5, py);
+      ctx.lineTo(x - dir * cw * 0.5, py + ph * 0.26);
+      ctx.stroke();
+    });
+    ctx.strokeStyle = '#17a54e'; ctx.lineWidth = Math.max(0.9, ph * 0.2);
+    ctx.beginPath();
+    ctx.moveTo(-ph * 0.2, py); ctx.lineTo(ph * 0.2, py);
+    ctx.moveTo(0, py - ph * 0.22); ctx.lineTo(0, py + ph * 0.22);
+    ctx.stroke();
+    ctx.restore();
+    ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
   }},
   drum: { name: 'クッションドラム', size: 0.7, draw(ctx, p) {
     const r = p * 0.34;
@@ -2133,13 +2167,20 @@ function drawToolIcon(c, icon) {
       c.fillStyle = '#e74c3c'; c.fillRect(x - 3.5, y - 3.5, 7, 7);
     }
   } else if (icon === 'barricaderow') {
-    // 経路方向に連なるA型バリケード(横長の白い板+X)を数個
-    c.lineWidth = 1.2;
-    for (const [cx, cy] of [[-12, 5], [0, 0], [12, -5]]) {
+    // 経路方向に連なるA型バリケード(脚＋オレンジの山形標示板)を数個
+    for (const [cx, cy] of [[-8.5, 3.5], [0, 0], [8.5, -3.5]]) {
       c.save(); c.translate(cx, cy); c.rotate(-0.38);
-      c.fillStyle = '#fff'; c.strokeStyle = '#111';
-      c.fillRect(-7, -3, 14, 6); c.strokeRect(-7, -3, 14, 6);
-      c.beginPath(); c.moveTo(-7, -3); c.lineTo(7, 3); c.moveTo(7, -3); c.lineTo(-7, 3); c.stroke();
+      c.strokeStyle = '#e69017'; c.lineWidth = 1.2; c.lineCap = 'round';
+      c.beginPath();
+      c.moveTo(-3.4, -2.2); c.lineTo(-5, 4); c.moveTo(3.4, -2.2); c.lineTo(5, 4); c.moveTo(-3.4, -2.2); c.lineTo(3.4, -2.2);
+      c.stroke();
+      c.fillStyle = '#f0a022'; c.strokeStyle = '#111'; c.lineWidth = 0.7;
+      c.fillRect(-5.4, -2.2, 10.8, 3.4); c.strokeRect(-5.4, -2.2, 10.8, 3.4);
+      c.strokeStyle = '#111'; c.lineWidth = 0.9;
+      c.beginPath();
+      c.moveTo(-1.8, -1.4); c.lineTo(-3.4, -0.5); c.lineTo(-1.8, 0.4);
+      c.moveTo(1.8, -1.4); c.lineTo(3.4, -0.5); c.lineTo(1.8, 0.4);
+      c.stroke(); c.lineCap = 'butt';
       c.restore();
     }
   } else if (icon === 'divzone') {
