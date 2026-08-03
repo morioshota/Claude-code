@@ -308,7 +308,9 @@ footer b{color:#fff; font-weight:600;}
       <h5>画面操作</h5>
       マウスホイールで拡大縮小、<kbd>Space</kbd>+ドラッグ または 右ドラッグで画面移動。
       <h5>線を描くツール(作業帯・歩行者通路・コーン列・寸法線・連続寸法)</h5>
-      クリックで点を追加、<b>ダブルクリックまたは Enter で確定</b>、<kbd>Esc</kbd> で中止。<b>連続寸法</b>は区切り点を順にクリックすると、3.5m・4.8m のように各区間を1本の寸法線上に連結して表示します（値は実測を自動表示）。
+      クリックで点を追加、<b>ダブルクリックまたは Enter で確定</b>、<kbd>Esc</kbd> で中止。<b>連続寸法</b>は区切り点を順にクリックすると、3.5m・4.8m のように各区間を1本の寸法線上に連結して表示します。
+      <h5>寸法値の手入力</h5>
+      寸法線・連続寸法は、既定では実測値を自動表示しますが、<b>数値を直接入力して上書き</b>できます。選択して右パネルの「寸法値」（連続寸法は<b>区間ごとの入力欄</b>）に入力するか、<b>図面上の寸法線をダブルクリック</b>すると入力できます（連続寸法はダブルクリックした区間が対象）。空欄に戻すと実測値の自動表示に戻り、連続寸法は「すべて自動に戻す」で一括解除できます。数値以外（例: W=4.8）も入力可能です。
       <h5>建設車両</h5>
       パレット「人・車両」に、作業車・<b>ダンプ(2〜4t/10tクラス)・規制車・バックホウ・ユニック車</b>があります。いずれも縮尺に連動した実寸の平面ビューで、<kbd>R</kbd>回転・大きさ調整・ラベル付けができます。
       <h5>予告標示板の自動配置</h5>
@@ -415,6 +417,9 @@ footer b{color:#fff; font-weight:600;}
    v2.7: 建設車両を追加(ダンプ2〜4t/10t・規制車・バックホウ・ユニック車。縮尺連動の平面ビュー。
          truckBody/vehLabel)。連続寸法dimchainを追加(複数点を1本の寸法線に射影し区間ごとに
          実測長を連結表示。dimChainGeo/drawDimChain、poly:dimchainツール)
+   v2.8: 寸法値の手入力。寸法線は「寸法値」、連続寸法は区間ごとの入力欄(dimchain.texts)を
+         右パネルに追加。図上のダブルクリックでも入力可(editDimValue/nearestDimSeg)。
+         空欄に戻すと実測値の自動表示、「すべて自動に戻す」ボタンあり
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -1790,7 +1795,51 @@ addEventListener('mouseup', pointerUp);
 cv.addEventListener('touchstart', e => { pointerDown(Object.assign(e, { button: 0 })); }, { passive: true });
 cv.addEventListener('touchmove', e => pointerMove(e), { passive: false });
 cv.addEventListener('touchend', pointerUp);
-cv.addEventListener('dblclick', () => finishDraft());
+// 作図中はダブルクリックで確定。選択モードで寸法線/連続寸法をダブルクリックしたら値を手入力
+cv.addEventListener('dblclick', e => {
+  if (state.draft) { finishDraft(); return; }
+  if (state.tool !== 'select') { finishDraft(); return; }
+  const s = evPos(e), w = toWorld(s.x, s.y);
+  const hit = hitTest(w);
+  if (hit && (hit.type === 'dim' || hit.type === 'dimchain')) editDimValue(hit, w);
+});
+// 連続寸法のうち、クリック位置に最も近い区間の添字
+function nearestDimSeg(o, w) {
+  const D = dimChainGeo(o).D;
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < D.length - 1; i++) {
+    const d = distToSeg(w, D[i], D[i + 1]);
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
+async function editDimValue(o, w) {
+  const mpp = state.settings.mPerPx;
+  if (o.type === 'dim') {
+    const auto = (V.len(V.sub(o.b, o.a)) * mpp).toFixed(2);
+    const v = await askInput({
+      title: '寸法値の入力',
+      message: `図面に表示する寸法値を入力してください。空欄にすると実測値(${auto})を自動表示します。`,
+      value: o.text || '',
+    });
+    if (v === null) return;
+    pushUndo(); o.text = v || null;
+  } else {
+    const i = nearestDimSeg(o, w);
+    const g = dimChainGeo(o);
+    const auto = (Math.abs(g.proj[i + 1] - g.proj[i]) * mpp).toFixed(2);
+    const v = await askInput({
+      title: `寸法値の入力（区間${i + 1}）`,
+      message: `この区間に表示する寸法値を入力してください。空欄にすると実測値(${auto})を自動表示します。`,
+      value: (o.texts && o.texts[i]) || '',
+    });
+    if (v === null) return;
+    pushUndo();
+    if (!o.texts) o.texts = [];
+    o.texts[i] = v || null;
+  }
+  renderProps(); render(); autosave();
+}
 function finishDraft() {
   const d = state.draft;
   if (!d || !d.mode.startsWith('poly:')) return;
@@ -2148,6 +2197,7 @@ function objMetricsHtml(o) {
 }
 
 // ---------- プロパティパネル ----------
+const escAttr = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 function renderProps() {
   const root = document.getElementById('objProps');
   const sels = selectedObjs();
@@ -2230,13 +2280,22 @@ function renderProps() {
     html += `<div class="prow"><label>内部を薄く塗る</label><input type="checkbox" id="pFill" ${o.fill !== false ? 'checked' : ''}></div>`;
   }
   if (o.type === 'dim') {
-    const descD = (o.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-    html += `<div class="prow"><label>表示値</label><input type="text" id="pDimText" value="${descD}" placeholder="空欄=自動 (実測値)"></div>`;
+    const autoM = (V.len(V.sub(o.b, o.a)) * state.settings.mPerPx).toFixed(2);
+    html += `<div class="prow"><label>寸法値</label><input type="text" id="pDimText" value="${escAttr(o.text)}" placeholder="空欄=自動 (${autoM})"></div>`;
+    html += `<p class="pnote">数値を直接入力すると図面にその値を表示します（例: 3.5、W=4.8）。空欄に戻すと実測値の自動表示。図上でダブルクリックしても入力できます。</p>`;
     html += `<div class="prow"><label>引出し量</label><input type="range" id="pOff" min="-60" max="60" value="${o.off ?? 16}"><span class="val" id="pOffV">${o.off ?? 16}</span></div>`;
   }
   if (o.type === 'dimchain') {
     html += `<div class="prow"><label>引出し量</label><input type="range" id="pOff" min="-60" max="60" value="${o.off ?? 16}"><span class="val" id="pOffV">${o.off ?? 16}</span></div>`;
-    html += `<p class="pnote">各区間の値は実測値を自動表示します。点を追加/移動すると区間が増減します。</p>`;
+    const g = dimChainGeo(o);
+    html += `<h3 style="margin-top:10px">区間ごとの寸法値</h3>`;
+    for (let i = 0; i < o.pts.length - 1; i++) {
+      const autoM = (Math.abs(g.proj[i + 1] - g.proj[i]) * state.settings.mPerPx).toFixed(2);
+      const cur = (o.texts && o.texts[i]) || '';
+      html += `<div class="prow"><label>区間${i + 1}</label><input type="text" class="pSegText" data-seg="${i}" value="${escAttr(cur)}" placeholder="空欄=自動 (${autoM})"></div>`;
+    }
+    html += `<div class="pbtnrow"><button class="pbtn" id="pSegReset">すべて自動に戻す</button></div>`;
+    html += `<p class="pnote">区間ごとに数値を直接入力できます（例: 3.5 と 4.8 を並べて表示）。空欄に戻すと実測値の自動表示。図上の該当区間をダブルクリックしても入力できます。</p>`;
   }
   if (o.type === 'text') {
     const esc = (o.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -2262,6 +2321,13 @@ function renderProps() {
   bind('pStripe', e => { const v = parseFloat(e.target.value); if (v > 0) { o.stripe = v; render(); autosave(); } });
   bind('pFill', e => { o.fill = e.target.checked; render(); autosave(); });
   bind('pDimText', e => { o.text = e.target.value || null; render(); autosave(); });
+  root.querySelectorAll('.pSegText').forEach(el => el.addEventListener('input', e => {
+    const i = +e.target.dataset.seg;
+    if (!o.texts) o.texts = [];
+    o.texts[i] = e.target.value || null; // 空欄=自動(実測値)
+    render(); autosave();
+  }));
+  bind('pSegReset', () => { o.texts = null; renderProps(); render(); autosave(); }, 'click');
   bind('pOff', e => { o.off = +e.target.value; document.getElementById('pOffV').textContent = e.target.value; render(); autosave(); });
   bind('pText', e => { o.text = e.target.value; render(); autosave(); });
   bind('pTSize', e => { o.size = +e.target.value; document.getElementById('pTSizeV').textContent = e.target.value; render(); autosave(); });

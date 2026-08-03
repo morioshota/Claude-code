@@ -394,6 +394,45 @@ const tests = `
   ok(hitTest({x:40, y:16})===dc, 'hitTest finds dimchain on its dimension line');
   // bbox includes offset dimension line
   ok(objBBox(dc).h >= 16, 'dimchain bbox includes offset line');
+
+  // ---- MANUAL DIMENSION VALUES ----
+  state.settings.mPerPx=0.1; // 10px=1m
+  // dim: text override wins over measured
+  var d1={id:'dm1',type:'dim',a:{x:0,y:0},b:{x:35,y:0},off:16};
+  calls.length=0; drawDim(makeCtx(), d1);
+  ok(calls.some(c=>c.indexOf('fillText:')===0 && c.includes('3.50')), 'dim shows measured value when text empty');
+  d1.text='W=4.8';
+  calls.length=0; drawDim(makeCtx(), d1);
+  ok(calls.some(c=>c.indexOf('fillText:')===0 && c.includes('W=4.8')), 'dim shows manual text when set');
+  ok(!calls.some(c=>c.indexOf('fillText:')===0 && c.includes('3.50')), 'manual text replaces measured');
+  // dimchain: per-segment override, others stay auto
+  var dc2={id:'dc2',type:'dimchain',pts:[{x:0,y:0},{x:35,y:0},{x:83,y:0}],off:16,texts:['3.5m',null]};
+  calls.length=0; drawDimChain(makeCtx(), dc2);
+  ok(calls.some(c=>c.includes('3.5m')), 'dimchain segment1 shows manual text');
+  ok(calls.some(c=>c.includes('4.80')), 'dimchain segment2 stays auto-measured');
+  // nearestDimSeg picks the segment under the cursor
+  ok(nearestDimSeg(dc2,{x:10,y:16})===0 && nearestDimSeg(dc2,{x:70,y:16})===1, 'nearestDimSeg finds segment by position');
+  // editDimValue (dblclick path) writes manual text; empty restores auto
+  state.objects=[d1,dc2];
+  askInput = async()=>'5.0';
+  await editDimValue(d1,{x:0,y:0});
+  ok(d1.text==='5.0', 'editDimValue sets dim text');
+  askInput = async()=>'';
+  await editDimValue(d1,{x:0,y:0});
+  ok(d1.text===null, 'empty input restores auto for dim');
+  askInput = async()=>'4.8';
+  await editDimValue(dc2,{x:70,y:16});
+  ok(dc2.texts[1]==='4.8', 'editDimValue sets the clicked segment');
+  askInput = async()=>null; var keep=dc2.texts[1];
+  await editDimValue(dc2,{x:70,y:16});
+  ok(dc2.texts[1]===keep, 'cancel leaves value unchanged');
+  // right panel exposes a text input per segment
+  setSel(['dc2']); renderProps();
+  var htm=els.objProps.innerHTML;
+  ok(htm.includes('区間1') && htm.includes('区間2') && htm.includes('pSegText'), 'props panel has per-segment inputs');
+  ok(htm.includes('pSegReset'), 'props panel has reset-to-auto button');
+  setSel(['dm1']); renderProps();
+  ok(els.objProps.innerHTML.includes('pDimText'), 'props panel has dim value input');
   console.log(fails? ('\\n'+fails+' FAILURES') : '\\nALL PASS ('+(0)+')');
   return fails;
 })();
