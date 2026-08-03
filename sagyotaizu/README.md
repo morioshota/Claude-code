@@ -91,8 +91,10 @@ state = {
 | `divzone` | **導流帯**（v1.1 追加） | `pts[]`, `stripe`(斜線間隔 m), `fill`(内部薄塗り), `color` |
 | `pedpath` | 歩行者通路 | `pts[]`, `width`(m) |
 | `conerow` | コーン列/バリケード列 | `pts[]`, `interval`(m), `bar`(コーンバー有無), `kind`(並べる記号: `cone`/`abarricade`/`drum`。省略=cone。v2.2)。cone以外は経路方向に回転して連続配置 |
-| `dim` | 寸法線 | `a, b`(端点), `off`(引出し量), `text`(空欄=実測値自動) |
-| `dimchain` | 連続寸法（v2.7） | `pts[]`（区切り点。1本の寸法線上に射影し区間ごとに実測長を連結表示）, `off`, `texts?`(区間別上書き) |
+| `dim` | 寸法線 | `a, b`(端点), `off`(引出し量), `text`(空欄=実測値自動), `anchor`(実寸変更時に固定する側 `start`/`end`/`center`・v2.9) |
+| `dimchain` | 連続寸法（v2.7） | `pts[]`（区切り点。1本の寸法線上に射影し区間ごとに実測長を連結表示）, `off`, `texts?`(区間別の表記上書き) |
+
+> **寸法値は実寸駆動（v2.9）**: 寸法値に数値を入力すると `setDimLengthM`/`setChainSegLengthM` が端点を移動し、寸法線の実長そのものを入力値に合わせる（表記だけの変更ではない）。数値として解釈できない入力（`W=4.8` 等）は `text`/`texts[i]` に表記として保持。入力の振り分けは `applyDimValue`（戻り値 `resized`/`label`/`auto`）。
 | `text` | 文字 | `x, y, text, size, rot` |
 
 > 記号(`symbol`)の建設車両（v2.7）: `truck`(作業車) に加え `dump2t`/`dump10t`(ダンプ)・`kiseisha`(規制車)・`backhoe`(バックホウ)・`unic`(ユニック車)。いずれも実寸(m)の平面ビューで縮尺連動（`truckBody`/`vehLabel`）。

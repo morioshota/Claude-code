@@ -309,8 +309,12 @@ footer b{color:#fff; font-weight:600;}
       マウスホイールで拡大縮小、<kbd>Space</kbd>+ドラッグ または 右ドラッグで画面移動。
       <h5>線を描くツール(作業帯・歩行者通路・コーン列・寸法線・連続寸法)</h5>
       クリックで点を追加、<b>ダブルクリックまたは Enter で確定</b>、<kbd>Esc</kbd> で中止。<b>連続寸法</b>は区切り点を順にクリックすると、3.5m・4.8m のように各区間を1本の寸法線上に連結して表示します。
-      <h5>寸法値の手入力</h5>
-      寸法線・連続寸法は、既定では実測値を自動表示しますが、<b>数値を直接入力して上書き</b>できます。選択して右パネルの「寸法値」（連続寸法は<b>区間ごとの入力欄</b>）に入力するか、<b>図面上の寸法線をダブルクリック</b>すると入力できます（連続寸法はダブルクリックした区間が対象）。空欄に戻すと実測値の自動表示に戻り、連続寸法は「すべて自動に戻す」で一括解除できます。数値以外（例: W=4.8）も入力可能です。
+      <h5>寸法値の手入力（入力した寸法に線を合わせる）</h5>
+      寸法線・連続寸法は、<b>数値を入力すると寸法線の長さ自体がその実寸に変わります</b>（表記だけの変更ではありません）。右パネルの「寸法値(m)」（連続寸法は<b>区間ごとの入力欄</b>）に入力して <kbd>Enter</kbd>、または<b>図面上の寸法線をダブルクリック</b>して入力します（連続寸法はダブルクリックした区間が対象）。<br>
+      ・<b>寸法線</b>: 「変更の基準」で<b>始点・終点・中央</b>のどれを固定するか選べます。<br>
+      ・<b>連続寸法</b>: 先頭を固定し、その区間が指定の長さになるよう<b>以降の点がずれます</b>（他の区間の長さは保たれるので、3.5m・4.8m…と順に入れていけます）。<br>
+      ・<code>3.5</code> でも <code>3.5m</code> でも入力できます。<code>W=4.8</code> のような<b>数値以外は表記のみ</b>（線の長さは変わりません）。空欄に戻すと実測値の自動表示、連続寸法は「すべて自動に戻す」で一括解除できます。<br>
+      ※ 縮尺を設定してから入力してください（未設定だと既定縮尺での長さになります）。
       <h5>建設車両</h5>
       パレット「人・車両」に、作業車・<b>ダンプ(2〜4t/10tクラス)・規制車・バックホウ・ユニック車</b>があります。いずれも縮尺に連動した実寸の平面ビューで、<kbd>R</kbd>回転・大きさ調整・ラベル付けができます。
       <h5>予告標示板の自動配置</h5>
@@ -420,6 +424,10 @@ footer b{color:#fff; font-weight:600;}
    v2.8: 寸法値の手入力。寸法線は「寸法値」、連続寸法は区間ごとの入力欄(dimchain.texts)を
          右パネルに追加。図上のダブルクリックでも入力可(editDimValue/nearestDimSeg)。
          空欄に戻すと実測値の自動表示、「すべて自動に戻す」ボタンあり
+   v2.9: 寸法値の入力を「実寸駆動」に変更。数値(3.5 / 3.5m)を入れると寸法線の長さ自体が
+         その実寸になる(setDimLengthM/setChainSegLengthM/applyDimValue)。dimは基準
+         (始点/終点/中央)を選択可、連続寸法は先頭固定で以降の点をずらし他区間長は保持。
+         数値以外(W=4.8等)は従来どおり表記のみ
    ============================================================ */
 
 // ---------- 定数・状態 ----------
@@ -1139,6 +1147,54 @@ function dimChainGeo(o) {
   const D = proj.map(pr => ({ x: B.x + u.x * pr + n.x * off, y: B.y + u.y * pr + n.y * off }));
   return { u, n, off, proj, D };
 }
+// ---------- 寸法値の手入力(実寸駆動) ----------
+// 寸法線の実長を meters に変更する。基準(anchor)=固定する側
+function setDimLengthM(o, meters, anchor) {
+  const cur = V.len(V.sub(o.b, o.a));
+  if (!(meters > 0) || cur < 1e-9) return false;
+  const u = V.norm(V.sub(o.b, o.a));
+  const t = meters / state.settings.mPerPx; // 実寸(m) → 世界px
+  const mode = anchor || o.anchor || 'start';
+  if (mode === 'end') {
+    o.a = { x: o.b.x - u.x * t, y: o.b.y - u.y * t };
+  } else if (mode === 'center') {
+    const c = { x: (o.a.x + o.b.x) / 2, y: (o.a.y + o.b.y) / 2 };
+    o.a = { x: c.x - u.x * t / 2, y: c.y - u.y * t / 2 };
+    o.b = { x: c.x + u.x * t / 2, y: c.y + u.y * t / 2 };
+  } else { // start: 始点固定
+    o.b = { x: o.a.x + u.x * t, y: o.a.y + u.y * t };
+  }
+  return true;
+}
+// 連続寸法の第i区間を meters に変更。以降の点を軸方向へずらし、他区間の長さは保つ
+function setChainSegLengthM(o, i, meters) {
+  if (!o.pts || i < 0 || i + 1 >= o.pts.length || !(meters > 0)) return false;
+  const g = dimChainGeo(o);
+  const cur = g.proj[i + 1] - g.proj[i];
+  if (Math.abs(cur) < 1e-9) return false;
+  const sgn = cur >= 0 ? 1 : -1;
+  const shift = (meters / state.settings.mPerPx - Math.abs(cur)) * sgn;
+  for (let k = i + 1; k < o.pts.length; k++)
+    o.pts[k] = { x: o.pts[k].x + g.u.x * shift, y: o.pts[k].y + g.u.y * shift };
+  return true;
+}
+// 入力文字列を反映: 数値(3.5 / 3.5m)なら寸法線の実寸を合わせ、数値以外は表記のみ、空欄は自動に戻す
+function applyDimValue(o, segIndex, raw) {
+  const s = (raw || '').trim();
+  const setLabel = v => {
+    if (o.type === 'dim') o.text = v;
+    else { if (!o.texts) o.texts = []; o.texts[segIndex] = v; }
+  };
+  if (!s) { setLabel(null); return 'auto'; }
+  const m = /^([0-9]+(?:\.[0-9]+)?)\s*(?:m|ｍ)?$/i.exec(s);
+  if (m) {
+    const meters = parseFloat(m[1]);
+    const done = o.type === 'dim' ? setDimLengthM(o, meters) : setChainSegLengthM(o, segIndex, meters);
+    if (done) { setLabel(null); return 'resized'; } // 実測値=入力値になるので表記の上書きは不要
+  }
+  setLabel(s); // 数値として解釈できない表記(例 W=4.8)はラベルとして保持
+  return 'label';
+}
 function drawDimChain(c, o) {
   if (!o.pts || o.pts.length < 2) return;
   const g = dimChainGeo(o), D = g.D, u = g.u, n = g.n;
@@ -1815,29 +1871,21 @@ function nearestDimSeg(o, w) {
 }
 async function editDimValue(o, w) {
   const mpp = state.settings.mPerPx;
-  if (o.type === 'dim') {
-    const auto = (V.len(V.sub(o.b, o.a)) * mpp).toFixed(2);
-    const v = await askInput({
-      title: '寸法値の入力',
-      message: `図面に表示する寸法値を入力してください。空欄にすると実測値(${auto})を自動表示します。`,
-      value: o.text || '',
-    });
-    if (v === null) return;
-    pushUndo(); o.text = v || null;
-  } else {
-    const i = nearestDimSeg(o, w);
-    const g = dimChainGeo(o);
-    const auto = (Math.abs(g.proj[i + 1] - g.proj[i]) * mpp).toFixed(2);
-    const v = await askInput({
-      title: `寸法値の入力（区間${i + 1}）`,
-      message: `この区間に表示する寸法値を入力してください。空欄にすると実測値(${auto})を自動表示します。`,
-      value: (o.texts && o.texts[i]) || '',
-    });
-    if (v === null) return;
-    pushUndo();
-    if (!o.texts) o.texts = [];
-    o.texts[i] = v || null;
-  }
+  const isChain = o.type === 'dimchain';
+  const i = isChain ? nearestDimSeg(o, w) : 0;
+  const g = isChain ? dimChainGeo(o) : null;
+  const auto = isChain
+    ? (Math.abs(g.proj[i + 1] - g.proj[i]) * mpp).toFixed(2)
+    : (V.len(V.sub(o.b, o.a)) * mpp).toFixed(2);
+  const cur = isChain ? (o.texts && o.texts[i]) : o.text;
+  const v = await askInput({
+    title: isChain ? `寸法値の入力（区間${i + 1}）` : '寸法値の入力',
+    message: `寸法値(m)を入力すると、寸法線の長さがその実寸に変わります（現在 ${auto}m）。数値以外は表記のみ、空欄で実測値の自動表示に戻します。`,
+    value: cur || auto,
+  });
+  if (v === null) return;
+  pushUndo();
+  applyDimValue(o, i, v);
   renderProps(); render(); autosave();
 }
 function finishDraft() {
@@ -2281,21 +2329,27 @@ function renderProps() {
   }
   if (o.type === 'dim') {
     const autoM = (V.len(V.sub(o.b, o.a)) * state.settings.mPerPx).toFixed(2);
-    html += `<div class="prow"><label>寸法値</label><input type="text" id="pDimText" value="${escAttr(o.text)}" placeholder="空欄=自動 (${autoM})"></div>`;
-    html += `<p class="pnote">数値を直接入力すると図面にその値を表示します（例: 3.5、W=4.8）。空欄に戻すと実測値の自動表示。図上でダブルクリックしても入力できます。</p>`;
+    const an = o.anchor || 'start';
+    html += `<div class="prow"><label>寸法値 (m)</label><input type="text" id="pDimText" value="${escAttr(o.text || autoM)}"></div>`;
+    html += `<div class="prow"><label>変更の基準</label><select id="pAnchor">
+      <option value="start"${an === 'start' ? ' selected' : ''}>始点を固定</option>
+      <option value="end"${an === 'end' ? ' selected' : ''}>終点を固定</option>
+      <option value="center"${an === 'center' ? ' selected' : ''}>中央を固定</option>
+    </select></div>`;
+    html += `<p class="pnote"><b>数値を入力してEnter（または他へフォーカス）すると、寸法線の長さが実寸に合わせて変わります。</b>基準側の端点は固定。数値以外(例 W=4.8)は表記のみ、空欄は実測値の自動表示。図上のダブルクリックでも入力できます。</p>`;
     html += `<div class="prow"><label>引出し量</label><input type="range" id="pOff" min="-60" max="60" value="${o.off ?? 16}"><span class="val" id="pOffV">${o.off ?? 16}</span></div>`;
   }
   if (o.type === 'dimchain') {
     html += `<div class="prow"><label>引出し量</label><input type="range" id="pOff" min="-60" max="60" value="${o.off ?? 16}"><span class="val" id="pOffV">${o.off ?? 16}</span></div>`;
     const g = dimChainGeo(o);
-    html += `<h3 style="margin-top:10px">区間ごとの寸法値</h3>`;
+    html += `<h3 style="margin-top:10px">区間ごとの寸法値 (m)</h3>`;
     for (let i = 0; i < o.pts.length - 1; i++) {
       const autoM = (Math.abs(g.proj[i + 1] - g.proj[i]) * state.settings.mPerPx).toFixed(2);
-      const cur = (o.texts && o.texts[i]) || '';
-      html += `<div class="prow"><label>区間${i + 1}</label><input type="text" class="pSegText" data-seg="${i}" value="${escAttr(cur)}" placeholder="空欄=自動 (${autoM})"></div>`;
+      const cur = (o.texts && o.texts[i]) || autoM;
+      html += `<div class="prow"><label>区間${i + 1}</label><input type="text" class="pSegText" data-seg="${i}" value="${escAttr(cur)}"></div>`;
     }
     html += `<div class="pbtnrow"><button class="pbtn" id="pSegReset">すべて自動に戻す</button></div>`;
-    html += `<p class="pnote">区間ごとに数値を直接入力できます（例: 3.5 と 4.8 を並べて表示）。空欄に戻すと実測値の自動表示。図上の該当区間をダブルクリックしても入力できます。</p>`;
+    html += `<p class="pnote"><b>数値を入力してEnterすると、その区間の長さが実寸に合わせて変わります</b>（先頭を固定し、以降の点がずれます。他区間の長さは保持）。数値以外は表記のみ、空欄は実測値の自動表示。図上の該当区間をダブルクリックでも入力できます。</p>`;
   }
   if (o.type === 'text') {
     const esc = (o.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -2320,12 +2374,12 @@ function renderProps() {
   bind('pWidth', e => { const v = parseFloat(e.target.value); if (v > 0) { o.width = v; render(); autosave(); } });
   bind('pStripe', e => { const v = parseFloat(e.target.value); if (v > 0) { o.stripe = v; render(); autosave(); } });
   bind('pFill', e => { o.fill = e.target.checked; render(); autosave(); });
-  bind('pDimText', e => { o.text = e.target.value || null; render(); autosave(); });
-  root.querySelectorAll('.pSegText').forEach(el => el.addEventListener('input', e => {
-    const i = +e.target.dataset.seg;
-    if (!o.texts) o.texts = [];
-    o.texts[i] = e.target.value || null; // 空欄=自動(実測値)
-    render(); autosave();
+  // 寸法値は確定時(Enter/フォーカス移動)に反映。数値なら寸法線の実寸そのものを合わせる
+  bind('pDimText', e => { pushUndo(); applyDimValue(o, 0, e.target.value); renderProps(); render(); autosave(); }, 'change');
+  bind('pAnchor', e => { o.anchor = e.target.value; autosave(); }, 'change');
+  root.querySelectorAll('.pSegText').forEach(el => el.addEventListener('change', e => {
+    pushUndo(); applyDimValue(o, +e.target.dataset.seg, e.target.value);
+    renderProps(); render(); autosave();
   }));
   bind('pSegReset', () => { o.texts = null; renderProps(); render(); autosave(); }, 'click');
   bind('pOff', e => { o.off = +e.target.value; document.getElementById('pOffV').textContent = e.target.value; render(); autosave(); });

@@ -412,20 +412,53 @@ const tests = `
   ok(calls.some(c=>c.includes('4.80')), 'dimchain segment2 stays auto-measured');
   // nearestDimSeg picks the segment under the cursor
   ok(nearestDimSeg(dc2,{x:10,y:16})===0 && nearestDimSeg(dc2,{x:70,y:16})===1, 'nearestDimSeg finds segment by position');
-  // editDimValue (dblclick path) writes manual text; empty restores auto
+  // editDimValue (dblclick path): 数値入力は「寸法線の実寸」を変更する
   state.objects=[d1,dc2];
+  var lenM = ob => V.len(V.sub(ob.b, ob.a)) * state.settings.mPerPx;
+  var segM = (ob,i) => { var g=dimChainGeo(ob); return Math.abs(g.proj[i+1]-g.proj[i]) * state.settings.mPerPx; };
+  var a0 = {x:d1.a.x, y:d1.a.y};
   askInput = async()=>'5.0';
   await editDimValue(d1,{x:0,y:0});
-  ok(d1.text==='5.0', 'editDimValue sets dim text');
+  ok(Math.abs(lenM(d1)-5.0)<1e-9, 'entering 5.0 resizes the dim line to 5.0m (got '+lenM(d1).toFixed(3)+')');
+  ok(d1.text===null, 'numeric entry clears label override (measured == entered)');
+  ok(d1.a.x===a0.x && d1.a.y===a0.y, 'anchor(start) stays fixed while the other end moves');
+  // 単位付き / 終点固定 / 中央固定
+  askInput = async()=>'3.5m';
+  await editDimValue(d1,{x:0,y:0});
+  ok(Math.abs(lenM(d1)-3.5)<1e-9, '"3.5m" is accepted as a length');
+  d1.anchor='end'; var bEnd={x:d1.b.x,y:d1.b.y};
+  askInput = async()=>'2';
+  await editDimValue(d1,{x:0,y:0});
+  ok(Math.abs(lenM(d1)-2)<1e-9 && d1.b.x===bEnd.x && d1.b.y===bEnd.y, 'anchor=end keeps the end point fixed');
+  d1.anchor='center'; var cx=(d1.a.x+d1.b.x)/2;
+  askInput = async()=>'6';
+  await editDimValue(d1,{x:0,y:0});
+  ok(Math.abs(lenM(d1)-6)<1e-9 && Math.abs((d1.a.x+d1.b.x)/2-cx)<1e-9, 'anchor=center keeps the midpoint');
+  d1.anchor='start';
+  // 非数値は従来どおり表記のみ(ジオメトリ不変)
+  var lenBefore=lenM(d1); askInput = async()=>'W=4.8';
+  await editDimValue(d1,{x:0,y:0});
+  ok(d1.text==='W=4.8' && Math.abs(lenM(d1)-lenBefore)<1e-9, 'non-numeric stays label-only, geometry unchanged');
   askInput = async()=>'';
   await editDimValue(d1,{x:0,y:0});
   ok(d1.text===null, 'empty input restores auto for dim');
+  // 連続寸法: 指定区間だけ実寸が変わり、他区間の長さは保たれる
+  dc2.texts=null;
+  var seg0=segM(dc2,0), p0={x:dc2.pts[0].x,y:dc2.pts[0].y};
   askInput = async()=>'4.8';
   await editDimValue(dc2,{x:70,y:16});
-  ok(dc2.texts[1]==='4.8', 'editDimValue sets the clicked segment');
-  askInput = async()=>null; var keep=dc2.texts[1];
+  ok(Math.abs(segM(dc2,1)-4.8)<1e-9, 'entering 4.8 resizes that chain segment (got '+segM(dc2,1).toFixed(3)+')');
+  ok(Math.abs(segM(dc2,0)-seg0)<1e-9, 'other segment length preserved');
+  ok(dc2.pts[0].x===p0.x && dc2.pts[0].y===p0.y, 'chain start stays fixed');
+  askInput = async()=>'2.0';
+  await editDimValue(dc2,{x:10,y:16});
+  ok(Math.abs(segM(dc2,0)-2.0)<1e-9 && Math.abs(segM(dc2,1)-4.8)<1e-9, 'resizing seg1 shifts downstream, keeps seg2 length');
+  // キャンセルは何も変えない
+  var beforeLen=segM(dc2,1); askInput = async()=>null;
   await editDimValue(dc2,{x:70,y:16});
-  ok(dc2.texts[1]===keep, 'cancel leaves value unchanged');
+  ok(Math.abs(segM(dc2,1)-beforeLen)<1e-9, 'cancel leaves geometry unchanged');
+  // applyDimValue の戻り値で経路を判別できる
+  ok(applyDimValue(d1,0,'3')==='resized' && applyDimValue(d1,0,'W=1')==='label' && applyDimValue(d1,0,'')==='auto', 'applyDimValue reports resized/label/auto');
   // right panel exposes a text input per segment
   setSel(['dc2']); renderProps();
   var htm=els.objProps.innerHTML;
