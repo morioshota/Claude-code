@@ -3,6 +3,8 @@
 日本株・米国株のリサーチ済み銘柄を「図鑑コレクション」として管理するReactアプリ。
 claude.aiのアーティファクトとして開発され、Claude Codeでの継続開発のために移行された。
 
+> **別プロジェクト同居の注記**: `sagyotaizu/` は独立した別ツール「作業帯図作成ツール」（道路使用許可申請用の単一HTMLアプリ）。KABU DEXとは無関係で、ビルド不要・外部依存なし（ライブラリはCDN遅延ロードのみ）の制約がある。触るときは必ず `sagyotaizu/README.md`・`sagyotaizu/CODE_STRUCTURE.md`・`sagyotaizu/CLAUDE_CODE_GUIDE.md` を先に読むこと。
+
 ## オーナーの利用文脈（重要）
 
 - オーナーは中長期の個人投資家。kabu-research（チャット側のスキル）で作った投資メモを、このアプリの「生態調査記録」に貼り付けて蓄積する運用

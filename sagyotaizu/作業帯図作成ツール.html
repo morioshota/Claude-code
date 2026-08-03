@@ -1,0 +1,2830 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>作業帯図作成ツール｜道路使用許可申請用</title>
+<style>
+:root{
+  --ink:#16222e; --ink2:#2c3e50; --panel:#f4f5f7; --line:#d4d9de;
+  --amber:#f7b500; --amber-d:#c99300; --red:#d63031; --accent:#1f5f8b;
+  --paper-shadow:0 4px 24px rgba(22,34,46,.18);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%; overflow:hidden;}
+body{
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
+  font-size:13px; color:var(--ink); background:#e8ebee;
+  display:flex; flex-direction:column;
+}
+button{font-family:inherit; cursor:pointer;}
+
+/* ── ヘッダー ── */
+header{
+  background:var(--ink); color:#fff; display:flex; align-items:center;
+  gap:6px; padding:6px 10px; flex-wrap:wrap; border-bottom:3px solid var(--amber);
+}
+header .brand{display:flex; align-items:center; gap:8px; margin-right:10px;}
+header .brand .mark{
+  width:22px;height:22px; background:repeating-linear-gradient(45deg,var(--amber) 0 5px,var(--ink) 5px 10px);
+  border:1.5px solid #fff; border-radius:3px;
+}
+header .brand b{font-size:14px; letter-spacing:.06em;}
+header .brand small{opacity:.65; font-size:10.5px;}
+.hbtn{
+  background:#243342; color:#fff; border:1px solid #3a4c5e; border-radius:5px;
+  padding:5px 9px; font-size:12px; line-height:1; white-space:nowrap;
+}
+.hbtn:hover{background:#2f4356;}
+.hbtn.primary{background:var(--amber); border-color:var(--amber-d); color:var(--ink); font-weight:700;}
+.hbtn.primary:hover{background:#ffc61a;}
+.hbtn:disabled{opacity:.4; cursor:default;}
+.hsep{width:1px; height:22px; background:#3a4c5e; margin:0 3px;}
+.hgroup{display:flex; align-items:center; gap:4px;}
+header label.mini{font-size:11px; opacity:.8; display:flex; align-items:center; gap:5px;}
+header input[type=range]{width:80px; accent-color:var(--amber);}
+#scaleBadge{
+  font-size:11px; padding:4px 8px; border-radius:4px; background:#3d2e00;
+  border:1px solid var(--amber-d); color:var(--amber); font-weight:700;
+}
+#scaleBadge.ok{background:#0e3320; border-color:#1d7a45; color:#5ee39a;}
+
+/* ── パターンバー ── */
+#patternBar{
+  background:#1b2a38; color:#cdd8e2; display:flex; align-items:center; gap:6px;
+  padding:5px 10px; border-bottom:1px solid #0e1a24; flex-wrap:wrap; font-size:12px;
+}
+#patternBar .pbLabel{font-size:10px; letter-spacing:.12em; color:#7d8ea0; text-transform:uppercase;}
+#pbTabs{display:flex; gap:4px; flex-wrap:wrap;}
+.pbtab{
+  background:#243342; color:#cdd8e2; border:1px solid #3a4c5e; border-radius:6px;
+  padding:5px 11px; font-size:12px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.pbtab:hover{background:#2f4356;}
+.pbtab.active{background:var(--amber); color:var(--ink); border-color:var(--amber-d); font-weight:700;}
+.pbtn2{background:#243342; color:#fff; border:1px solid #3a4c5e; border-radius:5px; padding:4px 8px; font-size:11.5px; white-space:nowrap;}
+.pbtn2:hover{background:#2f4356;}
+.pbtn2:disabled{opacity:.4; cursor:default;}
+.pbsep{width:1px; height:18px; background:#3a4c5e; margin:0 2px;}
+.pbHint{font-size:10.5px; color:#7d8ea0;}
+
+/* ── レイアウト ── */
+main{flex:1; display:flex; min-height:0;}
+aside{background:var(--panel); overflow-y:auto;}
+#palette{width:172px; border-right:1px solid var(--line); padding:8px;}
+#props{width:236px; border-left:1px solid var(--line); padding:10px;}
+.pgroup{margin-bottom:10px;}
+.pgroup h4{
+  font-size:10.5px; color:#5a6a78; letter-spacing:.12em; margin:0 0 5px 2px;
+  border-left:3px solid var(--amber); padding-left:6px;
+}
+.pal{display:grid; grid-template-columns:1fr 1fr; gap:4px;}
+.palbtn{
+  background:#fff; border:1px solid var(--line); border-radius:6px; padding:4px 2px 3px;
+  display:flex; flex-direction:column; align-items:center; gap:1px; min-height:52px;
+}
+.palbtn:hover{border-color:var(--accent); background:#f2f8fc;}
+.palbtn.active{border-color:var(--amber-d); background:#fff7e0; box-shadow:inset 0 0 0 1px var(--amber);}
+.palbtn canvas{width:30px; height:30px;}
+.palbtn span{font-size:9.5px; color:var(--ink2); line-height:1.15; text-align:center;}
+.palbtn.wide{grid-column:1/-1; flex-direction:row; justify-content:flex-start; gap:8px; min-height:38px; padding-left:8px;}
+.palbtn.wide span{font-size:11px;}
+
+#stage{flex:1; position:relative; min-width:0; background:
+  linear-gradient(#dfe3e7 1px,transparent 1px),linear-gradient(90deg,#dfe3e7 1px,transparent 1px);
+  background-size:24px 24px; background-color:#e8ebee;}
+#cv{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;}
+#hint{
+  position:absolute; left:50%; transform:translateX(-50%); top:10px;
+  background:rgba(22,34,46,.92); color:#fff; padding:7px 14px; border-radius:20px;
+  font-size:12.5px; pointer-events:none; display:none; box-shadow:0 2px 10px rgba(0,0,0,.25);
+  border:1px solid var(--amber); max-width:90%;
+}
+#hint.show{display:block;}
+
+/* ── トースト(自動保存の警告など) ── */
+#toast{
+  position:fixed; left:50%; bottom:44px; transform:translateX(-50%);
+  background:rgba(22,34,46,.96); color:#fff; padding:10px 16px; border-radius:8px;
+  font-size:12.5px; line-height:1.5; max-width:90%; text-align:center; z-index:60;
+  box-shadow:0 4px 16px rgba(0,0,0,.3); border:1px solid var(--amber);
+  opacity:0; pointer-events:none; transition:opacity .25s;
+}
+#toast.show{opacity:1;}
+#toast.warn{border-color:var(--red);}
+
+/* ── 右パネル ── */
+#props h3{font-size:12px; color:#5a6a78; letter-spacing:.1em; margin-bottom:8px;
+  border-bottom:2px solid var(--amber); padding-bottom:4px;}
+.prow{display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:7px;}
+.prow label{font-size:11.5px; color:var(--ink2); flex-shrink:0;}
+.prow input[type=text],.prow input[type=number],.prow select{
+  width:110px; padding:4px 6px; border:1px solid var(--line); border-radius:4px; font-size:12px; font-family:inherit;
+}
+.prow input[type=range]{width:110px; accent-color:var(--accent);}
+.prow .val{font-size:11px; color:#5a6a78; width:34px; text-align:right;}
+.pbtnrow{display:flex; gap:6px; margin-top:8px;}
+.pbtn{flex:1; padding:6px 0; border:1px solid var(--line); border-radius:5px; background:#fff; font-size:12px;}
+.pbtn:hover{background:#eef3f7;}
+.pbtn.danger{color:var(--red); border-color:#eab3b3;}
+.pbtn.danger:hover{background:#fdeeee;}
+.pdivider{height:1px; background:var(--line); margin:12px 0;}
+.pempty{font-size:11.5px; color:#8795a1; line-height:1.7; background:#fff; border:1px dashed var(--line);
+  border-radius:6px; padding:10px;}
+.pnote{font-size:10.5px; color:#8795a1; line-height:1.6; margin-top:6px;}
+.palign{display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; margin-bottom:5px;}
+.palign2{display:grid; grid-template-columns:1fr 1fr; gap:4px;}
+.palign .pbtn,.palign2 .pbtn{padding:6px 0; font-size:11px;}
+.pmetrics{background:#fff; border:1px solid var(--line); border-radius:6px; padding:6px 9px; margin-top:8px;}
+.pmrow{display:flex; justify-content:space-between; gap:8px; font-size:11.5px; color:var(--ink2); padding:2px 0;}
+.pmrow b{color:var(--ink); font-variant-numeric:tabular-nums; white-space:nowrap;}
+
+footer{
+  background:var(--ink); color:#aebccb; font-size:11px; padding:4px 12px;
+  display:flex; gap:18px; align-items:center;
+}
+footer b{color:#fff; font-weight:600;}
+#coord{margin-left:auto; font-variant-numeric:tabular-nums;}
+
+/* ── モーダル ── */
+.modal-bg{position:fixed; inset:0; background:rgba(22,34,46,.5); display:none;
+  align-items:center; justify-content:center; z-index:50;}
+.modal-bg.show{display:flex;}
+.modal{background:#fff; border-radius:10px; width:400px; max-width:92vw; max-height:88vh; overflow-y:auto;
+  box-shadow:0 10px 40px rgba(0,0,0,.3); border-top:4px solid var(--amber);}
+.modal .mhead{padding:12px 16px 8px; font-size:14.5px; font-weight:700;}
+.modal .mbody{padding:4px 16px 8px;}
+.modal .mfoot{padding:10px 16px 14px; display:flex; gap:8px; justify-content:flex-end;}
+.mbtn{padding:7px 16px; border-radius:6px; border:1px solid var(--line); background:#fff; font-size:12.5px;}
+.mbtn.go{background:var(--amber); border-color:var(--amber-d); font-weight:700;}
+.radio-card{display:block; border:1.5px solid var(--line); border-radius:8px; padding:9px 11px; margin-bottom:7px; cursor:pointer;}
+.radio-card:has(input:checked){border-color:var(--amber-d); background:#fff9e6;}
+.radio-card b{font-size:13px;}
+.radio-card p{font-size:11px; color:#5a6a78; margin-top:2px; line-height:1.5;}
+.radio-card input{margin-right:6px;}
+.mgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; margin-top:8px;}
+.mgrid label{font-size:11.5px; color:var(--ink2); display:block; margin-bottom:3px;}
+.mini2{font-size:13px; display:flex; align-items:center; gap:5px; cursor:pointer;}
+.mgrid input,.mgrid select{width:100%; padding:5px 7px; border:1px solid var(--line); border-radius:5px; font-size:12.5px; font-family:inherit;}
+.helpbox{font-size:12px; line-height:1.9; color:var(--ink2);}
+.helpbox h5{margin:10px 0 3px; font-size:12.5px; color:var(--ink); border-left:3px solid var(--amber); padding-left:6px;}
+.helpbox kbd{background:#eef1f4; border:1px solid var(--line); border-radius:3px; padding:0 5px; font-size:11px;}
+.tabrow{display:flex; gap:4px; border-bottom:1px solid var(--line); margin:2px 0 4px;}
+.tabbtn{background:none; border:none; padding:7px 11px; font-size:12.5px; color:#5a6a78; border-bottom:2px solid transparent; margin-bottom:-1px;}
+.tabbtn.active{color:var(--ink); border-bottom-color:var(--amber); font-weight:700;}
+@media (max-width:900px){ #palette{width:120px;} #props{width:190px;} .palbtn span{font-size:8.5px;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><div class="mark"></div><div><b>作業帯図作成ツール</b><br><small>道路使用許可申請用</small></div></div>
+  <div class="hsep"></div>
+  <button class="hbtn" id="btnBg">地形図読込 (PDF/画像)</button>
+  <label class="mini">透明度 <input type="range" id="bgOpacity" min="10" max="100" value="100"></label>
+  <div class="hsep"></div>
+  <button class="hbtn" id="btnCalib">縮尺設定</button>
+  <span id="scaleBadge">縮尺 未設定</span>
+  <div class="hsep"></div>
+  <button class="hbtn primary" id="btnWizard">▶ 規制パターン自動配置</button>
+  <button class="hbtn" id="btnYokoku">予告標示板 配置</button>
+  <div class="hsep"></div>
+  <div class="hgroup">
+    <button class="hbtn" id="btnUndo" title="元に戻す (Ctrl+Z)">↩</button>
+    <button class="hbtn" id="btnRedo" title="やり直す (Ctrl+Y)">↪</button>
+    <button class="hbtn" id="btnZoomOut">−</button>
+    <button class="hbtn" id="btnZoomFit">全体</button>
+    <button class="hbtn" id="btnZoomIn">＋</button>
+  </div>
+  <div class="hsep"></div>
+  <button class="hbtn" id="btnSave">保存(JSON)</button>
+  <button class="hbtn" id="btnLoad">読込</button>
+  <button class="hbtn" id="btnPng">PNG出力</button>
+  <button class="hbtn" id="btnPrint">印刷 (A4/A3)</button>
+  <button class="hbtn" id="btnHelp">使い方</button>
+</header>
+<div id="patternBar">
+  <span class="pbLabel">パターン</span>
+  <span id="pbTabs" class="pbTabs"></span>
+  <button class="pbtn2" id="pbAdd" title="新しいパターンを追加">＋ 追加</button>
+  <span class="pbsep"></span>
+  <button class="pbtn2" id="pbRename">名前変更</button>
+  <button class="pbtn2" id="pbDup">複製</button>
+  <button class="pbtn2" id="pbDel">削除</button>
+  <span class="pbsep"></span>
+  <span class="pbLabel">出力範囲</span>
+  <button class="pbtn2" id="pbFrame">範囲を指定</button>
+  <button class="pbtn2" id="pbFrameClear">クリア</button>
+  <span class="pbsep"></span>
+  <button class="pbtn2" id="pbPngAll" title="全パターンを連番PNGで書き出し">全パターンPNG</button>
+  <span class="pbHint" id="pbHint"></span>
+</div>
+<main>
+  <aside id="palette"></aside>
+  <div id="stage"><canvas id="cv"></canvas><div id="hint"></div></div>
+  <aside id="props">
+    <h3>図面設定</h3>
+    <div class="prow"><label>図面名</label><input type="text" id="setTitle" value="作業帯図1"></div>
+    <div class="prow"><label>工種</label><input type="text" id="setKoshu" value="管路工"></div>
+    <div class="prow"><label>凡例を表示</label><input type="checkbox" id="setLegend" checked></div>
+    <div class="prow"><label>注記を表示</label><input type="checkbox" id="setNote" checked></div>
+    <div class="prow"><label>スケールバー</label><input type="checkbox" id="setScaleBar"></div>
+    <div class="prow"><label>スナップ（頂点吸着）</label><input type="checkbox" id="setSnap" checked></div>
+    <div class="prow"><label>記号の倍率</label><input type="range" id="setSymScale" min="50" max="300" value="100"><span class="val" id="setSymScaleV">1.0</span></div>
+    <div class="pdivider"></div>
+    <h3>選択中のオブジェクト</h3>
+    <div id="objProps"><div class="pempty">オブジェクトを選択すると、ここで回転・寸法・ラベル等を編集できます。<br><br>左のパレットから記号を選んで図面をクリックすると配置できます。</div></div>
+  </aside>
+</main>
+<footer>
+  <span>モード: <b id="modeLabel">選択</b></span>
+  <span id="selLabel"></span>
+  <span id="coord"></span>
+</footer>
+
+<div id="toast"></div>
+
+<input type="file" id="fileBg" accept=".pdf,image/*" hidden>
+<input type="file" id="fileJson" accept=".json,application/json" hidden>
+
+<div class="modal-bg" id="wizardModal">
+  <div class="modal">
+    <div class="mhead">規制パターン自動配置</div>
+    <div class="mbody">
+      <label class="radio-card"><input type="radio" name="wpat" value="katagawa" checked><b>片側交互通行</b><p>作業帯＋カラーコーン列・ガードマン・片側交互通行標示板・矢印板を両端に自動配置</p></label>
+      <label class="radio-card"><input type="radio" name="wpat" value="shasen"><b>車線減少</b><p>作業帯＋進行方向手前にすり付け(テーパー)コーン・車線減少標示板・幅員減少看板を配置</p></label>
+      <label class="radio-card"><input type="radio" name="wpat" value="tome"><b>通行止め＋迂回</b><p>規制区間全幅を閉鎖。両端にA型バリケード・通行止め標示板・迂回路標示板・ガードマンを配置</p></label>
+      <div class="mgrid">
+        <div><label>作業帯の幅 (m)</label><input type="number" id="wWidth" value="3.0" step="0.5" min="0.5"></div>
+        <div><label>コーン間隔 (m)</label><input type="number" id="wCone" value="2.0" step="0.5" min="0.5"></div>
+        <div><label>作業帯を置く側</label><select id="wSide"><option value="1">進行方向 右側</option><option value="-1">進行方向 左側</option></select></div>
+        <div id="wTaperWrap"><label>テーパー長 (m)</label><input type="number" id="wTaper" value="10" step="1" min="3"></div>
+      </div>
+      <p class="pnote">※パターン開始後、地形図上で「起点 → 終点」の順に2点クリックしてください。生成後はすべての部材を個別に移動・回転・削除できます。</p>
+    </div>
+    <div class="mfoot"><button class="mbtn" id="wCancel">キャンセル</button><button class="mbtn go" id="wStart">起点・終点の指定へ</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="yokokuModal">
+  <div class="modal" style="width:360px">
+    <div class="mhead">予告標示板の配置</div>
+    <div class="mbody">
+      <p class="pnote" style="margin:2px 2px 10px;line-height:1.8">設置する距離の標示板を選び、図面をクリックすると<b>縦1列</b>に並べます（先頭＝クリック位置）。50/100 だけ等、必要な分だけ選べます。</p>
+      <div style="display:flex; gap:16px; margin:6px 2px 10px">
+        <label class="mini2"><input type="checkbox" class="ydist" value="50" checked> 50m</label>
+        <label class="mini2"><input type="checkbox" class="ydist" value="100" checked> 100m</label>
+        <label class="mini2"><input type="checkbox" class="ydist" value="200" checked> 200m</label>
+      </div>
+      <div class="mgrid">
+        <div><label>看板の間隔 (m)</label><input type="number" id="yGap" value="3" step="0.5" min="0"></div>
+        <div><label>並べる向き</label><select id="yDir"><option value="down">下向き（近い順に下へ）</option><option value="up">上向き（近い順に上へ）</option></select></div>
+      </div>
+    </div>
+    <div class="mfoot"><button class="mbtn" id="yCancel">キャンセル</button><button class="mbtn go" id="yStart">配置位置の指定へ</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="helpModal">
+  <div class="modal">
+    <div class="mhead">使い方</div>
+    <div class="mbody helpbox">
+      <h5>基本の流れ</h5>
+      ① 地形図読込 (PDF/画像) → ② <b>縮尺設定</b>(2点＋実距離、または「1/500」等の縮尺分母を直接入力) → ③ 規制パターン自動配置 or パレットから手動配置(作業帯・導流帯・コーン列など) → ④ 手直し → ⑤ PNG出力 / 印刷(A4またはA3を選択)
+      <h5>縮尺・スケールバー</h5>
+      縮尺設定の「縮尺分母を直接入力」タブは<b>A3横(420mm)で出力する前提</b>で用紙寸法から逆算します。図面設定の「スケールバー」をオンにすると、用紙左下に実寸の目盛りバーを表示できます（バーの長さは常に実寸に連動）。
+      <h5>複数パターン（1工事＝親図面＋複数図面）</h5>
+      背景の地形図(親図面)・縮尺・表示設定は<b>全パターンで共有</b>し、上部の「パターン」タブで図面を切り替えます。パターンごとに規制の配置・図面名・凡例位置・出力範囲を個別に持てます（例: 場所や区間の違い、施工フェーズ、規制方法の代替案）。<br>
+      「＋追加」で新規、「複製」で現在のパターンをコピー、「名前変更」でタブ名を編集（タブのダブルクリックでも可）。<br>
+      <b>一括出力</b>: パターンバーの「全パターンPNG」で連番PNGをまとめて書き出し、印刷モーダルの「全パターン」で複数ページ連続印刷ができます（工事の提出セット作成用）。<br>
+      <b>出力範囲</b>: 「範囲を指定」で親図面上に対角2点をクリックすると、そのパターンの出力範囲(用紙比に自動調整)を設定できます。PNG出力・印刷時は、この範囲を用紙いっぱいに拡大して出力します（範囲未指定なら親図面全体）。図枠・表題・凡例・スケールバーは用紙側に固定表示されます。設定した枠は<b>角のハンドルをドラッグでリサイズ（用紙比固定）、枠線をドラッグで移動</b>できます。
+      <h5>編集操作</h5>
+      クリックで選択、ドラッグで移動。<kbd>R</kbd> で15°回転。<kbd>Delete</kbd> で削除。<kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> で取消/やり直し。線・多角形は選択すると頂点(白い四角)が表示され、ドラッグで変形できます。
+      <h5>複数選択（まとめて移動）</h5>
+      何もない所から<b>ドラッグで矩形を描くと、触れたオブジェクトをまとめて選択</b>できます（CAD の窓選択）。<kbd>Shift</kbd>+クリックで選択に個別追加/解除、<kbd>Ctrl+A</kbd> で全選択。複数選択したまま<b>ドラッグでまとめて移動</b>、<kbd>Delete</kbd>でまとめて削除、右パネルの「まとめて複製」で一括複製できます。頂点編集・寸法/ラベル等の個別編集は1つだけ選択したときに有効です。
+      <h5>整列・等間隔・スナップ</h5>
+      複数選択すると右パネルに<b>整列（左/中央/右・上/中央/下）</b>と<b>等間隔配置（横/縦、3つ以上）</b>が出ます。コーンや記号の手置きを揃えるのに便利です。また図面設定の<b>「スナップ（頂点吸着）」</b>をオンにすると、作図・頂点ドラッグ時に近くの頂点へ吸い付き（橙の十字マーカー表示）、線の始点・終点をぴったり合わせられます。
+      <h5>記号のラベル・引き出し線</h5>
+      記号を選択して右パネルの「ラベル」に文字(工事件名・連絡先など)を入れると、引き出し線付きで表示されます。「引出し向き」「引出し長さ」で位置を調整できます。
+      <h5>画面操作</h5>
+      マウスホイールで拡大縮小、<kbd>Space</kbd>+ドラッグ または 右ドラッグで画面移動。
+      <h5>線を描くツール(作業帯・歩行者通路・コーン列・寸法線・連続寸法)</h5>
+      クリックで点を追加、<b>ダブルクリックまたは Enter で確定</b>、<kbd>Esc</kbd> で中止。<b>連続寸法</b>は区切り点を順にクリックすると、3.5m・4.8m のように各区間を1本の寸法線上に連結して表示します。
+      <h5>寸法値の手入力（入力した寸法に線を合わせる）</h5>
+      寸法線・連続寸法は、<b>数値を入力すると寸法線の長さ自体がその実寸に変わります</b>（表記だけの変更ではありません）。右パネルの「寸法値(m)」（連続寸法は<b>区間ごとの入力欄</b>）に入力して <kbd>Enter</kbd>、または<b>図面上の寸法線をダブルクリック</b>して入力します（連続寸法はダブルクリックした区間が対象）。<br>
+      ・<b>寸法線</b>: 「変更の基準」で<b>始点・終点・中央</b>のどれを固定するか選べます。<br>
+      ・<b>連続寸法</b>: 先頭を固定し、その区間が指定の長さになるよう<b>以降の点がずれます</b>（他の区間の長さは保たれるので、3.5m・4.8m…と順に入れていけます）。<br>
+      ・<code>3.5</code> でも <code>3.5m</code> でも入力できます。<code>W=4.8</code> のような<b>数値以外は表記のみ</b>（線の長さは変わりません）。空欄に戻すと実測値の自動表示、連続寸法は「すべて自動に戻す」で一括解除できます。<br>
+      ※ 縮尺を設定してから入力してください（未設定だと既定縮尺での長さになります）。
+      <h5>建設車両</h5>
+      パレット「人・車両」に、作業車・<b>ダンプ(2〜4t/10tクラス)・規制車・バックホウ・ユニック車</b>があります。いずれも縮尺に連動した実寸の平面ビューで、<kbd>R</kbd>回転・大きさ調整・ラベル付けができます。
+      <h5>予告標示板の自動配置</h5>
+      ヘッダーの「予告標示板 配置」を押し、設置する距離（<b>50m / 100m / 200m</b>、必要な分だけ）と看板の間隔・向きを選んで図面をクリックすると、予告標示板を<b>縦1列</b>に並べます。各看板は個別に移動でき、右パネルの「予告距離(m)」で表示距離を変えられます（パレットの「工事予告標示板(距離)」から手置きも可）。
+      <h5>面積・延長の集計</h5>
+      作業帯・導流帯を選ぶと<b>面積(m²)・周長</b>、コーン列/バリケード列は<b>延長(m)・本数</b>、歩行者通路は延長、寸法線は実測長が右パネルに出ます。何も選んでいないときは、そのパターンの<b>合計（作業帯面積・規制延長など）</b>を表示します。申請書の記載値の目安にどうぞ（正確な値には先に縮尺設定を）。
+      <h5>注意</h5>
+      ・縮尺設定を先に行うと、コーン間隔や寸法値が実寸で正しく入ります。<br>
+      ・作業データはブラウザに自動保存されますが、確実な保管には「保存(JSON)」を使用してください。<br>
+      ・本ツールは作図補助です。規制方法・保安施設の要否は所轄警察・道路管理者との協議によります。
+    </div>
+    <div class="mfoot"><button class="mbtn go" id="helpClose">閉じる</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="inputModal">
+  <div class="modal" style="width:340px">
+    <div class="mhead" id="imTitle">入力</div>
+    <div class="mbody">
+      <p id="imMsg" style="font-size:12.5px;color:#5a6a78;margin-bottom:8px;line-height:1.6"></p>
+      <input type="text" id="imField" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:14px;font-family:inherit">
+      <p id="imErr" style="font-size:11.5px;color:var(--red);margin-top:6px;min-height:15px"></p>
+    </div>
+    <div class="mfoot"><button class="mbtn" id="imCancel">キャンセル</button><button class="mbtn go" id="imOk">OK</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="printModal">
+  <div class="modal" style="width:340px">
+    <div class="mhead">印刷</div>
+    <div class="mbody">
+      <label class="radio-card"><input type="radio" name="psize" value="a4" checked><b>A4 横</b><p>提出用の標準サイズ</p></label>
+      <label class="radio-card"><input type="radio" name="psize" value="a3"><b>A3 横</b><p>大きめに印刷したい場合</p></label>
+      <div id="prTargetWrap" style="margin-top:4px">
+        <label class="radio-card"><input type="radio" name="ptarget" value="one" checked><b>このパターンのみ</b><p>表示中のパターンを1枚印刷</p></label>
+        <label class="radio-card"><input type="radio" name="ptarget" value="all"><b>全パターン</b><p>工事内の全パターンを複数ページで連続印刷</p></label>
+      </div>
+      <p class="pnote" style="margin-top:6px">印刷ダイアログが開いたら、用紙サイズと余白(「なし」推奨)を確認してください。</p>
+    </div>
+    <div class="mfoot"><button class="mbtn" id="prCancel">キャンセル</button><button class="mbtn go" id="prGo">印刷する</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="calibModal">
+  <div class="modal" style="width:390px">
+    <div class="mhead">縮尺の設定</div>
+    <div class="mbody">
+      <div class="tabrow">
+        <button class="tabbtn active" data-ctab="two">2点＋実距離</button>
+        <button class="tabbtn" data-ctab="denom">縮尺分母を直接入力</button>
+      </div>
+      <div id="ctabTwo">
+        <p class="pnote" style="margin:8px 2px 12px;line-height:1.8">地図上で距離の分かる2点をクリックし、その実距離(m)を入力して縮尺を決めます。図面の寸法記載箇所や道路幅などを使うと正確です。</p>
+        <button class="mbtn go" id="cbStartTwo" style="width:100%">地図上で2点をクリックして設定</button>
+      </div>
+      <div id="ctabDenom" style="display:none">
+        <p class="pnote" style="margin:8px 2px 10px;line-height:1.8">図面に「1/500」などの縮尺で入れたい場合に使います。<b>A3横(420mm)で出力する前提</b>で、用紙寸法から縮尺を逆算します（A4出力時は実寸が約0.71倍になります）。</p>
+        <div class="prow" style="justify-content:flex-start;gap:8px;margin:2px 2px 0">
+          <label style="font-size:14px;font-weight:700">1 /</label>
+          <input type="number" id="cbDenom" value="500" step="50" min="1" style="width:120px;padding:6px 8px;border:1px solid var(--line);border-radius:5px;font-size:14px;font-family:inherit">
+        </div>
+        <p class="pnote" id="cbDenomPreview" style="margin:10px 2px 0;line-height:1.7"></p>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="mbtn" id="cbCancel">キャンセル</button>
+      <button class="mbtn go" id="cbApply" style="display:none">この縮尺にする</button>
+    </div>
+  </div>
+</div>
+
+<iframe id="printFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden"></iframe>
+<script>
+'use strict';
+/* ============================================================
+   作業帯図作成ツール  v1.2
+   単一HTML / Canvas 2D / 依存: PDF.js (PDF読込時のみCDNから遅延ロード)
+   v1.1: 縮尺設定/文字入力を自前モーダル化(prompt廃止)、印刷をiframe方式+A4/A3選択、導流帯を追加
+   v1.2: 縮尺を分母直接入力(1/500等)でも設定可、用紙左下スケールバー、縮尺バッジに分母表示 (R1)
+   v1.3: 記号にラベル(引き出し線+テキスト箱)を追加。向き・長さ調整、選択枠/クリック判定も対応 (R2)
+   v1.4: 複数ページPDFのページ選択に対応(2ページ以上でページ番号を確認して読込) (R3)
+   v1.5: 自動保存を堅牢化。背景は縮小+JPEG圧縮して保存、容量超過時は背景を外して
+         最低限を保存しトーストでJSON保存を案内(元画像は表示/JSON書出しに保持) (R4)
+   v2.0: 複数パターン。親図面(背景)・縮尺・表示設定を全パターン共有し、上部タブで切替。
+         パターンごとにobjects/図面名/凡例位置/出力範囲枠を保持。drawSheetを
+         地図レイヤ(クロップ可)+用紙クローム(枠/表題/凡例)に分離し、範囲枠つき
+         パターンの出力は枠を用紙全体へ拡大。保存形式v2(v1は自動移行)
+   v2.1: 複数選択。空所からのドラッグで矩形(窓)選択、Shift+クリックで増減、Ctrl+A全選択。
+         選択物をまとめて移動/削除/複製。state.selを配列化(selIds)、頂点編集・詳細
+         プロパティは単一選択時のみ (R7)
+   v2.2: コーン列(conerow)に「並べる記号」kindを追加(cone/abarricade/drum)。A型バリケードを
+         経路方向に連続配置できる専用ツール「A型バリケード列」と、後から記号を切替できる
+         右パネルのセレクタ。バリケード等は経路の向きに合わせて回転(conePositionsがangを返す)
+   v2.3: 全パターン一括出力。全パターンPNG(連番)＋印刷モーダルの「全パターン(複数ページ)」。
+         renderPatternCanvasで各パターンを一時描画(編集中の選択/Undoに非干渉) (H1)
+   v2.4: スナップ(作図・頂点ドラッグ時に近い頂点へ吸着、トグル/マーカー表示)と、複数選択の
+         整列(左中右/上中下)・等間隔配置(横/縦)。settings.snap、snapPoint/alignSelected/
+         distributeSelected (R6/R7)
+   v2.5: 面積・延長の自動集計。選択物の面積(m²)/周長/延長/本数を右パネル表示、無選択時は
+         パターン合計(作業帯面積・規制延長ほか)。polyAreaM2/polyLenM/patternSummaryHtml (R12)
+   v2.6: 出力範囲枠のドラッグ編集(角=用紙比固定リサイズ/枠線=移動。frameHandleAt/
+         frameResizeRect) (H2)。予告標示板の自動配置(距離50/100/200を選択、縦1列・間隔つき。
+         距離パラメータ付き記号board_yokoku1、placeYokoku/yokokuParams) (R5)
+   v2.7: 建設車両を追加(ダンプ2〜4t/10t・規制車・バックホウ・ユニック車。縮尺連動の平面ビュー。
+         truckBody/vehLabel)。連続寸法dimchainを追加(複数点を1本の寸法線に射影し区間ごとに
+         実測長を連結表示。dimChainGeo/drawDimChain、poly:dimchainツール)
+   v2.8: 寸法値の手入力。寸法線は「寸法値」、連続寸法は区間ごとの入力欄(dimchain.texts)を
+         右パネルに追加。図上のダブルクリックでも入力可(editDimValue/nearestDimSeg)。
+         空欄に戻すと実測値の自動表示、「すべて自動に戻す」ボタンあり
+   v2.9: 寸法値の入力を「実寸駆動」に変更。数値(3.5 / 3.5m)を入れると寸法線の長さ自体が
+         その実寸になる(setDimLengthM/setChainSegLengthM/applyDimValue)。dimは基準
+         (始点/終点/中央)を選択可、連続寸法は先頭固定で以降の点をずらし他区間長は保持。
+         数値以外(W=4.8等)は従来どおり表記のみ
+   v3.0: A型バリケードの絵柄を現物準拠に刷新(白箱+×印 → 黄橙のA型スタンド＋「安全第一」
+         標示板: オレンジ地に外向きの黒山形＋緑十字)。列ツールのパレットアイコンも更新
+   ============================================================ */
+
+// ---------- 定数・状態 ----------
+const PAPER = { w: 1587, h: 1122, m: 20, m2: 34 }; // A3横 @96dpi相当, 図枠余白
+const A3_WIDTH_MM = 420; // A3横の用紙幅(mm)。縮尺分母↔mPerPx換算の基準(A3出力前提)
+const LS_KEY = 'sagyotaizu_v1';
+const state = {
+  objects: [],            // 図形オブジェクト配列
+  settings: {
+    title: '作業帯図1', koshu: '管路工',
+    showLegend: true, showNote: true,
+    symScale: 1.0,
+    mPerPx: 0.05,         // 縮尺 (m/世界px)。既定 1px=5cm (=20px/m)
+    calibrated: false,
+    scaleDenominator: null, // 縮尺分母(例500=1/500)。直接入力時のみ厳密値。2点設定ではnull(表示は近似)
+    showScaleBar: false,  // 図面枠内のスケールバー表示
+    snap: true,           // 作図/頂点ドラッグ時に近くの頂点へスナップ
+    bgOpacity: 1.0,
+    legendPos: null,      // {x,y} 未設定なら右下自動
+  },
+  bg: null,               // {img, dataURL, x, y, w, h} — 全パターン共有の親図面(背景)
+  patterns: [],           // 工事内の複数パターン。各: {id,name,title,objects,legendPos,frame}
+  activePattern: 0,       // 編集中パターンの添字。state.objectsは常にこのパターンのobjectsを指す
+  view: { z: 0.55, ox: 40, oy: 30 },
+  selIds: [],             // 選択中オブジェクトidの配列(複数選択)。単一選択時のみsel=そのid
+  sel: null,              // '_legend' or 単一選択id or null。頂点編集/詳細プロパティは単一選択時のみ
+  snapHint: null,         // スナップ中の点 {x,y}(オーバーレイ表示用。実行時のみ)
+  tool: 'select',
+  draft: null,            // 作図中データ
+  undoStack: [], redoStack: [],
+};
+let idSeq = 1;
+const uid = () => 'o' + (idSeq++) + '_' + Date.now().toString(36);
+const pxPerM = () => 1 / state.settings.mPerPx;
+// 縮尺分母 ↔ mPerPx の相互変換 (A3=420mm幅で出力する前提)
+const mPerPxFromDenom = D => (A3_WIDTH_MM / 1000) * D / PAPER.w;
+const denomFromMPerPx = m => m * PAPER.w / (A3_WIDTH_MM / 1000);
+
+// ---------- パターン(工事内の複数図面) ----------
+// 親図面(bg)・縮尺・表示設定は state.settings / state.bg で全パターン共有。
+// オブジェクト・図面名・凡例位置・出力範囲枠はパターンごとに保持する。
+function makePattern(name) {
+  const n = state.patterns.length + 1;
+  return { id: uid(), name: name || ('パターン' + n), title: name || ('作業帯図' + n),
+    objects: [], legendPos: null, frame: null };
+}
+function activePat() { return state.patterns[state.activePattern] || null; }
+// state.objects等の作業内容をアクティブパターンへ書き戻す(保存・切替の直前に呼ぶ)
+function syncActivePattern() {
+  const p = activePat(); if (!p) return;
+  p.objects = state.objects;
+  p.legendPos = state.settings.legendPos || null;
+  p.title = state.settings.title;
+}
+// アクティブパターンの内容を state.objects 等へ読み込む
+function loadActivePattern() {
+  const p = activePat(); if (!p) return;
+  state.objects = p.objects;
+  state.settings.title = p.title;
+  state.settings.legendPos = p.legendPos || null;
+  state.selIds = []; state.sel = null; state.draft = null;
+  state.undoStack.length = 0; state.redoStack.length = 0; // Undoはパターン内に限定
+}
+function activatePattern(i) {
+  i = Math.max(0, Math.min(state.patterns.length - 1, i));
+  if (i === state.activePattern) return;
+  syncActivePattern();
+  state.activePattern = i;
+  loadActivePattern();
+  if (state.tool !== 'select') setTool('select');
+  syncSettingsUI(); renderPatternBar(); renderProps(); render(); autosave();
+}
+function addPattern(dup) {
+  syncActivePattern();
+  const p = makePattern();
+  if (dup) {
+    const src = activePat();
+    p.objects = JSON.parse(JSON.stringify(src.objects));
+    p.frame = src.frame ? { ...src.frame } : null;
+    p.legendPos = src.legendPos ? { ...src.legendPos } : null;
+    p.name = src.name + 'の複製';
+    p.title = src.title;
+  }
+  state.patterns.push(p);
+  state.activePattern = state.patterns.length - 1;
+  loadActivePattern();
+  if (state.tool !== 'select') setTool('select');
+  syncSettingsUI(); renderPatternBar(); renderProps(); render(); autosave();
+}
+function deletePattern() {
+  if (state.patterns.length <= 1) { showToast('パターンは最低1つ必要です。'); return; }
+  state.patterns.splice(state.activePattern, 1);
+  state.activePattern = Math.max(0, state.activePattern - 1);
+  loadActivePattern();
+  syncSettingsUI(); renderPatternBar(); renderProps(); render(); autosave();
+}
+async function renamePattern() {
+  const p = activePat(); if (!p) return;
+  const v = await askInput({ title: 'パターン名の変更', message: 'このパターンの名前(タブに表示)を入力してください。', value: p.name });
+  if (v === null) return;
+  p.name = v || p.name;
+  renderPatternBar(); autosave();
+}
+// パターン正規化(読込データの欠損を補う)
+function normalizePattern(p) {
+  return {
+    id: p && p.id || uid(),
+    name: p && p.name || 'パターン',
+    title: p && p.title || (p && p.name) || '作業帯図',
+    objects: p && Array.isArray(p.objects) ? p.objects : [],
+    legendPos: p && p.legendPos || null,
+    frame: p && p.frame || null,
+  };
+}
+function wrapAsPattern(objects, settings) {
+  return { id: uid(), name: 'パターン1', title: settings && settings.title || '作業帯図1',
+    objects: Array.isArray(objects) ? objects : [], legendPos: settings && settings.legendPos || null, frame: null };
+}
+// 出力範囲枠 → 地図レイヤのview変換 (枠を用紙全体へ拡大)
+function frameView(fr) { const s = PAPER.w / fr.w; return { scale: s, ox: -fr.x * s, oy: -fr.y * s }; }
+// ドラッグ2点 → 用紙比(√2:1)に固定した範囲枠
+function frameFromDrag(a, b) {
+  let w = Math.abs(b.x - a.x); if (w < 12) w = 12;
+  const h = w * PAPER.h / PAPER.w;
+  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w, h };
+}
+function frameCorners(fr) {
+  return [{ x: fr.x, y: fr.y }, { x: fr.x + fr.w, y: fr.y }, { x: fr.x + fr.w, y: fr.y + fr.h }, { x: fr.x, y: fr.y + fr.h }];
+}
+// クリック位置が範囲枠のどの操作点か: 角=resize(対角を固定), 辺=move, それ以外=null
+function frameHandleAt(w) {
+  const p = activePat(); if (!p || !p.frame) return null;
+  const cs = frameCorners(p.frame), tol = 9 / state.view.z;
+  for (let i = 0; i < 4; i++)
+    if (Math.abs(w.x - cs[i].x) <= tol && Math.abs(w.y - cs[i].y) <= tol) return { type: 'resize', O: cs[(i + 2) % 4] };
+  const onEdge = distToSeg(w, cs[0], cs[1]) <= tol || distToSeg(w, cs[1], cs[2]) <= tol ||
+                 distToSeg(w, cs[2], cs[3]) <= tol || distToSeg(w, cs[3], cs[0]) <= tol;
+  return onEdge ? { type: 'move' } : null;
+}
+// 対角Oを固定し、カーソルwへ用紙比を保ったままリサイズした矩形
+function frameResizeRect(O, w) {
+  const wd = Math.max(12, Math.abs(w.x - O.x));
+  const ht = wd * PAPER.h / PAPER.w;
+  return { x: w.x >= O.x ? O.x : O.x - wd, y: w.y >= O.y ? O.y : O.y - ht, w: wd, h: ht };
+}
+
+// ---------- 記号ライブラリ ----------
+// draw(ctx, p) : 原点中心・上向き基準で描画。p = pxPerM * symScale
+function txtSign(ctx, p, ch, opt = {}) {
+  const s = (opt.size || 1.1) * p;
+  ctx.fillStyle = opt.bg || '#fff';
+  ctx.strokeStyle = opt.border || '#111';
+  ctx.lineWidth = Math.max(0.8, p * 0.06);
+  ctx.beginPath(); ctx.rect(-s / 2, -s / 2, s, s); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = opt.fg || '#111';
+  ctx.font = `bold ${s * 0.62}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(ch, 0, s * 0.03);
+}
+function boardSign(ctx, p, lines, opt = {}) {
+  const w = (opt.w || 1.6) * p, h = (opt.h || 1.1) * p;
+  ctx.fillStyle = opt.bg || '#fff';
+  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.8, p * 0.06);
+  ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = opt.fg || '#111'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const fs = Math.min(w / (Math.max(...lines.map(l => l.length)) * 0.62 + 0.6), h / (lines.length * 1.25));
+  ctx.font = `bold ${fs}px sans-serif`;
+  lines.forEach((l, i) => ctx.fillText(l, 0, (i - (lines.length - 1) / 2) * fs * 1.15));
+}
+// 建設車両の平面ビュー(上=進行方向前方)。実寸(m)で描画=縮尺連動。cab=運転席側
+function truckBody(ctx, p, lenM, widM, opt = {}) {
+  const w = p * widM, l = p * lenM;
+  ctx.fillStyle = opt.color || '#f5d312';
+  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1, p * 0.06);
+  r_round(ctx, -w / 2, -l / 2, w, l, p * 0.16); ctx.fill(); ctx.stroke();
+  const cabL = Math.min(l * 0.3, p * 1.7);
+  ctx.fillStyle = 'rgba(0,0,0,.13)';
+  ctx.fillRect(-w / 2 + p * 0.06, -l / 2 + p * 0.06, w - p * 0.12, cabL - p * 0.06);
+  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.7, p * 0.05);
+  ctx.beginPath(); ctx.moveTo(-w / 2, -l / 2 + cabL); ctx.lineTo(w / 2, -l / 2 + cabL); ctx.stroke();
+  return { w, l, cabL };
+}
+function vehLabel(ctx, p, text, widM, cy) {
+  ctx.fillStyle = '#111'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const fs = Math.min(p * 0.95, (widM * p * 0.9) / (text.length * 0.62 + 0.4));
+  ctx.font = `bold ${fs}px sans-serif`;
+  ctx.fillText(text, 0, cy);
+}
+const KINDS = {
+  guardman: { name: 'ガードマン', size: 1.0, draw(ctx, p) {
+    const s = p * 1.0;
+    ctx.strokeStyle = '#0a3d62'; ctx.fillStyle = '#0a3d62'; ctx.lineWidth = Math.max(1, s * 0.09);
+    ctx.beginPath(); ctx.arc(0, -s * 0.32, s * 0.15, 0, 7); ctx.fill();             // 頭
+    ctx.fillStyle = '#e17055';
+    ctx.beginPath(); ctx.moveTo(-s * 0.2, -s * 0.42); ctx.lineTo(s * 0.2, -s * 0.42);
+    ctx.lineTo(0, -s * 0.58); ctx.closePath(); ctx.fill();                          // ヘルメット
+    ctx.strokeStyle = '#0a3d62';
+    ctx.beginPath(); ctx.moveTo(0, -s * 0.17); ctx.lineTo(0, s * 0.18);             // 胴
+    ctx.moveTo(0, s * 0.18); ctx.lineTo(-s * 0.16, s * 0.5);
+    ctx.moveTo(0, s * 0.18); ctx.lineTo(s * 0.16, s * 0.5);                          // 脚
+    ctx.moveTo(0, -s * 0.05); ctx.lineTo(-s * 0.25, s * 0.1);                        // 左腕
+    ctx.moveTo(0, -s * 0.05); ctx.lineTo(s * 0.3, -s * 0.3); ctx.stroke();           // 右腕(旗)
+    ctx.fillStyle = '#d63031';
+    ctx.beginPath(); ctx.moveTo(s * 0.3, -s * 0.3); ctx.lineTo(s * 0.52, -s * 0.42);
+    ctx.lineTo(s * 0.52, -s * 0.18); ctx.closePath(); ctx.fill();                    // 旗
+  }},
+  cone: { name: 'カラーコーン', size: 0.45, draw(ctx, p) {
+    const s = p * 0.42;
+    ctx.fillStyle = '#e74c3c'; ctx.strokeStyle = '#7d1a12'; ctx.lineWidth = Math.max(0.7, s * 0.12);
+    ctx.beginPath(); ctx.rect(-s / 2, -s / 2, s, s); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(0, 0, s * 0.16, 0, 7); ctx.fill();
+  }},
+  // A型バリケード: 黄橙のA型スタンド＋「安全第一」標示板(オレンジ地に黒の山形)を模式化
+  abarricade: { name: 'A型バリケード', size: 1.8, draw(ctx, p) {
+    const w = p * 1.8, h = p * 1.0;
+    const topY = -h * 0.46, botY = h * 0.5;
+    const topX = w * 0.28, botX = w * 0.5;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // スタンド(脚・上桟・下桟)
+    ctx.strokeStyle = '#e69017'; ctx.lineWidth = Math.max(1.1, p * 0.085);
+    ctx.beginPath();
+    ctx.moveTo(-topX, topY); ctx.lineTo(-botX, botY);          // 左脚
+    ctx.moveTo(topX, topY); ctx.lineTo(botX, botY);            // 右脚
+    ctx.moveTo(-topX, topY); ctx.lineTo(topX, topY);           // 上桟
+    ctx.moveTo(-w * 0.44, h * 0.34); ctx.lineTo(w * 0.44, h * 0.34); // 下桟
+    ctx.stroke();
+    // 標示板(フレーム上部に吊る)
+    const pw = w * 0.92, ph = h * 0.32, py = -h * 0.17;
+    ctx.fillStyle = '#f0a022'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.7, p * 0.045);
+    ctx.beginPath(); ctx.rect(-pw / 2, py - ph / 2, pw, ph); ctx.fill(); ctx.stroke();
+    // 黒の山形(中央から外向き)＋中央の緑十字
+    ctx.save();
+    ctx.beginPath(); ctx.rect(-pw / 2, py - ph / 2, pw, ph); ctx.clip();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.9, ph * 0.17);
+    const cw = pw * 0.075;
+    [-0.42, -0.32, -0.22, 0.22, 0.32, 0.42].forEach(f => {
+      const x = pw * f, dir = f < 0 ? -1 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x - dir * cw * 0.5, py - ph * 0.26);
+      ctx.lineTo(x + dir * cw * 0.5, py);
+      ctx.lineTo(x - dir * cw * 0.5, py + ph * 0.26);
+      ctx.stroke();
+    });
+    ctx.strokeStyle = '#17a54e'; ctx.lineWidth = Math.max(0.9, ph * 0.2);
+    ctx.beginPath();
+    ctx.moveTo(-ph * 0.2, py); ctx.lineTo(ph * 0.2, py);
+    ctx.moveTo(0, py - ph * 0.22); ctx.lineTo(0, py + ph * 0.22);
+    ctx.stroke();
+    ctx.restore();
+    ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+  }},
+  drum: { name: 'クッションドラム', size: 0.7, draw(ctx, p) {
+    const r = p * 0.34;
+    ctx.fillStyle = '#6d1a12'; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#e8c8c4'; ctx.lineWidth = Math.max(1, r * 0.22);
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, 7); ctx.stroke();
+  }},
+  light: { name: '黄色回転灯', size: 0.7, draw(ctx, p) {
+    const s = p * 0.6;
+    ctx.strokeStyle = '#b8860b'; ctx.lineWidth = Math.max(1, s * 0.1);
+    ctx.beginPath(); ctx.moveTo(0, s * 0.5); ctx.lineTo(0, s * 0.05);
+    ctx.moveTo(-s * 0.28, s * 0.5); ctx.lineTo(s * 0.28, s * 0.5); ctx.stroke();
+    ctx.fillStyle = '#f7b500'; ctx.strokeStyle = '#8a6d00';
+    ctx.beginPath(); ctx.arc(0, -s * 0.15, s * 0.24, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#f7b500';
+    for (const a of [-2.3, -1.57, -0.85]) {
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * s * 0.32, -s * 0.15 + Math.sin(a) * s * 0.32);
+      ctx.lineTo(Math.cos(a) * s * 0.5, -s * 0.15 + Math.sin(a) * s * 0.5); ctx.stroke();
+    }
+  }},
+  truck: { name: '作業車', size: 4.6, draw(ctx, p) {
+    const w = p * 1.9, l = p * 4.6;
+    ctx.fillStyle = '#f5d312'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1, p * 0.08);
+    r_round(ctx, -w / 2, -l / 2, w, l, p * 0.25); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-w / 2, -l / 2 + l * 0.26); ctx.lineTo(w / 2, -l / 2 + l * 0.26); ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,.15)';
+    ctx.beginPath(); ctx.rect(-w * 0.32, -l / 2 + l * 0.05, w * 0.64, l * 0.14); ctx.fill();
+  }},
+  dump2t: { name: 'ダンプ(2〜4tクラス)', size: 5.0, draw(ctx, p) {
+    const { l } = truckBody(ctx, p, 5.0, 1.9, { color: '#eab308' });
+    // 荷台の外枠(ダンプベッド)
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.7, p * 0.05);
+    ctx.strokeRect(-p * 1.9 / 2 + p * 0.12, -l / 2 + Math.min(l * 0.3, p * 1.7) + p * 0.1, p * 1.9 - p * 0.24, l * 0.5);
+    vehLabel(ctx, p, '2-4t', 1.9, l * 0.13);
+  }},
+  dump10t: { name: 'ダンプ(10tクラス)', size: 7.6, draw(ctx, p) {
+    const { w, l } = truckBody(ctx, p, 7.6, 2.5, { color: '#eab308' });
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.7, p * 0.05);
+    ctx.strokeRect(-w / 2 + p * 0.14, -l / 2 + Math.min(l * 0.3, p * 1.7) + p * 0.12, w - p * 0.28, l * 0.5);
+    // 後2軸(タイヤ)ヒント
+    ctx.fillStyle = 'rgba(0,0,0,.3)';
+    [0.3, 0.42].forEach(t => { ctx.fillRect(-w / 2 - p * 0.02, l / 2 - l * t, p * 0.16, p * 0.5); ctx.fillRect(w / 2 - p * 0.14, l / 2 - l * t, p * 0.16, p * 0.5); });
+    vehLabel(ctx, p, '10t', 2.5, l * 0.1);
+  }},
+  kiseisha: { name: '規制車(標識車)', size: 5.2, draw(ctx, p) {
+    const { w, l } = truckBody(ctx, p, 5.2, 2.0, { color: '#f39c12' });
+    // 後部の矢印板パネル(車線移動指示)
+    const pw = w * 0.82, ph = Math.min(l * 0.22, p * 1.1), py = l / 2 - ph / 2 - p * 0.2;
+    ctx.fillStyle = '#1a63b0'; ctx.strokeStyle = '#0c3b6b'; ctx.lineWidth = Math.max(0.7, p * 0.05);
+    ctx.beginPath(); ctx.rect(-pw / 2, py - ph / 2, pw, ph); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1, p * 0.08); ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-pw * 0.3, py); ctx.lineTo(pw * 0.3, py);
+    ctx.moveTo(-pw * 0.3, py); ctx.lineTo(-pw * 0.15, py - ph * 0.22); ctx.moveTo(-pw * 0.3, py); ctx.lineTo(-pw * 0.15, py + ph * 0.22);
+    ctx.moveTo(pw * 0.3, py); ctx.lineTo(pw * 0.15, py - ph * 0.22); ctx.moveTo(pw * 0.3, py); ctx.lineTo(pw * 0.15, py + ph * 0.22);
+    ctx.stroke(); ctx.lineCap = 'butt';
+  }},
+  backhoe: { name: 'バックホウ', size: 6.2, draw(ctx, p) {
+    const bw = p * 2.6, bl = p * 3.2;
+    // クローラ(履帯)左右
+    ctx.fillStyle = '#4a5568'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.7, p * 0.05);
+    const tw = bw * 0.28;
+    [-1, 1].forEach(s => { ctx.beginPath(); ctx.rect(s * (bw / 2 - tw / 2) - tw / 2, -bl / 2, tw, bl); ctx.fill(); ctx.stroke(); });
+    // 上部旋回体(黄)
+    ctx.fillStyle = '#eab308';
+    r_round(ctx, -bw * 0.34, -bl * 0.36, bw * 0.68, bl * 0.72, p * 0.14); ctx.fill(); ctx.stroke();
+    // キャブ
+    ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.fillRect(-bw * 0.26, -bl * 0.28, bw * 0.32, bl * 0.34);
+    // ブーム＋バケット(前方)
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1.4, p * 0.13);
+    const by = -bl / 2 - p * 1.7;
+    ctx.beginPath(); ctx.moveTo(0, -bl * 0.18); ctx.lineTo(0, by); ctx.stroke();
+    ctx.fillStyle = '#eab308';
+    ctx.beginPath(); ctx.moveTo(-p * 0.5, by); ctx.lineTo(p * 0.5, by); ctx.lineTo(p * 0.35, by - p * 0.55); ctx.lineTo(-p * 0.35, by - p * 0.55); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }},
+  unic: { name: 'ユニック車(クレーン付)', size: 7.2, draw(ctx, p) {
+    const { w, l } = truckBody(ctx, p, 6.8, 2.2, { color: '#3aa0dd' });
+    const y0 = -l / 2 + Math.min(l * 0.3, p * 1.7) + p * 0.25; // キャブ直後
+    // クレーンブーム(キャブ後ろ→後方)
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1.5, p * 0.14);
+    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(0, l / 2 - p * 0.3); ctx.stroke();
+    // フック
+    ctx.lineWidth = Math.max(0.8, p * 0.05);
+    ctx.beginPath(); ctx.arc(0, l / 2 - p * 0.12, p * 0.16, 0, 7); ctx.stroke();
+    // アウトリガー(左右張り出し)
+    [-1, 1].forEach(s => { ctx.beginPath(); ctx.moveTo(s * w / 2, y0); ctx.lineTo(s * (w / 2 + p * 0.8), y0); ctx.stroke(); });
+  }},
+  arrowboard: { name: '矢印板', size: 1.3, draw(ctx, p) {
+    const w = p * 1.5, h = p * 0.8;
+    ctx.fillStyle = '#1a63b0'; ctx.strokeStyle = '#0c3b6b'; ctx.lineWidth = Math.max(0.8, p * 0.06);
+    ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.36, 0); ctx.lineTo(-w * 0.02, -h * 0.32); ctx.lineTo(-w * 0.02, -h * 0.13);
+    ctx.lineTo(w * 0.36, -h * 0.13); ctx.lineTo(w * 0.36, h * 0.13); ctx.lineTo(-w * 0.02, h * 0.13);
+    ctx.lineTo(-w * 0.02, h * 0.32); ctx.closePath(); ctx.fill();
+  }},
+  sign_katagawa: { name: '片側交互通行標示板', size: 1.1, draw(ctx, p) { txtSign(ctx, p, '片'); }},
+  sign_stop:     { name: '停止位置標示板',     size: 1.1, draw(ctx, p) { txtSign(ctx, p, '停'); }},
+  sign_ukai:     { name: '迂回路標示板',       size: 1.1, draw(ctx, p) { txtSign(ctx, p, '迂'); }},
+  sign_closed:   { name: '通行止め標示板',     size: 1.1, draw(ctx, p) {
+    const r = p * 0.52;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#d63031'; ctx.lineWidth = Math.max(1.2, p * 0.12);
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill(); ctx.stroke();
+    const k = r * 0.55; ctx.beginPath();
+    ctx.moveTo(-k, -k); ctx.lineTo(k, k); ctx.moveTo(k, -k); ctx.lineTo(-k, k); ctx.stroke();
+  }},
+  sign_lane_reduce: { name: '車線減少標示板', size: 1.2, draw(ctx, p) {
+    const s = p * 0.62;
+    ctx.fillStyle = '#f7b500'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1, p * 0.07);
+    ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s, 0); ctx.lineTo(0, s); ctx.lineTo(-s, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1, p * 0.09);
+    ctx.beginPath(); ctx.moveTo(-s * 0.32, s * 0.5); ctx.lineTo(-s * 0.32, -s * 0.5);
+    ctx.moveTo(s * 0.32, s * 0.5); ctx.lineTo(s * 0.32, s * 0.05); ctx.lineTo(-s * 0.28, -s * 0.45);
+    ctx.stroke();
+  }},
+  sign_noentry: { name: '指定方向外進行禁止標識', size: 1.1, draw(ctx, p) {
+    const r = p * 0.5;
+    ctx.fillStyle = '#1a63b0'; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1.2, r * 0.22); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, r * 0.5); ctx.lineTo(0, -r * 0.35); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.beginPath();
+    ctx.moveTo(0, -r * 0.72); ctx.lineTo(-r * 0.28, -r * 0.22); ctx.lineTo(r * 0.28, -r * 0.22);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#d63031'; ctx.lineWidth = Math.max(1.4, r * 0.2);
+    ctx.beginPath(); ctx.moveTo(-r * 0.66, r * 0.66); ctx.lineTo(r * 0.66, -r * 0.66); ctx.stroke();
+    ctx.lineCap = 'butt';
+  }},
+  board_yokoku:   { name: '工事予告標示板', size: 1.6, draw(ctx, p) {
+    const w = p * 2.2, h = p * 0.7;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.8, p * 0.06);
+    ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-w / 6, -h / 2); ctx.lineTo(-w / 6, h / 2);
+    ctx.moveTo(w / 6, -h / 2); ctx.lineTo(w / 6, h / 2); ctx.stroke();
+    ctx.fillStyle = '#111'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `bold ${h * 0.5}px sans-serif`;
+    ctx.fillText('50', -w / 3, 0); ctx.fillText('100', 0, 0); ctx.fillText('200', w / 3, 0);
+  }},
+  board_yokoku1:  { name: '工事予告標示板(距離)', size: 1.4, draw(ctx, p, o) {
+    const d = o && o.dist != null ? o.dist : 50;
+    boardSign(ctx, p, ['工事中', d + 'm先'], { w: 1.7, h: 1.05 });
+  }},
+  board_kenmei:   { name: '工事件名標示板', size: 1.4, draw(ctx, p) {
+    const w = p * 1.7, h = p * 0.85;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.8, p * 0.06);
+    ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h / 2); ctx.lineTo(0, 0); ctx.lineTo(-w / 2, h / 2); ctx.closePath();
+    ctx.moveTo(w / 2, -h / 2); ctx.lineTo(0, 0); ctx.lineTo(w / 2, h / 2); ctx.closePath();
+    ctx.stroke();
+  }},
+  board_hokousha: { name: '歩行者通路標示板', size: 1.4, draw(ctx, p) {
+    boardSign(ctx, p, ['歩行者通路'], { w: 1.9, h: 0.6 });
+  }},
+  board_setsumei: { name: '工事説明看板', size: 1.2, draw(ctx, p) { boardSign(ctx, p, ['説'], { w: 0.9, h: 1.1 }); }},
+  board_kouji:    { name: '工事中看板',   size: 1.2, draw(ctx, p) { boardSign(ctx, p, ['工'], { w: 0.9, h: 1.1 }); }},
+  board_fukuin:   { name: '幅員減少看板', size: 1.2, draw(ctx, p) { boardSign(ctx, p, ['幅'], { w: 0.9, h: 1.1 }); }},
+};
+function r_round(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// ---------- ジオメトリ ----------
+const V = {
+  sub: (a, b) => ({ x: a.x - b.x, y: a.y - b.y }),
+  add: (a, b) => ({ x: a.x + b.x, y: a.y + b.y }),
+  mul: (a, k) => ({ x: a.x * k, y: a.y * k }),
+  len: a => Math.hypot(a.x, a.y),
+  norm(a) { const l = Math.hypot(a.x, a.y) || 1; return { x: a.x / l, y: a.y / l }; },
+  perp: a => ({ x: -a.y, y: a.x }),
+};
+function distToSeg(p, a, b) {
+  const ab = V.sub(b, a), ap = V.sub(p, a);
+  const t = Math.max(0, Math.min(1, (ap.x * ab.x + ap.y * ab.y) / ((ab.x * ab.x + ab.y * ab.y) || 1)));
+  return V.len(V.sub(p, V.add(a, V.mul(ab, t))));
+}
+function ptInPoly(p, pts) {
+  let c = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    if (((pts[i].y > p.y) !== (pts[j].y > p.y)) &&
+        (p.x < (pts[j].x - pts[i].x) * (p.y - pts[i].y) / (pts[j].y - pts[i].y) + pts[i].x)) c = !c;
+  }
+  return c;
+}
+function polyCenter(pts) {
+  let x = 0, y = 0; pts.forEach(p => { x += p.x; y += p.y; });
+  return { x: x / pts.length, y: y / pts.length };
+}
+// 多角形の面積(m²)。世界px²→実寸はmPerPx²倍
+function polyAreaM2(pts) {
+  if (!pts || pts.length < 3) return 0;
+  let a = 0;
+  for (let i = 0, n = pts.length; i < n; i++) { const p = pts[i], q = pts[(i + 1) % n]; a += p.x * q.y - q.x * p.y; }
+  const mpp = state.settings.mPerPx;
+  return Math.abs(a) / 2 * mpp * mpp;
+}
+// 折れ線の延長(m)。closed=trueで最終辺も加算
+function polyLenM(pts, closed) {
+  if (!pts || pts.length < 2) return 0;
+  let L = 0;
+  for (let i = 0; i < pts.length - 1; i++) L += V.len(V.sub(pts[i + 1], pts[i]));
+  if (closed && pts.length > 2) L += V.len(V.sub(pts[0], pts[pts.length - 1]));
+  return L * state.settings.mPerPx;
+}
+function fmtNum(n, d = 1) { return (Math.round(n * 10 ** d) / 10 ** d).toLocaleString('ja-JP', { maximumFractionDigits: d }); }
+
+// ---------- 入力モーダル (prompt代替) ----------
+// prompt() はcanvasイベント内でブラウザにブロックされるため自前モーダルを使う
+function askInput({ title = '入力', message = '', value = '', validate = null }) {
+  return new Promise(resolve => {
+    const bg = document.getElementById('inputModal');
+    const field = document.getElementById('imField');
+    const err = document.getElementById('imErr');
+    document.getElementById('imTitle').textContent = title;
+    document.getElementById('imMsg').textContent = message;
+    err.textContent = '';
+    field.value = value;
+    bg.classList.add('show');
+    setTimeout(() => { field.focus(); field.select(); }, 30);
+    const cleanup = () => {
+      bg.classList.remove('show');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      field.removeEventListener('keydown', onKey);
+      bg.removeEventListener('mousedown', onBg);
+    };
+    const onOk = () => {
+      const v = field.value.trim();
+      if (validate) { const msg = validate(v); if (msg) { err.textContent = msg; return; } }
+      cleanup(); resolve(v);
+    };
+    const onCancel = () => { cleanup(); resolve(null); };
+    const onKey = e => { if (e.key === 'Enter') { e.preventDefault(); onOk(); } if (e.key === 'Escape') onCancel(); };
+    const onBg = e => { if (e.target === bg) onCancel(); };
+    const okBtn = document.getElementById('imOk');
+    const cancelBtn = document.getElementById('imCancel');
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    field.addEventListener('keydown', onKey);
+    bg.addEventListener('mousedown', onBg);
+  });
+}
+
+// ---------- キャンバス / ビュー ----------
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const measCtx = document.createElement('canvas').getContext('2d'); // 文字幅の計測専用(描画に影響しない)
+const LABEL_FONT = 'bold 14px sans-serif';
+function measureLabel(text) { measCtx.font = LABEL_FONT; return measCtx.measureText(text || '').width; }
+// 記号ラベル(引き出し線+テキスト箱)の幾何。ラベル無しなら null
+function symbolLabelGeom(o) {
+  if (o.type !== 'symbol' || !o.label) return null;
+  const ang = (o.labelAngle ?? -40) * Math.PI / 180;
+  const dist = o.labelDist ?? 46;
+  const half = KINDS[o.kind].size * pxPerM() * state.settings.symScale * (o.scl || 1) / 2;
+  const dir = { x: Math.cos(ang), y: Math.sin(ang) };
+  const start = { x: o.x + dir.x * half, y: o.y + dir.y * half };            // 記号の縁
+  const knee = { x: o.x + dir.x * (half + dist), y: o.y + dir.y * (half + dist) };
+  const onRight = dir.x >= 0;
+  const anchor = { x: knee.x + (onRight ? 12 : -12), y: knee.y };            // 水平の肩の先
+  const padX = 5, boxH = 20;
+  const w = measureLabel(o.label) + padX * 2;
+  const box = { x: onRight ? anchor.x : anchor.x - w, y: anchor.y - boxH / 2, w, h: boxH };
+  return { start, knee, anchor, onRight, box, padX };
+}
+function drawSymbolLabel(c, o) {
+  const g = symbolLabelGeom(o); if (!g) return;
+  c.save();
+  c.strokeStyle = '#111'; c.lineWidth = 1.2; c.setLineDash([]);
+  c.beginPath(); c.moveTo(g.start.x, g.start.y); c.lineTo(g.knee.x, g.knee.y); c.lineTo(g.anchor.x, g.anchor.y); c.stroke();
+  c.fillStyle = '#fff'; c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 0.8;
+  c.fillRect(g.box.x, g.box.y, g.box.w, g.box.h); c.strokeRect(g.box.x, g.box.y, g.box.w, g.box.h);
+  c.fillStyle = '#111'; c.font = LABEL_FONT; c.textBaseline = 'middle';
+  c.textAlign = g.onRight ? 'left' : 'right';
+  c.fillText(o.label, g.onRight ? g.box.x + g.padX : g.box.x + g.box.w - g.padX, g.anchor.y);
+  c.restore();
+}
+function resize() {
+  const r = cv.parentElement.getBoundingClientRect();
+  cv.width = Math.round(r.width * devicePixelRatio);
+  cv.height = Math.round(r.height * devicePixelRatio);
+  render();
+}
+addEventListener('resize', resize);
+const toWorld = (sx, sy) => ({ x: (sx - state.view.ox) / state.view.z, y: (sy - state.view.oy) / state.view.z });
+const evPos = e => {
+  const r = cv.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return { x: t.clientX - r.left, y: t.clientY - r.top };
+};
+function zoomFit() {
+  const r = cv.parentElement.getBoundingClientRect();
+  const z = Math.min(r.width / (PAPER.w + 80), r.height / (PAPER.h + 80));
+  state.view.z = z;
+  state.view.ox = (r.width - PAPER.w * z) / 2;
+  state.view.oy = (r.height - PAPER.h * z) / 2;
+  render();
+}
+
+// ---------- 描画 ----------
+function render() {
+  const z = state.view.z;
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.translate(state.view.ox, state.view.oy);
+  ctx.scale(z, z);
+  drawSheet(ctx, { screen: true });
+  drawOverlays(ctx);
+}
+// 図面本体 (画面表示にも出力にも使う)
+// opt.view = {scale,ox,oy} 地図レイヤ(背景+オブジェクト)の変換。省略時は等倍(親図面全体)。
+//            出力範囲枠つきパターンの出力では枠を用紙全体へ拡大する。
+// opt.mPerPx = スケールバー用の実効縮尺(省略時は共有縮尺)。
+function drawSheet(c, opt = {}) {
+  const view = opt.view || { scale: 1, ox: 0, oy: 0 };
+  const mPerPxEff = opt.mPerPx || state.settings.mPerPx;
+  // 用紙
+  c.save();
+  if (opt.screen) { c.shadowColor = 'rgba(22,34,46,.25)'; c.shadowBlur = 18 / state.view.z; }
+  c.fillStyle = '#fff';
+  c.fillRect(0, 0, PAPER.w, PAPER.h);
+  c.restore();
+
+  // 地図レイヤ (背景+オブジェクト): view変換でクロップ/ズーム可能
+  c.save();
+  c.beginPath(); c.rect(0, 0, PAPER.w, PAPER.h); c.clip();
+  c.save();
+  c.translate(view.ox, view.oy); c.scale(view.scale, view.scale);
+  if (state.bg && state.bg.img) {
+    c.globalAlpha = state.settings.bgOpacity;
+    c.drawImage(state.bg.img, state.bg.x, state.bg.y, state.bg.w, state.bg.h);
+    c.globalAlpha = 1;
+  }
+  // オブジェクト (描画順: 通路 → 作業帯 → コーン列 → 記号 → 寸法 → 文字)
+  const order = { pedpath: 0, divzone: 1, zone: 1, conerow: 2, symbol: 3, dim: 4, dimchain: 4, text: 5 };
+  const objs = [...state.objects].sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9));
+  objs.forEach(o => drawObj(c, o));
+  c.restore(); // view変換を戻す
+  c.restore(); // クリップを戻す
+
+  // 用紙座標系のクローム (凡例・スケールバー・注記): 地図の上に固定表示
+  c.save();
+  c.beginPath(); c.rect(0, 0, PAPER.w, PAPER.h); c.clip();
+  if (state.settings.showLegend) drawLegend(c);
+  if (state.settings.showScaleBar) drawScaleBar(c, mPerPxEff);
+  if (state.settings.showNote) {
+    c.fillStyle = '#111'; c.font = 'bold 15px sans-serif';
+    c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+    c.fillText('※作業帯は可能な限り縮小します。', PAPER.m2 + 12, PAPER.h - PAPER.m2 - 12);
+  }
+  c.restore();
+
+  // 図枠・表題
+  c.strokeStyle = '#111';
+  c.lineWidth = 2.2; c.strokeRect(PAPER.m, PAPER.m, PAPER.w - PAPER.m * 2, PAPER.h - PAPER.m * 2);
+  c.lineWidth = 1; c.strokeRect(PAPER.m2, PAPER.m2, PAPER.w - PAPER.m2 * 2, PAPER.h - PAPER.m2 * 2);
+  c.fillStyle = '#111'; c.textBaseline = 'alphabetic';
+  c.font = 'bold 34px sans-serif'; c.textAlign = 'left';
+  c.fillText(state.settings.title, PAPER.m2 + 14, PAPER.m2 + 44);
+  c.font = 'bold 26px sans-serif'; c.textAlign = 'right';
+  c.fillText(state.settings.koshu, PAPER.w - PAPER.m2 - 14, PAPER.m2 + 38);
+}
+function drawObj(c, o) {
+  const p = pxPerM() * state.settings.symScale * (o.scl || 1);
+  if (o.type === 'symbol') {
+    c.save(); c.translate(o.x, o.y); c.rotate((o.rot || 0) * Math.PI / 180);
+    KINDS[o.kind].draw(c, p, o); c.restore();
+    if (o.label) drawSymbolLabel(c, o); // ラベルは記号の回転に関係なく水平描画
+  } else if (o.type === 'zone') {
+    c.save();
+    c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    c.fillStyle = 'rgba(235,140,150,.42)'; c.fill();
+    c.clip();
+    c.strokeStyle = 'rgba(200,40,50,.55)'; c.lineWidth = 1;
+    const bb = bboxOf(o.pts), step = 14;
+    for (let x = bb.x - bb.h; x < bb.x + bb.w + bb.h; x += step) {
+      c.beginPath(); c.moveTo(x, bb.y); c.lineTo(x + bb.h, bb.y + bb.h); c.stroke();
+    }
+    c.restore();
+    c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    c.strokeStyle = '#c0392b'; c.lineWidth = 2.4; c.stroke();
+  } else if (o.type === 'divzone') {
+    // 導流帯: 外周実線 + 内部ゼブラ斜線 (道路上の路面標示を模す)
+    c.save();
+    c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    if (o.fill !== false) { c.fillStyle = 'rgba(247,181,0,.14)'; c.fill(); }
+    c.clip();
+    const bb = bboxOf(o.pts);
+    const gap = Math.max(9, (o.stripe || 0.6) * pxPerM());
+    c.strokeStyle = o.color || 'rgba(230,160,0,.95)';
+    c.lineWidth = Math.max(2, gap * 0.42);
+    for (let x = bb.x - bb.h; x < bb.x + bb.w + bb.h; x += gap) {
+      c.beginPath(); c.moveTo(x, bb.y); c.lineTo(x + bb.h, bb.y + bb.h); c.stroke();
+    }
+    c.restore();
+    c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    c.strokeStyle = o.color || '#e0a000'; c.lineWidth = 2.6; c.stroke();
+  } else if (o.type === 'pedpath') {
+    c.strokeStyle = 'rgba(90,190,110,.65)';
+    c.lineWidth = Math.max(4, (o.width || 1.5) * pxPerM());
+    c.lineCap = 'butt'; c.lineJoin = 'round';
+    c.beginPath(); o.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.stroke();
+  } else if (o.type === 'conerow') {
+    const kind = o.kind || 'cone';
+    // コーンバー(カラーコーン列のときのみ)
+    if (kind === 'cone' && o.bar !== false) {
+      c.lineWidth = Math.max(2, pxPerM() * 0.09);
+      for (let i = 0; i < o.pts.length - 1; i++) {
+        c.strokeStyle = '#f5c211'; c.setLineDash([]);
+        c.beginPath(); c.moveTo(o.pts[i].x, o.pts[i].y); c.lineTo(o.pts[i+1].x, o.pts[i+1].y); c.stroke();
+        c.strokeStyle = '#111'; c.setLineDash([6, 6]);
+        c.beginPath(); c.moveTo(o.pts[i].x, o.pts[i].y); c.lineTo(o.pts[i+1].x, o.pts[i+1].y); c.stroke();
+      }
+      c.setLineDash([]);
+    }
+    const p = pxPerM() * state.settings.symScale;
+    const along = kind !== 'cone'; // A型バリケード等は経路方向に長辺を向け、連続して並べる
+    conePositions(o).forEach(q => {
+      c.save(); c.translate(q.x, q.y);
+      if (along) c.rotate(q.ang);
+      KINDS[kind].draw(c, p); c.restore();
+    });
+  } else if (o.type === 'dim') {
+    drawDim(c, o);
+  } else if (o.type === 'dimchain') {
+    drawDimChain(c, o);
+  } else if (o.type === 'text') {
+    c.save(); c.translate(o.x, o.y); c.rotate((o.rot || 0) * Math.PI / 180);
+    c.fillStyle = '#111'; c.font = `bold ${o.size || 18}px sans-serif`;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(o.text, 0, 0); c.restore();
+  }
+}
+// 経路に沿った配置点を返す。ang=その区間の進行方向(記号の向き用)
+function conePositions(o) {
+  const res = [];
+  const step = Math.max(0.3, o.interval || 2) * pxPerM();
+  for (let i = 0; i < o.pts.length - 1; i++) {
+    const a = o.pts[i], b = o.pts[i + 1];
+    const L = V.len(V.sub(b, a)); if (L < 0.01) continue;
+    const u = V.norm(V.sub(b, a));
+    const ang = Math.atan2(u.y, u.x);
+    const n = Math.max(1, Math.round(L / step));
+    for (let k = 0; k <= n; k++) {
+      if (i > 0 && k === 0) continue; // 頂点の重複を避ける
+      const pos = V.add(a, V.mul(u, (L * k) / n));
+      res.push({ x: pos.x, y: pos.y, ang });
+    }
+  }
+  if (res.length === 0 && o.pts.length) res.push({ x: o.pts[0].x, y: o.pts[0].y, ang: 0 });
+  return res;
+}
+function drawDim(c, o) {
+  const a = o.a, b = o.b;
+  const u = V.norm(V.sub(b, a)), n = V.perp(u);
+  const off = o.off ?? 16;
+  const A = V.add(a, V.mul(n, off)), B = V.add(b, V.mul(n, off));
+  c.strokeStyle = '#111'; c.lineWidth = 1.4;
+  c.beginPath();
+  c.moveTo(a.x, a.y); c.lineTo(A.x, A.y);
+  c.moveTo(b.x, b.y); c.lineTo(B.x, B.y);
+  c.moveTo(A.x, A.y); c.lineTo(B.x, B.y);
+  c.stroke();
+  const ah = 7;
+  for (const [P, dir] of [[A, 1], [B, -1]]) {
+    c.beginPath();
+    c.moveTo(P.x, P.y);
+    c.lineTo(P.x + u.x * ah * dir - n.x * ah * 0.45, P.y + u.y * ah * dir - n.y * ah * 0.45);
+    c.lineTo(P.x + u.x * ah * dir + n.x * ah * 0.45, P.y + u.y * ah * dir + n.y * ah * 0.45);
+    c.closePath(); c.fillStyle = '#111'; c.fill();
+  }
+  const mid = V.mul(V.add(A, B), 0.5);
+  const meters = V.len(V.sub(b, a)) * state.settings.mPerPx;
+  const label = o.text || meters.toFixed(2);
+  c.save();
+  c.translate(mid.x, mid.y);
+  let ang = Math.atan2(u.y, u.x);
+  if (ang > Math.PI / 2 || ang < -Math.PI / 2) ang += Math.PI;
+  c.rotate(ang);
+  c.fillStyle = '#111'; c.font = 'bold 15px sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'bottom';
+  c.fillText(label, 0, -3);
+  c.restore();
+}
+// 連続寸法(dimchain): pts[]をひとつの寸法線上に射影し、区間ごとに実測長を並べて連結表示
+function dimChainGeo(o) {
+  const pts = o.pts, B = pts[0], last = pts[pts.length - 1];
+  let u = V.norm(V.sub(last, B));
+  if (!isFinite(u.x) || (u.x === 0 && u.y === 0)) u = { x: 1, y: 0 };
+  const n = V.perp(u), off = o.off ?? 16;
+  const proj = pts.map(pp => (pp.x - B.x) * u.x + (pp.y - B.y) * u.y);
+  const D = proj.map(pr => ({ x: B.x + u.x * pr + n.x * off, y: B.y + u.y * pr + n.y * off }));
+  return { u, n, off, proj, D };
+}
+// ---------- 寸法値の手入力(実寸駆動) ----------
+// 寸法線の実長を meters に変更する。基準(anchor)=固定する側
+function setDimLengthM(o, meters, anchor) {
+  const cur = V.len(V.sub(o.b, o.a));
+  if (!(meters > 0) || cur < 1e-9) return false;
+  const u = V.norm(V.sub(o.b, o.a));
+  const t = meters / state.settings.mPerPx; // 実寸(m) → 世界px
+  const mode = anchor || o.anchor || 'start';
+  if (mode === 'end') {
+    o.a = { x: o.b.x - u.x * t, y: o.b.y - u.y * t };
+  } else if (mode === 'center') {
+    const c = { x: (o.a.x + o.b.x) / 2, y: (o.a.y + o.b.y) / 2 };
+    o.a = { x: c.x - u.x * t / 2, y: c.y - u.y * t / 2 };
+    o.b = { x: c.x + u.x * t / 2, y: c.y + u.y * t / 2 };
+  } else { // start: 始点固定
+    o.b = { x: o.a.x + u.x * t, y: o.a.y + u.y * t };
+  }
+  return true;
+}
+// 連続寸法の第i区間を meters に変更。以降の点を軸方向へずらし、他区間の長さは保つ
+function setChainSegLengthM(o, i, meters) {
+  if (!o.pts || i < 0 || i + 1 >= o.pts.length || !(meters > 0)) return false;
+  const g = dimChainGeo(o);
+  const cur = g.proj[i + 1] - g.proj[i];
+  if (Math.abs(cur) < 1e-9) return false;
+  const sgn = cur >= 0 ? 1 : -1;
+  const shift = (meters / state.settings.mPerPx - Math.abs(cur)) * sgn;
+  for (let k = i + 1; k < o.pts.length; k++)
+    o.pts[k] = { x: o.pts[k].x + g.u.x * shift, y: o.pts[k].y + g.u.y * shift };
+  return true;
+}
+// 入力文字列を反映: 数値(3.5 / 3.5m)なら寸法線の実寸を合わせ、数値以外は表記のみ、空欄は自動に戻す
+function applyDimValue(o, segIndex, raw) {
+  const s = (raw || '').trim();
+  const setLabel = v => {
+    if (o.type === 'dim') o.text = v;
+    else { if (!o.texts) o.texts = []; o.texts[segIndex] = v; }
+  };
+  if (!s) { setLabel(null); return 'auto'; }
+  const m = /^([0-9]+(?:\.[0-9]+)?)\s*(?:m|ｍ)?$/i.exec(s);
+  if (m) {
+    const meters = parseFloat(m[1]);
+    const done = o.type === 'dim' ? setDimLengthM(o, meters) : setChainSegLengthM(o, segIndex, meters);
+    if (done) { setLabel(null); return 'resized'; } // 実測値=入力値になるので表記の上書きは不要
+  }
+  setLabel(s); // 数値として解釈できない表記(例 W=4.8)はラベルとして保持
+  return 'label';
+}
+function drawDimChain(c, o) {
+  if (!o.pts || o.pts.length < 2) return;
+  const g = dimChainGeo(o), D = g.D, u = g.u, n = g.n;
+  c.strokeStyle = '#111'; c.lineWidth = 1.4; c.setLineDash([]);
+  // 引出し線(各点→寸法線)
+  for (let i = 0; i < o.pts.length; i++) { c.beginPath(); c.moveTo(o.pts[i].x, o.pts[i].y); c.lineTo(D[i].x, D[i].y); c.stroke(); }
+  // 寸法線(通し)
+  c.beginPath(); c.moveTo(D[0].x, D[0].y); c.lineTo(D[D.length - 1].x, D[D.length - 1].y); c.stroke();
+  // 各分割点に斜めチック
+  const tk = 5;
+  D.forEach(d => {
+    c.beginPath();
+    c.moveTo(d.x + (-u.x + n.x) * tk, d.y + (-u.y + n.y) * tk);
+    c.lineTo(d.x + (u.x - n.x) * tk, d.y + (u.y - n.y) * tk); c.stroke();
+  });
+  // 区間ごとの寸法値
+  let ang = Math.atan2(u.y, u.x); if (ang > Math.PI / 2 || ang < -Math.PI / 2) ang += Math.PI;
+  c.fillStyle = '#111'; c.font = 'bold 15px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'bottom';
+  for (let i = 0; i < D.length - 1; i++) {
+    const mid = { x: (D[i].x + D[i + 1].x) / 2, y: (D[i].y + D[i + 1].y) / 2 };
+    const meters = Math.abs(g.proj[i + 1] - g.proj[i]) * state.settings.mPerPx;
+    const label = (o.texts && o.texts[i]) || meters.toFixed(2);
+    c.save(); c.translate(mid.x, mid.y); c.rotate(ang); c.fillText(label, 0, -3); c.restore();
+  }
+}
+function bboxOf(pts) {
+  let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
+  pts.forEach(p => { x1 = Math.min(x1, p.x); y1 = Math.min(y1, p.y); x2 = Math.max(x2, p.x); y2 = Math.max(y2, p.y); });
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+}
+
+// ---------- 凡例 ----------
+function usedLegendItems() {
+  const used = new Set();
+  state.objects.forEach(o => {
+    if (o.type === 'symbol') used.add(o.kind);
+    if (o.type === 'conerow') { const k = o.kind || 'cone'; used.add(k); if (k === 'cone' && o.bar !== false) used.add('_bar'); }
+    if (o.type === 'zone') used.add('_zone');
+    if (o.type === 'divzone') used.add('_divzone');
+    if (o.type === 'pedpath') used.add('_ped');
+  });
+  const items = [];
+  Object.keys(KINDS).forEach(k => { if (used.has(k)) items.push({ kind: k, name: KINDS[k].name }); });
+  if (used.has('_bar')) items.push({ kind: '_bar', name: 'コーンバー' });
+  if (used.has('_zone')) items.push({ kind: '_zone', name: '作業帯 (工事箇所)' });
+  if (used.has('_divzone')) items.push({ kind: '_divzone', name: '導流帯' });
+  if (used.has('_ped')) items.push({ kind: '_ped', name: '歩行者通路' });
+  return items;
+}
+let legendBBox = null;
+function drawLegend(c) {
+  const items = usedLegendItems();
+  if (!items.length) { legendBBox = null; return; }
+  const rowH = 26, colW = 218, headH = 26;
+  const cols = items.length > 9 ? 2 : 1;
+  const rows = Math.ceil(items.length / cols);
+  const W = colW * cols + 10, H = headH + rows * rowH + 8;
+  const pos = state.settings.legendPos ||
+    { x: PAPER.w - PAPER.m2 - W - 10, y: PAPER.h - PAPER.m2 - H - 10 };
+  legendBBox = { x: pos.x, y: pos.y, w: W, h: H };
+  c.save();
+  c.fillStyle = 'rgba(255,255,255,.96)'; c.strokeStyle = '#111'; c.lineWidth = 1.4;
+  c.fillRect(pos.x, pos.y, W, H); c.strokeRect(pos.x, pos.y, W, H);
+  c.fillStyle = '#111'; c.font = 'bold 15px sans-serif';
+  c.textAlign = 'left'; c.textBaseline = 'middle';
+  c.fillText('凡　例', pos.x + 10, pos.y + headH / 2 + 2);
+  c.strokeStyle = '#555'; c.lineWidth = 0.8;
+  c.beginPath(); c.moveTo(pos.x, pos.y + headH); c.lineTo(pos.x + W, pos.y + headH); c.stroke();
+  items.forEach((it, i) => {
+    const col = Math.floor(i / rows), row = i % rows;
+    const ix = pos.x + 8 + col * colW, iy = pos.y + headH + row * rowH + rowH / 2;
+    c.save(); c.translate(ix + 17, iy);
+    drawLegendIcon(c, it.kind); c.restore();
+    c.fillStyle = '#111'; c.font = '12.5px sans-serif';
+    c.textAlign = 'left'; c.textBaseline = 'middle';
+    c.fillText(it.name, ix + 40, iy + 1);
+  });
+  c.restore();
+}
+function drawLegendIcon(c, kind) {
+  if (kind === '_bar') {
+    c.lineWidth = 3.5;
+    c.strokeStyle = '#f5c211'; c.beginPath(); c.moveTo(-15, 0); c.lineTo(15, 0); c.stroke();
+    c.strokeStyle = '#111'; c.setLineDash([4, 4]);
+    c.beginPath(); c.moveTo(-15, 0); c.lineTo(15, 0); c.stroke(); c.setLineDash([]);
+  } else if (kind === '_zone') {
+    c.fillStyle = 'rgba(235,140,150,.5)'; c.strokeStyle = '#c0392b'; c.lineWidth = 1.5;
+    c.fillRect(-15, -8, 30, 16); c.strokeRect(-15, -8, 30, 16);
+  } else if (kind === '_divzone') {
+    c.save();
+    c.beginPath(); c.rect(-15, -8, 30, 16); c.clip();
+    c.strokeStyle = 'rgba(230,160,0,.95)'; c.lineWidth = 2.4;
+    for (let x = -24; x < 22; x += 6) { c.beginPath(); c.moveTo(x, 8); c.lineTo(x + 16, -8); c.stroke(); }
+    c.restore();
+    c.strokeStyle = '#e0a000'; c.lineWidth = 1.6; c.strokeRect(-15, -8, 30, 16);
+  } else if (kind === '_ped') {
+    c.fillStyle = 'rgba(90,190,110,.65)'; c.fillRect(-15, -7, 30, 14);
+  } else {
+    const k = KINDS[kind];
+    const fit = 26 / Math.max(0.7, k.size);
+    k.draw(c, fit);
+  }
+}
+
+// ---------- スケールバー ----------
+// 用紙左下に「0–(中間)–(全長)m」目盛のバーを描画。実長はpxPerM()基準で常に正確。
+function niceBarMeters(mPerPx) {
+  const target = 220; // 用紙px上での目標バー長
+  const cand = [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+  const ppm = 1 / mPerPx;
+  let best = cand[0];
+  for (const t of cand) if (Math.abs(t * ppm - target) < Math.abs(best * ppm - target)) best = t;
+  return best;
+}
+function fmtMeters(m) { return Number.isInteger(m) ? String(m) : String(+m.toFixed(1)); }
+function drawScaleBar(c, mPerPx) {
+  mPerPx = mPerPx || state.settings.mPerPx;
+  const ppm = 1 / mPerPx;
+  if (!isFinite(ppm) || ppm <= 0) return;
+  const T = niceBarMeters(mPerPx);
+  const wpx = T * ppm;
+  if (!(wpx > 20 && wpx < PAPER.w * 0.6)) return;
+  const segs = 4, h = 9;
+  const x0 = PAPER.m2 + 16;
+  const y0 = PAPER.h - PAPER.m2 - 34 - h;
+  c.save();
+  c.lineWidth = 1.2; c.strokeStyle = '#111';
+  for (let i = 0; i < segs; i++) {
+    c.fillStyle = i % 2 ? '#fff' : '#111';
+    c.fillRect(x0 + wpx * i / segs, y0, wpx / segs, h);
+    c.strokeRect(x0 + wpx * i / segs, y0, wpx / segs, h);
+  }
+  c.strokeRect(x0, y0, wpx, h);
+  c.fillStyle = '#111'; c.font = 'bold 13px sans-serif';
+  c.textBaseline = 'alphabetic'; c.textAlign = 'center';
+  c.fillText('0', x0, y0 - 4);
+  c.fillText(fmtMeters(T / 2), x0 + wpx / 2, y0 - 4);
+  c.fillText(fmtMeters(T) + ' m', x0 + wpx, y0 - 4);
+  c.restore();
+}
+
+// ---------- 選択・作図中オーバーレイ ----------
+function objBBox(o) {
+  const pad = 6 / state.view.z;
+  if (o.type === 'symbol') {
+    const s = KINDS[o.kind].size * pxPerM() * state.settings.symScale * (o.scl || 1);
+    let bx = { x: o.x - s / 2 - pad, y: o.y - s / 2 - pad, w: s + pad * 2, h: s + pad * 2 };
+    const g = symbolLabelGeom(o);
+    if (g) { // 選択枠にラベル箱も含める
+      const x1 = Math.min(bx.x, g.box.x), y1 = Math.min(bx.y, g.box.y);
+      const x2 = Math.max(bx.x + bx.w, g.box.x + g.box.w), y2 = Math.max(bx.y + bx.h, g.box.y + g.box.h);
+      bx = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    }
+    return bx;
+  }
+  if (o.type === 'text') {
+    const w = (o.text || '').length * (o.size || 18) * 0.95 + 8, h = (o.size || 18) + 8;
+    return { x: o.x - w / 2, y: o.y - h / 2, w, h };
+  }
+  if (o.type === 'dim') return bboxOf([o.a, o.b]);
+  if (o.type === 'dimchain') return bboxOf(o.pts.concat(dimChainGeo(o).D));
+  const b = bboxOf(o.pts);
+  return { x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 };
+}
+function objPoints(o) {
+  if (o.pts) return o.pts;
+  if (o.type === 'dim') return [o.a, o.b];
+  return null;
+}
+// ---------- 選択(複数対応) ----------
+function selectedObjs() {
+  const byId = new Map(state.objects.map(o => [o.id, o]));
+  return state.selIds.map(id => byId.get(id)).filter(Boolean);
+}
+function isSel(id) { return state.selIds.indexOf(id) >= 0; }
+function setSel(ids) {
+  const exist = new Set(state.objects.map(o => o.id));
+  const seen = new Set(), out = [];
+  for (const id of ids) if (exist.has(id) && !seen.has(id)) { seen.add(id); out.push(id); }
+  state.selIds = out;
+  state.sel = out.length === 1 ? out[0] : null; // 単一選択時のみ頂点編集/詳細プロパティを有効化
+}
+function toggleSel(id) { setSel(isSel(id) ? state.selIds.filter(x => x !== id) : [...state.selIds, id]); }
+function clearSel() { state.selIds = []; state.sel = null; }
+function selectLegend() { state.selIds = []; state.sel = '_legend'; }
+function normRect(a, b) { return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) }; }
+function rectsIntersect(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+function objsInRect(rect) { return state.objects.filter(o => rectsIntersect(objBBox(o), rect)).map(o => o.id); }
+function moveObjBy(o, g, dx, dy) {
+  if (o.type === 'symbol' || o.type === 'text') { o.x = g.x + dx; o.y = g.y + dy; }
+  else if (o.type === 'dim') { o.a = { x: g.a.x + dx, y: g.a.y + dy }; o.b = { x: g.b.x + dx, y: g.b.y + dy }; }
+  else o.pts = g.pts.map(q => ({ x: q.x + dx, y: q.y + dy }));
+}
+function shiftObj(cp, sh) {
+  if (cp.pts) cp.pts = cp.pts.map(q => ({ x: q.x + sh, y: q.y + sh }));
+  else if (cp.type === 'dim') { cp.a.x += sh; cp.a.y += sh; cp.b.x += sh; cp.b.y += sh; }
+  else { cp.x += sh; cp.y += sh; }
+}
+// スナップ候補: 各オブジェクトの頂点/中心
+function snapCandidates(o) {
+  if (o.type === 'symbol' || o.type === 'text') return [{ x: o.x, y: o.y }];
+  if (o.type === 'dim') return [o.a, o.b];
+  if (o.pts) return o.pts;
+  return [];
+}
+// 近くの頂点へスナップ。interactive時は state.snapHint を更新
+function snapPoint(w, exclude, interactive) {
+  if (!state.settings.snap) { if (interactive) state.snapHint = null; return { x: w.x, y: w.y, hit: false }; }
+  const tol = 10 / state.view.z;
+  let best = null, bd = tol;
+  for (const o of state.objects) {
+    if (exclude && exclude.has(o.id)) continue;
+    for (const q of snapCandidates(o)) {
+      const d = Math.hypot(q.x - w.x, q.y - w.y);
+      if (d < bd) { bd = d; best = q; }
+    }
+  }
+  if (interactive) state.snapHint = best ? { x: best.x, y: best.y } : null;
+  return best ? { x: best.x, y: best.y, hit: true } : { x: w.x, y: w.y, hit: false };
+}
+// ---------- 整列・等間隔配置 (複数選択) ----------
+function alignSelected(mode) {
+  const objs = selectedObjs(); if (objs.length < 2) return;
+  pushUndo();
+  const boxes = objs.map(o => ({ o, b: objBBox(o) }));
+  const minX = Math.min(...boxes.map(x => x.b.x)), maxX = Math.max(...boxes.map(x => x.b.x + x.b.w));
+  const minY = Math.min(...boxes.map(x => x.b.y)), maxY = Math.max(...boxes.map(x => x.b.y + x.b.h));
+  const cX = (minX + maxX) / 2, cY = (minY + maxY) / 2;
+  boxes.forEach(({ o, b }) => {
+    let dx = 0, dy = 0;
+    if (mode === 'left') dx = minX - b.x;
+    else if (mode === 'right') dx = maxX - (b.x + b.w);
+    else if (mode === 'hcenter') dx = cX - (b.x + b.w / 2);
+    else if (mode === 'top') dy = minY - b.y;
+    else if (mode === 'bottom') dy = maxY - (b.y + b.h);
+    else if (mode === 'vcenter') dy = cY - (b.y + b.h / 2);
+    if (dx || dy) moveObjBy(o, o, dx, dy);
+  });
+  render(); autosave();
+}
+function distributeSelected(axis) {
+  const objs = selectedObjs();
+  if (objs.length < 3) { showToast('等間隔配置は3つ以上を選択したときに使えます。'); return; }
+  pushUndo();
+  const boxes = objs.map(o => ({ o, b: objBBox(o) }));
+  const center = axis === 'h' ? (x => x.b.x + x.b.w / 2) : (x => x.b.y + x.b.h / 2);
+  boxes.sort((p, q) => center(p) - center(q));
+  const first = center(boxes[0]), last = center(boxes[boxes.length - 1]);
+  const step = (last - first) / (boxes.length - 1);
+  boxes.forEach((bx, i) => {
+    const d = (first + step * i) - center(bx);
+    if (axis === 'h') moveObjBy(bx.o, bx.o, d, 0); else moveObjBy(bx.o, bx.o, 0, d);
+  });
+  render(); autosave();
+}
+
+function drawOverlays(c) {
+  const hz = 1 / state.view.z;
+  const sels = selectedObjs();
+  const single = sels.length === 1;
+  sels.forEach(o => {
+    const b = objBBox(o);
+    c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz; c.setLineDash([6 * hz, 4 * hz]);
+    c.strokeRect(b.x, b.y, b.w, b.h); c.setLineDash([]);
+    if (single) { // 頂点ハンドルは単一選択時のみ
+      const pts = objPoints(o);
+      if (pts) pts.forEach(q => {
+        c.fillStyle = '#fff'; c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz;
+        const s = 5 * hz;
+        c.fillRect(q.x - s, q.y - s, s * 2, s * 2); c.strokeRect(q.x - s, q.y - s, s * 2, s * 2);
+      });
+    }
+  });
+  if (state.sel === '_legend' && legendBBox) {
+    c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz; c.setLineDash([6 * hz, 4 * hz]);
+    c.strokeRect(legendBBox.x, legendBBox.y, legendBBox.w, legendBBox.h); c.setLineDash([]);
+  }
+  // マーキー選択の矩形
+  if (drag && drag.kind === 'marquee' && drag.cur) {
+    const r = normRect(drag.w0, drag.cur);
+    c.fillStyle = 'rgba(31,95,139,.10)'; c.fillRect(r.x, r.y, r.w, r.h);
+    c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.4 * hz; c.setLineDash([5 * hz, 4 * hz]);
+    c.strokeRect(r.x, r.y, r.w, r.h); c.setLineDash([]);
+  }
+  // 出力範囲枠 (アクティブパターン): 編集画面では親図面上にガイド表示
+  const ap = activePat();
+  if (ap && ap.frame) {
+    const fr = ap.frame;
+    c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz; c.setLineDash([10 * hz, 6 * hz]);
+    c.strokeRect(fr.x, fr.y, fr.w, fr.h); c.setLineDash([]);
+    c.fillStyle = 'rgba(31,95,139,.12)'; c.fillRect(fr.x, fr.y, fr.w, fr.h);
+    c.fillStyle = '#1f5f8b'; c.font = `bold ${13 * hz}px sans-serif`;
+    c.textAlign = 'left'; c.textBaseline = 'bottom';
+    c.fillText('出力範囲: ' + ap.name, fr.x + 4 * hz, fr.y - 4 * hz);
+    if (state.tool === 'select') { // 角ハンドル(ドラッグでリサイズ/枠線ドラッグで移動)
+      frameCorners(fr).forEach(q => {
+        const s = 5 * hz;
+        c.fillStyle = '#fff'; c.strokeStyle = '#1f5f8b'; c.lineWidth = 1.6 * hz;
+        c.fillRect(q.x - s, q.y - s, s * 2, s * 2); c.strokeRect(q.x - s, q.y - s, s * 2, s * 2);
+      });
+    }
+  }
+  // 範囲枠 作図中プレビュー
+  const d = state.draft;
+  if (d && d.mode === 'frame' && d.pts && d.pts.length === 1 && d.cursor) {
+    const fr = frameFromDrag(d.pts[0], d.cursor);
+    c.strokeStyle = '#e67e22'; c.lineWidth = 2 * hz; c.setLineDash([8 * hz, 5 * hz]);
+    c.strokeRect(fr.x, fr.y, fr.w, fr.h); c.setLineDash([]);
+  }
+  // 作図中プレビュー
+  if (d && d.pts && d.pts.length) {
+    c.strokeStyle = '#e67e22'; c.lineWidth = 2 * hz; c.setLineDash([7 * hz, 5 * hz]);
+    c.beginPath(); d.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y));
+    if (d.cursor) c.lineTo(d.cursor.x, d.cursor.y);
+    if (d.mode === 'poly:zone' && d.pts.length > 1) c.closePath();
+    c.stroke(); c.setLineDash([]);
+    d.pts.forEach(q => { c.fillStyle = '#e67e22'; c.beginPath(); c.arc(q.x, q.y, 4 * hz, 0, 7); c.fill(); });
+  }
+  if (d && d.mode === 'calib' && d.pts && d.pts.length === 1 && d.cursor) {
+    c.strokeStyle = '#c0392b'; c.lineWidth = 2 * hz;
+    c.beginPath(); c.moveTo(d.pts[0].x, d.pts[0].y); c.lineTo(d.cursor.x, d.cursor.y); c.stroke();
+  }
+  // スナップ点マーカー(橙の小四角＋十字)
+  if (state.snapHint) {
+    const s = 6 * hz;
+    c.strokeStyle = '#e67e22'; c.lineWidth = 1.6 * hz; c.setLineDash([]);
+    c.strokeRect(state.snapHint.x - s, state.snapHint.y - s, s * 2, s * 2);
+    c.beginPath();
+    c.moveTo(state.snapHint.x - s * 1.7, state.snapHint.y); c.lineTo(state.snapHint.x + s * 1.7, state.snapHint.y);
+    c.moveTo(state.snapHint.x, state.snapHint.y - s * 1.7); c.lineTo(state.snapHint.x, state.snapHint.y + s * 1.7);
+    c.stroke();
+  }
+}
+
+// ---------- ヒットテスト ----------
+function hitTest(w) {
+  const tol = 7 / state.view.z;
+  // 逆順(上のものから)
+  const order = { pedpath: 0, divzone: 1, zone: 1, conerow: 2, symbol: 3, dim: 4, dimchain: 4, text: 5 };
+  const objs = [...state.objects].sort((a, b) => (order[b.type] ?? 9) - (order[a.type] ?? 9));
+  for (const o of objs) {
+    if (o.type === 'symbol') {
+      const s = KINDS[o.kind].size * pxPerM() * state.settings.symScale * (o.scl || 1);
+      if (Math.abs(w.x - o.x) <= s / 2 + tol && Math.abs(w.y - o.y) <= s / 2 + tol) return o;
+      const g = symbolLabelGeom(o); // ラベル箱のクリックでも記号を選択
+      if (g && w.x >= g.box.x - tol && w.x <= g.box.x + g.box.w + tol &&
+          w.y >= g.box.y - tol && w.y <= g.box.y + g.box.h + tol) return o;
+    } else if (o.type === 'text') {
+      const b = objBBox(o);
+      if (w.x >= b.x && w.x <= b.x + b.w && w.y >= b.y && w.y <= b.y + b.h) return o;
+    } else if (o.type === 'dim') {
+      const u = V.norm(V.sub(o.b, o.a)), n = V.perp(u), off = o.off ?? 16;
+      const A = V.add(o.a, V.mul(n, off)), B = V.add(o.b, V.mul(n, off));
+      if (distToSeg(w, A, B) <= tol || distToSeg(w, o.a, A) <= tol || distToSeg(w, o.b, B) <= tol) return o;
+    } else if (o.type === 'dimchain') {
+      const D = dimChainGeo(o).D;
+      if (distToSeg(w, D[0], D[D.length - 1]) <= tol) return o;
+      for (let i = 0; i < o.pts.length; i++) if (distToSeg(w, o.pts[i], D[i]) <= tol) return o;
+    } else if (o.type === 'conerow' || o.type === 'pedpath') {
+      const lw = o.type === 'pedpath' ? Math.max(4, (o.width || 1.5) * pxPerM()) / 2 : tol;
+      for (let i = 0; i < o.pts.length - 1; i++)
+        if (distToSeg(w, o.pts[i], o.pts[i + 1]) <= lw + tol / 2) return o;
+    } else if (o.type === 'zone' || o.type === 'divzone') {
+      if (ptInPoly(w, o.pts)) return o;
+      for (let i = 0; i < o.pts.length; i++)
+        if (distToSeg(w, o.pts[i], o.pts[(i + 1) % o.pts.length]) <= tol) return o;
+    }
+  }
+  return null;
+}
+function hitVertex(o, w) {
+  const pts = objPoints(o); if (!pts) return -1;
+  const tol = 8 / state.view.z;
+  for (let i = 0; i < pts.length; i++)
+    if (Math.abs(w.x - pts[i].x) <= tol && Math.abs(w.y - pts[i].y) <= tol) return i;
+  return -1;
+}
+
+// ---------- Undo / Redo / 自動保存 ----------
+function snapshot() {
+  return JSON.stringify({ objects: state.objects, settings: state.settings });
+}
+function pushUndo() {
+  state.undoStack.push(snapshot());
+  if (state.undoStack.length > 60) state.undoStack.shift();
+  state.redoStack.length = 0;
+  autosave();
+}
+function applySnap(s) {
+  try {
+    const d = JSON.parse(s);
+    state.objects = d.objects; Object.assign(state.settings, d.settings);
+    syncActivePattern(); // 取消/やり直しの結果をアクティブパターンへ反映
+    clearSel(); syncSettingsUI(); renderProps(); render(); autosave();
+  } catch (e) { console.error(e); }
+}
+function undo() { if (!state.undoStack.length) return; state.redoStack.push(snapshot()); applySnap(state.undoStack.pop()); }
+function redo() { if (!state.redoStack.length) return; state.undoStack.push(snapshot()); applySnap(state.redoStack.pop()); }
+let asTimer = null;
+let saveWarned = false; // 容量警告トーストの多重表示を防ぐ(1セッション1回)
+function autosave() {
+  clearTimeout(asTimer);
+  asTimer = setTimeout(() => {
+    syncActivePattern();
+    const bgRect = state.bg ? { x: state.bg.x, y: state.bg.y, w: state.bg.w, h: state.bg.h } : null;
+    const base = { settings: state.settings, patterns: state.patterns, activePattern: state.activePattern };
+    // ① 圧縮背景つきで保存を試みる
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(Object.assign({}, base,
+        { bg: state.bg ? Object.assign({ dataURL: state.bg.saveURL || state.bg.dataURL }, bgRect) : null })));
+      saveWarned = false; // 成功したら次回また警告できるようにする
+      return;
+    } catch (e) { /* 多くは QuotaExceededError。②へ */ }
+    // ② 背景を除いて最低限(パターン・設定)だけでも保存を試みる
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(Object.assign({}, base, { bg: null })));
+    } catch (e2) { /* それも不可(容量ゼロ/無効環境)なら諦める */ }
+    if (!saveWarned) {
+      saveWarned = true;
+      showToast('自動保存の容量制限に達しました（背景画像が大きい可能性があります）。確実な保管には「保存(JSON)」をお使いください。', true);
+    }
+  }, 600);
+}
+
+// ---------- ツール / ヒント ----------
+const hintEl = document.getElementById('hint');
+function setHint(t) { hintEl.textContent = t || ''; hintEl.classList.toggle('show', !!t); }
+let toastTimer = null;
+function showToast(msg, warn) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.toggle('warn', !!warn);
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 6500);
+}
+function setTool(t, hint) {
+  state.tool = t; state.draft = null;
+  document.querySelectorAll('.palbtn').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
+  const labels = { select: '選択' };
+  document.getElementById('modeLabel').textContent =
+    labels[t] || (t.startsWith('place:') ? KINDS[t.slice(6)].name + ' 配置' :
+    t === 'calib' ? '縮尺設定' : t === 'frame' ? '出力範囲指定' : t === 'yokoku' ? '予告標示板 配置' : t.startsWith('wizard') ? 'パターン配置' :
+    t === 'dim' ? '寸法線' : t === 'text' ? '文字' :
+    t === 'poly:zone' ? '作業帯 作図' : t === 'poly:divzone' ? '導流帯 作図' : t === 'poly:pedpath' ? '歩行者通路 作図' :
+    t === 'poly:conerow' ? 'コーン列 作図' : t === 'poly:barricaderow' ? 'A型バリケード列 作図' :
+    t === 'poly:dimchain' ? '連続寸法 作図' : t);
+  setHint(hint || '');
+  render();
+}
+
+// ---------- 予告標示板の自動配置 ----------
+let yokokuParams = null; // {dists:[50,100,...], gap, dir:'down'|'up'}
+function placeYokoku(P) {
+  const params = yokokuParams;
+  if (!params || !params.dists.length) { setHint('設置する距離が選ばれていません。'); return; }
+  const p0 = snapPoint(P);
+  pushUndo();
+  const ppm = pxPerM();
+  const signH = 1.05 * state.settings.symScale;              // board_yokoku1 の高さ(m相当)
+  const step = (signH + params.gap) * ppm * (params.dir === 'up' ? -1 : 1);
+  const dists = params.dists.slice().sort((a, b) => a - b);  // 近い順(小→大)
+  dists.forEach((d, i) => {
+    state.objects.push({ id: uid(), type: 'symbol', kind: 'board_yokoku1', x: p0.x, y: p0.y + i * step, rot: 0, scl: 1, dist: d });
+  });
+  render(); autosave();
+  setHint(`予告標示板を${dists.length}枚、縦1列に配置しました。個別に移動・距離変更できます。`);
+  setTimeout(() => setHint(''), 4000);
+}
+
+// ---------- 入力処理 ----------
+let drag = null; // {kind:'move'|'vertex'|'pan'|'legend', ...}
+let spaceDown = false;
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const s = evPos(e);
+  const f = Math.exp(-e.deltaY * 0.0012);
+  const z2 = Math.min(6, Math.max(0.08, state.view.z * f));
+  state.view.ox = s.x - (s.x - state.view.ox) * (z2 / state.view.z);
+  state.view.oy = s.y - (s.y - state.view.oy) * (z2 / state.view.z);
+  state.view.z = z2; render();
+}, { passive: false });
+
+function pointerDown(e) {
+  const s = evPos(e), w = toWorld(s.x, s.y);
+  const rightBtn = e.button === 2;
+  if (rightBtn || spaceDown || e.button === 1) {
+    drag = { kind: 'pan', sx: s.x, sy: s.y, ox: state.view.ox, oy: state.view.oy };
+    return;
+  }
+  const t = state.tool;
+  if (t === 'select') {
+    // 頂点編集は単一選択時のみ
+    if (state.selIds.length === 1) {
+      const selObj = state.objects.find(x => x.id === state.selIds[0]);
+      if (selObj) {
+        const vi = hitVertex(selObj, w);
+        if (vi >= 0) { drag = { kind: 'vertex', obj: selObj, vi, pend: snapshot() }; return; }
+      }
+    }
+    // 出力範囲枠の編集(角=リサイズ, 枠線=移動)。枠内クリックは通常の選択に通す
+    const fh = frameHandleAt(w);
+    if (fh) {
+      if (fh.type === 'resize') drag = { kind: 'frameResize', O: fh.O };
+      else drag = { kind: 'frameMove', w0: w, fr0: { ...activePat().frame } };
+      return;
+    }
+    // 凡例(選択物にヒットしていない場合のみ)
+    if (state.settings.showLegend && legendBBox &&
+        w.x >= legendBBox.x && w.x <= legendBBox.x + legendBBox.w &&
+        w.y >= legendBBox.y && w.y <= legendBBox.y + legendBBox.h && !hitTest(w)) {
+      selectLegend();
+      const pos = state.settings.legendPos || { x: legendBBox.x, y: legendBBox.y };
+      state.settings.legendPos = pos;
+      drag = { kind: 'legend', w0: w, p0: { ...pos }, pend: snapshot() };
+      renderProps(); render(); return;
+    }
+    const hit = hitTest(w);
+    if (hit) {
+      if (e.shiftKey) { toggleSel(hit.id); renderProps(); render(); return; } // Shift=選択に増減
+      if (!isSel(hit.id)) setSel([hit.id]); // 未選択物→単独選択。選択済みならグループを維持
+      renderProps();
+      // 選択中の全オブジェクトをまとめて移動
+      const items = selectedObjs().map(o => ({ o, orig: JSON.parse(JSON.stringify(o)) }));
+      drag = { kind: 'move', items, w0: w, pend: snapshot() };
+      render();
+    } else {
+      // 空クリック → 矩形ドラッグ選択(マーキー)開始
+      if (!e.shiftKey) { clearSel(); renderProps(); }
+      drag = { kind: 'marquee', w0: w, cur: w, base: [...state.selIds], shift: !!e.shiftKey };
+      render();
+    }
+  } else if (t.startsWith('place:')) {
+    pushUndo();
+    const sp = snapPoint(w);
+    state.objects.push({ id: uid(), type: 'symbol', kind: t.slice(6), x: sp.x, y: sp.y, rot: 0, scl: 1 });
+    render(); autosave();
+  } else if (t === 'text') {
+    const sp = snapPoint(w);
+    askInput({ title: '文字の入力', message: '図面に配置する文字を入力してください。', value: '' }).then(txt => {
+      if (txt) { pushUndo(); state.objects.push({ id: uid(), type: 'text', x: sp.x, y: sp.y, text: txt, size: 18, rot: 0 }); render(); }
+    });
+  } else if (t === 'dim') {
+    const sp = snapPoint(w);
+    if (!state.draft) state.draft = { mode: 'dim', pts: [{ x: sp.x, y: sp.y }] };
+    else {
+      pushUndo();
+      state.objects.push({ id: uid(), type: 'dim', a: state.draft.pts[0], b: { x: sp.x, y: sp.y }, off: 16 });
+      state.draft = null; setHint('寸法線: 1点目をクリック'); render();
+    }
+  } else if (t.startsWith('poly:')) {
+    const sp = snapPoint(w);
+    if (!state.draft) state.draft = { mode: t, pts: [] };
+    state.draft.pts.push({ x: sp.x, y: sp.y });
+    render();
+  } else if (t === 'calib') {
+    if (!state.draft) state.draft = { mode: 'calib', pts: [w] };
+    else finishCalib(state.draft.pts[0], w);
+    render();
+  } else if (t === 'frame') {
+    if (!state.draft) state.draft = { mode: 'frame', pts: [w] };
+    else {
+      const p = activePat();
+      if (p) p.frame = frameFromDrag(state.draft.pts[0], w);
+      state.draft = null; setTool('select');
+      renderPatternBar();
+      setHint('出力範囲を設定しました。PNG出力・印刷はこの範囲を用紙全体に拡大します。');
+      setTimeout(() => setHint(''), 4000);
+      render(); autosave();
+    }
+    render();
+  } else if (t === 'yokoku') {
+    placeYokoku(w);
+    setTool('select');
+  } else if (t === 'wizardA') {
+    state.draft = { mode: 'wizard', pts: [w] };
+    setTool('wizardB', '終点をクリックしてください');
+    state.draft = { mode: 'wizard', pts: [w] };
+  } else if (t === 'wizardB') {
+    const a = state.draft.pts[0];
+    runTemplate(a, w);
+    setTool('select');
+  }
+}
+function pointerMove(e) {
+  const s = evPos(e), w = toWorld(s.x, s.y);
+  const mm = state.settings.mPerPx;
+  document.getElementById('coord').textContent =
+    `x ${(w.x * mm).toFixed(2)}m / y ${(w.y * mm).toFixed(2)}m　倍率 ${(state.view.z * 100).toFixed(0)}%`;
+  if (state.draft) {
+    if (state.settings.snap && (state.draft.mode.startsWith('poly:') || state.draft.mode === 'dim')) {
+      const sp = snapPoint(w, null, true); state.draft.cursor = { x: sp.x, y: sp.y };
+    } else { state.draft.cursor = w; state.snapHint = null; }
+    render();
+  }
+  if (!drag) return;
+  if (e.cancelable) e.preventDefault();
+  if (drag.pend) { // 実際に動かした時だけUndo履歴に積む
+    state.undoStack.push(drag.pend);
+    if (state.undoStack.length > 60) state.undoStack.shift();
+    state.redoStack.length = 0;
+    drag.pend = null;
+  }
+  if (drag.kind === 'marquee') { drag.cur = w; render(); return; }
+  if (drag.kind === 'frameMove') {
+    const p = activePat();
+    if (p && p.frame) { p.frame.x = drag.fr0.x + (w.x - drag.w0.x); p.frame.y = drag.fr0.y + (w.y - drag.w0.y); render(); }
+    return;
+  }
+  if (drag.kind === 'frameResize') {
+    const p = activePat();
+    if (p && p.frame) { p.frame = frameResizeRect(drag.O, w); render(); }
+    return;
+  }
+  if (drag.kind === 'pan') {
+    state.view.ox = drag.ox + (s.x - drag.sx);
+    state.view.oy = drag.oy + (s.y - drag.sy);
+    render(); return;
+  }
+  if (drag.kind === 'legend') {
+    state.settings.legendPos = { x: drag.p0.x + (w.x - drag.w0.x), y: drag.p0.y + (w.y - drag.w0.y) };
+    render(); return;
+  }
+  if (drag.kind === 'vertex') {
+    const sp = snapPoint(w, new Set([drag.obj.id]), true);
+    const pts = objPoints(drag.obj);
+    pts[drag.vi].x = sp.x; pts[drag.vi].y = sp.y;
+    render(); return;
+  }
+  if (drag.kind === 'move') {
+    const dx = w.x - drag.w0.x, dy = w.y - drag.w0.y;
+    drag.items.forEach(({ o, orig }) => moveObjBy(o, orig, dx, dy)); // グループまとめて移動
+    render();
+  }
+}
+function pointerUp() {
+  if (!drag) return;
+  if (drag.kind === 'marquee') {
+    const r = normRect(drag.w0, drag.cur || drag.w0);
+    const tiny = r.w < 3 / state.view.z && r.h < 3 / state.view.z; // ほぼクリック(=範囲選択でない)
+    if (!tiny) {
+      const hits = objsInRect(r);
+      setSel(drag.shift ? [...drag.base, ...hits] : hits);
+      renderProps(); render();
+    }
+    drag = null; return; // 選択操作なので自動保存は不要
+  }
+  drag = null; state.snapHint = null; autosave(); render();
+}
+cv.addEventListener('mousedown', pointerDown);
+addEventListener('mousemove', pointerMove);
+addEventListener('mouseup', pointerUp);
+cv.addEventListener('touchstart', e => { pointerDown(Object.assign(e, { button: 0 })); }, { passive: true });
+cv.addEventListener('touchmove', e => pointerMove(e), { passive: false });
+cv.addEventListener('touchend', pointerUp);
+// 作図中はダブルクリックで確定。選択モードで寸法線/連続寸法をダブルクリックしたら値を手入力
+cv.addEventListener('dblclick', e => {
+  if (state.draft) { finishDraft(); return; }
+  if (state.tool !== 'select') { finishDraft(); return; }
+  const s = evPos(e), w = toWorld(s.x, s.y);
+  const hit = hitTest(w);
+  if (hit && (hit.type === 'dim' || hit.type === 'dimchain')) editDimValue(hit, w);
+});
+// 連続寸法のうち、クリック位置に最も近い区間の添字
+function nearestDimSeg(o, w) {
+  const D = dimChainGeo(o).D;
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < D.length - 1; i++) {
+    const d = distToSeg(w, D[i], D[i + 1]);
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
+async function editDimValue(o, w) {
+  const mpp = state.settings.mPerPx;
+  const isChain = o.type === 'dimchain';
+  const i = isChain ? nearestDimSeg(o, w) : 0;
+  const g = isChain ? dimChainGeo(o) : null;
+  const auto = isChain
+    ? (Math.abs(g.proj[i + 1] - g.proj[i]) * mpp).toFixed(2)
+    : (V.len(V.sub(o.b, o.a)) * mpp).toFixed(2);
+  const cur = isChain ? (o.texts && o.texts[i]) : o.text;
+  const v = await askInput({
+    title: isChain ? `寸法値の入力（区間${i + 1}）` : '寸法値の入力',
+    message: `寸法値(m)を入力すると、寸法線の長さがその実寸に変わります（現在 ${auto}m）。数値以外は表記のみ、空欄で実測値の自動表示に戻します。`,
+    value: cur || auto,
+  });
+  if (v === null) return;
+  pushUndo();
+  applyDimValue(o, i, v);
+  renderProps(); render(); autosave();
+}
+function finishDraft() {
+  const d = state.draft;
+  if (!d || !d.mode.startsWith('poly:')) return;
+  // ダブルクリック確定で末尾に重複した点を除去
+  while (d.pts.length >= 2 && V.len(V.sub(d.pts[d.pts.length - 1], d.pts[d.pts.length - 2])) < 2) d.pts.pop();
+  const min = (d.mode === 'poly:zone' || d.mode === 'poly:divzone') ? 3 : 2;
+  if (d.pts.length >= min) {
+    pushUndo();
+    if (d.mode === 'poly:zone') state.objects.push({ id: uid(), type: 'zone', pts: d.pts });
+    if (d.mode === 'poly:divzone') state.objects.push({ id: uid(), type: 'divzone', pts: d.pts, stripe: 0.6, fill: true });
+    if (d.mode === 'poly:pedpath') state.objects.push({ id: uid(), type: 'pedpath', pts: d.pts, width: 1.5 });
+    if (d.mode === 'poly:conerow') state.objects.push({ id: uid(), type: 'conerow', kind: 'cone', pts: d.pts, interval: 2, bar: true });
+    if (d.mode === 'poly:barricaderow') state.objects.push({ id: uid(), type: 'conerow', kind: 'abarricade', pts: d.pts, interval: 1.8, bar: false });
+    if (d.mode === 'poly:dimchain') state.objects.push({ id: uid(), type: 'dimchain', pts: d.pts, off: 16 });
+  }
+  state.draft = null; render();
+}
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.code === 'Space') { spaceDown = true; e.preventDefault(); }
+  if (e.key === 'Escape') { state.draft = null; clearSel(); setTool('select'); renderProps(); }
+  if (e.key === 'Enter') finishDraft();
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') { // Ctrl+A で全選択
+    if (state.tool === 'select' && state.objects.length) { e.preventDefault(); setSel(state.objects.map(o => o.id)); renderProps(); render(); }
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+  const sels = selectedObjs();
+  if (sels.length && (e.key === 'Delete' || e.key === 'Backspace')) {
+    pushUndo();
+    const ids = new Set(state.selIds);
+    state.objects = state.objects.filter(x => !ids.has(x.id));
+    clearSel(); renderProps(); render();
+  }
+  if (sels.length && (e.key === 'r' || e.key === 'R')) {
+    pushUndo();
+    sels.forEach(o => { if (o.type === 'symbol' || o.type === 'text') o.rot = ((o.rot || 0) + 15) % 360; });
+    renderProps(); render();
+  }
+});
+addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; });
+
+// ---------- 縮尺設定 ----------
+async function finishCalib(a, b) {
+  const distPx = V.len(V.sub(b, a));
+  state.draft = null;
+  render();
+  if (distPx < 3) { setHint('2点が近すぎます。もう一度2点をクリックしてください。'); return; }
+  const val = await askInput({
+    title: '縮尺の設定',
+    message: 'クリックした2点間の「実際の距離」をメートルで入力してください（例：道路幅や図面の寸法記載値）。',
+    value: '',
+    validate: v => {
+      const m = parseFloat(v);
+      return (!isFinite(m) || m <= 0) ? '正の数値を入力してください。' : '';
+    },
+  });
+  if (val === null) { setTool('select'); return; }
+  const m = parseFloat(val);
+  pushUndo();
+  state.settings.mPerPx = m / distPx;
+  state.settings.scaleDenominator = null; // 実測設定なので厳密な分母は持たない(バッジは近似表示)
+  state.settings.calibrated = true;
+  updateScaleBadge();
+  setTool('select');
+  setHint(`縮尺を設定しました（1m ＝ ${(1 / state.settings.mPerPx).toFixed(1)}px）`);
+  setTimeout(() => setHint(''), 3000);
+  render();
+}
+function niceDenom(D) {
+  // 表示用に近い「きりのよい」縮尺分母へ丸める
+  const cand = [50, 100, 150, 200, 250, 300, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000, 5000];
+  let best = cand[0];
+  for (const c of cand) if (Math.abs(c - D) < Math.abs(best - D)) best = c;
+  return best;
+}
+function updateScaleBadge() {
+  const el = document.getElementById('scaleBadge');
+  const s = state.settings;
+  if (s.calibrated) {
+    const px = (1 / s.mPerPx).toFixed(1);
+    if (s.scaleDenominator) {
+      el.textContent = `縮尺 1/${s.scaleDenominator}`;
+      el.title = `A3横出力時 1/${s.scaleDenominator}（1m = ${px}px）`;
+    } else {
+      const D = niceDenom(denomFromMPerPx(s.mPerPx));
+      el.textContent = `縮尺 ≈1/${D}`;
+      el.title = `2点実測から算出（A3横出力時のおよその縮尺）。1m = ${px}px`;
+    }
+    el.classList.add('ok');
+  } else { el.textContent = '縮尺 未設定'; el.title = ''; el.classList.remove('ok'); }
+}
+function openCalibModal() {
+  const s = state.settings;
+  const D = s.scaleDenominator || (s.calibrated ? niceDenom(denomFromMPerPx(s.mPerPx)) : 500);
+  document.getElementById('cbDenom').value = D;
+  document.getElementById('calibModal').classList.add('show');
+  // 既定タブ=「2点＋実距離」。タブ切替ハンドラ(bindUI内)を発火させて表示を初期化
+  document.querySelector('#calibModal .tabbtn[data-ctab="two"]').click();
+}
+
+// ---------- 規制パターン自動配置 ----------
+let wizardParams = null;
+function runTemplate(A, B) {
+  const P = wizardParams; if (!P) return;
+  const ppm = pxPerM();
+  const u = V.norm(V.sub(B, A));           // 起点→終点
+  const n = V.mul(V.perp(u), P.side);      // 作業帯側
+  const w = P.width * ppm;
+  const at = (base, du, dn) => V.add(V.add(base, V.mul(u, du * ppm)), V.mul(n, dn * ppm));
+  const objs = [];
+  const sym = (kind, pos, rotAlong = true, extraRot = 0) => objs.push({
+    id: uid(), type: 'symbol', kind, x: pos.x, y: pos.y,
+    rot: (rotAlong ? Math.atan2(u.y, u.x) * 180 / Math.PI + 90 : 0) + extraRot, scl: 1,
+  });
+  pushUndo();
+
+  if (P.pattern === 'katagawa' || P.pattern === 'shasen') {
+    // 作業帯 (道路端=起点終点ラインから幅wぶん作業帯側へ)
+    const z = [A, B, V.add(B, V.mul(n, w)), V.add(A, V.mul(n, w))];
+    objs.push({ id: uid(), type: 'zone', pts: z });
+    // コーン列: 交通側の長辺+両端小口
+    objs.push({ id: uid(), type: 'conerow', bar: true, interval: P.cone,
+      pts: [V.add(A, V.mul(n, w)), A, B, V.add(B, V.mul(n, w))] });
+    if (P.pattern === 'shasen') {
+      // 進行方向手前にテーパー(すり付け)
+      objs.push({ id: uid(), type: 'conerow', bar: true, interval: P.cone,
+        pts: [at(A, -P.taper, P.width), A] });
+      sym('sign_lane_reduce', at(A, -(P.taper + 5), P.width * 0.5), false);
+      sym('board_fukuin', at(A, -(P.taper + 9), P.width * 0.5), false);
+      sym('arrowboard', at(A, -3, P.width * 0.5), true);
+    } else {
+      // 片側交互通行: 両端に片・ガードマン・矢印板
+      sym('sign_katagawa', at(A, -6, P.width * 0.6), false);
+      sym('sign_katagawa', at(B, 6, P.width * 0.6), false);
+      sym('arrowboard', at(A, -3, P.width * 0.5), true);
+      sym('arrowboard', at(B, 3, P.width * 0.5), true, 180);
+      sym('sign_stop', at(A, -9, P.width * 0.6), false);
+      sym('sign_stop', at(B, 9, P.width * 0.6), false);
+    }
+    sym('guardman', at(A, -1.5, P.width * 0.5), false);
+    sym('guardman', at(B, 1.5, P.width * 0.5), false);
+    sym('board_kouji', at(A, -4.5, P.width + 1.2), false);
+    sym('board_kenmei', at(B, 4.5, P.width + 1.2), false);
+    sym('truck', V.add(polyCenter([A, B]), V.mul(n, w * 0.5)), true);
+  } else if (P.pattern === 'tome') {
+    // 通行止め: 全幅閉鎖
+    const z = [A, B, V.add(B, V.mul(n, w)), V.add(A, V.mul(n, w))];
+    objs.push({ id: uid(), type: 'zone', pts: z });
+    for (const [E, dir] of [[A, -1], [B, 1]]) {
+      // 端部にA型バリケード3基を横断配置
+      for (let k = 0; k <= 2; k++)
+        sym('abarricade', at(E, dir * 1.0, P.width * (0.17 + k * 0.33)), true);
+      sym('sign_closed', at(E, dir * 4, P.width * 0.5), false);
+      sym('sign_ukai',   at(E, dir * 7, P.width * 0.5), false);
+      sym('guardman',    at(E, dir * 2.5, P.width * 0.85), false);
+      sym('board_kouji', at(E, dir * 5.5, P.width + 1.2), false);
+    }
+  }
+  state.objects.push(...objs);
+  setHint('生成しました。各部材はドラッグ・R回転・Deleteで自由に調整できます。');
+  setTimeout(() => setHint(''), 4000);
+  render(); autosave();
+}
+
+// ---------- パレット構築 ----------
+const PALETTE = [
+  { title: '規制部材', items: [
+    ['place:cone', 'cone'], ['poly:conerow', null, 'コーン列＋バー', 'conerow'],
+    ['place:abarricade', 'abarricade'], ['poly:barricaderow', null, 'A型バリケード列', 'barricaderow'],
+    ['place:drum', 'drum'], ['place:light', 'light'],
+  ]},
+  { title: '人・車両', items: [
+    ['place:guardman', 'guardman'], ['place:truck', 'truck'],
+    ['place:dump2t', 'dump2t'], ['place:dump10t', 'dump10t'],
+    ['place:kiseisha', 'kiseisha'], ['place:backhoe', 'backhoe'], ['place:unic', 'unic'],
+  ]},
+  { title: '標示板・標識', items: [
+    ['place:arrowboard', 'arrowboard'], ['place:sign_katagawa', 'sign_katagawa'],
+    ['place:sign_stop', 'sign_stop'], ['place:sign_ukai', 'sign_ukai'],
+    ['place:sign_closed', 'sign_closed'], ['place:sign_lane_reduce', 'sign_lane_reduce'],
+    ['place:sign_noentry', 'sign_noentry'], ['place:board_yokoku', 'board_yokoku'],
+    ['place:board_yokoku1', 'board_yokoku1'],
+    ['place:board_kenmei', 'board_kenmei'], ['place:board_hokousha', 'board_hokousha'],
+  ]},
+  { title: '看板', items: [
+    ['place:board_setsumei', 'board_setsumei'], ['place:board_kouji', 'board_kouji'],
+    ['place:board_fukuin', 'board_fukuin'],
+  ]},
+  { title: '作図', items: [
+    ['poly:zone', null, '作業帯 (多角形)', 'zone'],
+    ['poly:divzone', null, '導流帯', 'divzone'],
+    ['poly:pedpath', null, '歩行者通路', 'ped'],
+    ['dim', null, '寸法線', 'dim'], ['poly:dimchain', null, '連続寸法', 'dimchain'], ['text', null, '文字', 'text'],
+  ]},
+];
+function buildPalette() {
+  const root = document.getElementById('palette');
+  const selBtn = document.createElement('button');
+  selBtn.className = 'palbtn wide active'; selBtn.dataset.tool = 'select';
+  selBtn.innerHTML = '<span style="font-size:15px">↖</span><span>選択・移動</span>';
+  selBtn.onclick = () => setTool('select');
+  root.appendChild(selBtn);
+  PALETTE.forEach(g => {
+    const gd = document.createElement('div'); gd.className = 'pgroup';
+    gd.innerHTML = `<h4>${g.title}</h4>`;
+    const pal = document.createElement('div'); pal.className = 'pal';
+    g.items.forEach(([tool, kind, label, icon]) => {
+      const b = document.createElement('button');
+      b.className = 'palbtn'; b.dataset.tool = tool;
+      const ic = document.createElement('canvas'); ic.width = 60; ic.height = 60;
+      const c2 = ic.getContext('2d'); c2.setTransform(2, 0, 0, 2, 30, 30);
+      if (kind) { KINDS[kind].draw(c2, 24 / Math.max(0.7, KINDS[kind].size)); }
+      else drawToolIcon(c2, icon);
+      const sp = document.createElement('span');
+      sp.textContent = label || KINDS[kind].name;
+      b.appendChild(ic); b.appendChild(sp);
+      b.onclick = () => {
+        const hints = {
+          'poly:zone': '作業帯: 頂点をクリック → ダブルクリック/Enterで確定',
+          'poly:divzone': '導流帯: 頂点をクリック → ダブルクリック/Enterで確定 (通常は三角形/台形)',
+          'poly:pedpath': '歩行者通路: 通路の中心線をクリック → ダブルクリック/Enterで確定',
+          'poly:conerow': 'コーン列: 経路をクリック → ダブルクリック/Enterで確定',
+          'poly:barricaderow': 'A型バリケード列: 経路をクリック → ダブルクリック/Enterで確定（バリケードが経路方向に連続配置）',
+          'dim': '寸法線: 1点目 → 2点目をクリック',
+          'poly:dimchain': '連続寸法: 区切り点を順にクリック → ダブルクリック/Enterで確定（3.5m・4.8mなどを連結表示）',
+          'text': '文字を置く位置をクリック',
+        };
+        setTool(tool, hints[tool] || (kind ? KINDS[kind].name + ': 配置する位置をクリック (Escで終了)' : ''));
+      };
+      pal.appendChild(b);
+    });
+    gd.appendChild(pal); root.appendChild(gd);
+  });
+}
+function drawToolIcon(c, icon) {
+  c.lineWidth = 2;
+  if (icon === 'conerow') {
+    c.strokeStyle = '#f5c211'; c.beginPath(); c.moveTo(-12, 4); c.lineTo(12, -4); c.stroke();
+    c.strokeStyle = '#111'; c.setLineDash([3, 3]);
+    c.beginPath(); c.moveTo(-12, 4); c.lineTo(12, -4); c.stroke(); c.setLineDash([]);
+    for (const [x, y] of [[-12, 4], [0, 0], [12, -4]]) {
+      c.fillStyle = '#e74c3c'; c.fillRect(x - 3.5, y - 3.5, 7, 7);
+    }
+  } else if (icon === 'barricaderow') {
+    // 経路方向に連なるA型バリケード(脚＋オレンジの山形標示板)を数個
+    for (const [cx, cy] of [[-8.5, 3.5], [0, 0], [8.5, -3.5]]) {
+      c.save(); c.translate(cx, cy); c.rotate(-0.38);
+      c.strokeStyle = '#e69017'; c.lineWidth = 1.2; c.lineCap = 'round';
+      c.beginPath();
+      c.moveTo(-3.4, -2.2); c.lineTo(-5, 4); c.moveTo(3.4, -2.2); c.lineTo(5, 4); c.moveTo(-3.4, -2.2); c.lineTo(3.4, -2.2);
+      c.stroke();
+      c.fillStyle = '#f0a022'; c.strokeStyle = '#111'; c.lineWidth = 0.7;
+      c.fillRect(-5.4, -2.2, 10.8, 3.4); c.strokeRect(-5.4, -2.2, 10.8, 3.4);
+      c.strokeStyle = '#111'; c.lineWidth = 0.9;
+      c.beginPath();
+      c.moveTo(-1.8, -1.4); c.lineTo(-3.4, -0.5); c.lineTo(-1.8, 0.4);
+      c.moveTo(1.8, -1.4); c.lineTo(3.4, -0.5); c.lineTo(1.8, 0.4);
+      c.stroke(); c.lineCap = 'butt';
+      c.restore();
+    }
+  } else if (icon === 'divzone') {
+    c.save();
+    c.beginPath(); c.moveTo(-12, 9); c.lineTo(12, 9); c.lineTo(6, -9); c.lineTo(-6, -9); c.closePath(); c.clip();
+    c.strokeStyle = 'rgba(230,160,0,.95)'; c.lineWidth = 2.2;
+    for (let x = -22; x < 20; x += 5) { c.beginPath(); c.moveTo(x, 10); c.lineTo(x + 20, -10); c.stroke(); }
+    c.restore();
+    c.strokeStyle = '#e0a000'; c.lineWidth = 1.6;
+    c.beginPath(); c.moveTo(-12, 9); c.lineTo(12, 9); c.lineTo(6, -9); c.lineTo(-6, -9); c.closePath(); c.stroke();
+  } else if (icon === 'zone') {
+    c.fillStyle = 'rgba(235,140,150,.5)'; c.strokeStyle = '#c0392b';
+    c.beginPath(); c.moveTo(-12, -8); c.lineTo(12, -10); c.lineTo(10, 10); c.lineTo(-10, 8);
+    c.closePath(); c.fill(); c.stroke();
+  } else if (icon === 'ped') {
+    c.strokeStyle = 'rgba(90,190,110,.9)'; c.lineWidth = 8; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(-11, 8); c.lineTo(0, 0); c.lineTo(11, 4); c.stroke(); c.lineCap = 'butt';
+  } else if (icon === 'dim') {
+    c.strokeStyle = '#111';
+    c.beginPath(); c.moveTo(-12, 0); c.lineTo(12, 0);
+    c.moveTo(-12, -5); c.lineTo(-12, 5); c.moveTo(12, -5); c.lineTo(12, 5); c.stroke();
+    c.font = 'bold 8px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#111';
+    c.fillText('3.5', 0, -3);
+  } else if (icon === 'dimchain') {
+    c.strokeStyle = '#111';
+    c.beginPath(); c.moveTo(-13, 2); c.lineTo(13, 2);
+    for (const x of [-13, -1, 13]) { c.moveTo(x, -3); c.lineTo(x, 7); }
+    c.stroke();
+    c.font = 'bold 7px sans-serif'; c.textAlign = 'center'; c.fillStyle = '#111';
+    c.fillText('3.5', -7, -1); c.fillText('4.8', 6, -1);
+  } else if (icon === 'text') {
+    c.font = 'bold 18px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = '#111'; c.fillText('あ', 0, 1);
+  }
+}
+
+// ---------- パターンバー ----------
+function renderPatternBar() {
+  const tabs = document.getElementById('pbTabs');
+  tabs.innerHTML = '';
+  state.patterns.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'pbtab' + (i === state.activePattern ? ' active' : '');
+    b.textContent = p.name + (p.frame ? ' ▣' : '');
+    b.title = (p.name || 'パターン') + (p.frame ? '（出力範囲あり）' : '') + '　ダブルクリックで名前変更';
+    b.onclick = () => activatePattern(i);
+    b.ondblclick = () => renamePattern();
+    tabs.appendChild(b);
+  });
+  const p = activePat();
+  const clr = document.getElementById('pbFrameClear');
+  if (clr) clr.disabled = !(p && p.frame);
+  const del = document.getElementById('pbDel');
+  if (del) del.disabled = state.patterns.length <= 1;
+  const pngAll = document.getElementById('pbPngAll');
+  if (pngAll) pngAll.disabled = state.patterns.length <= 1;
+  const hint = document.getElementById('pbHint');
+  if (hint) hint.textContent = p && p.frame ? '（このパターンは出力範囲を用紙全体に拡大して出力します）' : '';
+}
+
+// ---------- 集計 ----------
+const _mrow = (k, v) => `<div class="pmrow"><span>${k}</span><b>${v}</b></div>`;
+// このパターンの面積・延長の合計HTML(対象が無ければ空)
+function patternSummaryHtml() {
+  const zones = state.objects.filter(o => o.type === 'zone');
+  const divs = state.objects.filter(o => o.type === 'divzone');
+  const rows = state.objects.filter(o => o.type === 'conerow');
+  const peds = state.objects.filter(o => o.type === 'pedpath');
+  if (!zones.length && !divs.length && !rows.length && !peds.length) return '';
+  let h = `<h3 style="margin-top:12px">集計（このパターン）</h3><div class="pmetrics">`;
+  if (zones.length) h += _mrow(`作業帯 面積 ×${zones.length}`, fmtNum(zones.reduce((s, o) => s + polyAreaM2(o.pts), 0), 1) + ' m²');
+  if (divs.length) h += _mrow(`導流帯 面積 ×${divs.length}`, fmtNum(divs.reduce((s, o) => s + polyAreaM2(o.pts), 0), 1) + ' m²');
+  if (rows.length) h += _mrow(`規制延長(コーン列等) ×${rows.length}`, fmtNum(rows.reduce((s, o) => s + polyLenM(o.pts, false), 0), 1) + ' m');
+  if (peds.length) h += _mrow(`歩行者通路 延長 ×${peds.length}`, fmtNum(peds.reduce((s, o) => s + polyLenM(o.pts, false), 0), 1) + ' m');
+  h += `</div>`;
+  if (!state.settings.calibrated) h += `<p class="pnote">※縮尺が未設定です。値は既定縮尺での参考値です。「縮尺設定」で実寸に合わせてください。</p>`;
+  return h;
+}
+// 選択中オブジェクト単体の面積/延長などの指標HTML
+function objMetricsHtml(o) {
+  const rows = [];
+  if (o.type === 'zone' || o.type === 'divzone') {
+    rows.push(['面積', fmtNum(polyAreaM2(o.pts), 1) + ' m²']);
+    rows.push(['周長', fmtNum(polyLenM(o.pts, true), 1) + ' m']);
+  } else if (o.type === 'conerow') {
+    rows.push(['延長', fmtNum(polyLenM(o.pts, false), 1) + ' m']);
+    const label = (o.kind === 'abarricade' ? 'バリケード' : o.kind === 'drum' ? 'ドラム' : 'コーン') + '本数';
+    rows.push([label, conePositions(o).length + ' 本']);
+  } else if (o.type === 'pedpath') {
+    rows.push(['延長', fmtNum(polyLenM(o.pts, false), 1) + ' m']);
+  } else if (o.type === 'dim') {
+    rows.push(['実測長', fmtNum(V.len(V.sub(o.b, o.a)) * state.settings.mPerPx, 2) + ' m']);
+  } else if (o.type === 'dimchain') {
+    const g = dimChainGeo(o);
+    let total = 0;
+    for (let i = 0; i < g.proj.length - 1; i++) {
+      const m = Math.abs(g.proj[i + 1] - g.proj[i]) * state.settings.mPerPx; total += m;
+      rows.push([`区間${i + 1}`, fmtNum(m, 2) + ' m']);
+    }
+    rows.push(['合計', fmtNum(total, 2) + ' m']);
+  }
+  return rows.length ? `<div class="pmetrics">${rows.map(([k, v]) => _mrow(k, v)).join('')}</div>` : '';
+}
+
+// ---------- プロパティパネル ----------
+const escAttr = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+function renderProps() {
+  const root = document.getElementById('objProps');
+  const sels = selectedObjs();
+  if (sels.length >= 2) { // 複数選択: グループ操作パネル
+    document.getElementById('selLabel').textContent = `選択中: ${sels.length}個`;
+    root.innerHTML =
+      `<div class="pempty">${sels.length}個のオブジェクトを選択中。<br>ドラッグでまとめて移動、<b>R</b>で記号/文字を回転、<b>Delete</b>で削除できます。</div>` +
+      `<h3 style="margin-top:2px">整列</h3>` +
+      `<div class="palign">
+        <button class="pbtn" data-al="left">左揃え</button><button class="pbtn" data-al="hcenter">左右中央</button><button class="pbtn" data-al="right">右揃え</button>
+        <button class="pbtn" data-al="top">上揃え</button><button class="pbtn" data-al="vcenter">上下中央</button><button class="pbtn" data-al="bottom">下揃え</button>
+      </div>` +
+      `<div class="palign2">
+        <button class="pbtn" data-dist="h">横に等間隔</button><button class="pbtn" data-dist="v">縦に等間隔</button>
+      </div>` +
+      `<p class="pnote">等間隔配置は3つ以上の選択で有効です。</p>` +
+      `<div class="pbtnrow"><button class="pbtn" id="pgDup">まとめて複製</button><button class="pbtn danger" id="pgDel">まとめて削除</button></div>`;
+    root.querySelectorAll('[data-al]').forEach(b => b.addEventListener('click', () => alignSelected(b.dataset.al)));
+    root.querySelectorAll('[data-dist]').forEach(b => b.addEventListener('click', () => distributeSelected(b.dataset.dist)));
+    document.getElementById('pgDel').addEventListener('click', () => {
+      pushUndo();
+      const ids = new Set(state.selIds);
+      state.objects = state.objects.filter(x => !ids.has(x.id));
+      clearSel(); renderProps(); render();
+    });
+    document.getElementById('pgDup').addEventListener('click', () => {
+      pushUndo();
+      const newIds = [];
+      selectedObjs().forEach(o => { const cp = JSON.parse(JSON.stringify(o)); cp.id = uid(); shiftObj(cp, 24); state.objects.push(cp); newIds.push(cp.id); });
+      setSel(newIds); renderProps(); render();
+    });
+    return;
+  }
+  const o = state.objects.find(x => x.id === state.sel);
+  const typeLabel = ob => ob.type === 'symbol' ? KINDS[ob.kind].name
+    : ob.type === 'conerow' ? KINDS[ob.kind || 'cone'].name + '列'
+    : ({ zone: '作業帯', divzone: '導流帯', pedpath: '歩行者通路', dim: '寸法線', dimchain: '連続寸法', text: '文字' })[ob.type];
+  document.getElementById('selLabel').textContent = o
+    ? '選択中: ' + typeLabel(o)
+    : (state.sel === '_legend' ? '選択中: 凡例' : '');
+  if (!o) {
+    const msg = state.sel === '_legend'
+      ? '<div class="pempty">凡例を選択中。ドラッグで位置を移動できます。</div>'
+      : '<div class="pempty">オブジェクトを選択すると、ここで回転・寸法・ラベル等を編集できます。<br><br>左のパレットから記号を選んで図面をクリックすると配置できます。</div>';
+    root.innerHTML = msg + patternSummaryHtml();
+    return;
+  }
+  let html = '';
+  const num = (id, label, val, step = 0.5, min = 0.1) =>
+    `<div class="prow"><label>${label}</label><input type="number" id="${id}" value="${val}" step="${step}" min="${min}"></div>`;
+  if (o.type === 'symbol' || o.type === 'text') {
+    html += `<div class="prow"><label>回転 (°)</label><input type="range" id="pRot" min="0" max="359" value="${Math.round(o.rot || 0)}"><span class="val" id="pRotV">${Math.round(o.rot || 0)}</span></div>`;
+  }
+  if (o.type === 'symbol') html += `<div class="prow"><label>大きさ</label><input type="range" id="pScl" min="30" max="300" value="${Math.round((o.scl || 1) * 100)}"><span class="val" id="pSclV">${(o.scl || 1).toFixed(1)}</span></div>`;
+  if (o.type === 'symbol' && o.kind === 'board_yokoku1') html += num('pDist', '予告距離 (m)', o.dist != null ? o.dist : 50, 10, 0);
+  if (o.type === 'symbol') {
+    const escL = (o.label || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const ang = Math.round((((o.labelAngle ?? -40) % 360) + 360) % 360);
+    const dist = Math.round(o.labelDist ?? 46);
+    html += `<div class="prow"><label>ラベル</label><input type="text" id="pLabel" value="${escL}" placeholder="例: 工事件名・連絡先"></div>`;
+    html += `<div class="prow"><label>引出し向き</label><input type="range" id="pLabelAng" min="0" max="359" value="${ang}"><span class="val" id="pLabelAngV">${ang}</span></div>`;
+    html += `<div class="prow"><label>引出し長さ</label><input type="range" id="pLabelDist" min="10" max="160" value="${dist}"><span class="val" id="pLabelDistV">${dist}</span></div>`;
+  }
+  if (o.type === 'conerow') {
+    const rk = o.kind || 'cone';
+    html += `<div class="prow"><label>並べる記号</label><select id="pRowKind">
+      <option value="cone"${rk === 'cone' ? ' selected' : ''}>カラーコーン</option>
+      <option value="abarricade"${rk === 'abarricade' ? ' selected' : ''}>A型バリケード</option>
+      <option value="drum"${rk === 'drum' ? ' selected' : ''}>クッションドラム</option>
+    </select></div>`;
+    html += num('pInterval', '間隔 (m)', o.interval || 2);
+    if (rk === 'cone')
+      html += `<div class="prow"><label>コーンバー</label><input type="checkbox" id="pBar" ${o.bar !== false ? 'checked' : ''}></div>`;
+    if (rk !== 'cone')
+      html += `<p class="pnote">間隔を記号の幅に近づけると隙間なく連結して見えます（A型バリケードは幅約1.8m）。</p>`;
+  }
+  if (o.type === 'pedpath') html += num('pWidth', '通路幅 (m)', o.width || 1.5);
+  if (o.type === 'divzone') {
+    html += num('pStripe', '斜線間隔 (m)', o.stripe || 0.6, 0.1, 0.1);
+    html += `<div class="prow"><label>内部を薄く塗る</label><input type="checkbox" id="pFill" ${o.fill !== false ? 'checked' : ''}></div>`;
+  }
+  if (o.type === 'dim') {
+    const autoM = (V.len(V.sub(o.b, o.a)) * state.settings.mPerPx).toFixed(2);
+    const an = o.anchor || 'start';
+    html += `<div class="prow"><label>寸法値 (m)</label><input type="text" id="pDimText" value="${escAttr(o.text || autoM)}"></div>`;
+    html += `<div class="prow"><label>変更の基準</label><select id="pAnchor">
+      <option value="start"${an === 'start' ? ' selected' : ''}>始点を固定</option>
+      <option value="end"${an === 'end' ? ' selected' : ''}>終点を固定</option>
+      <option value="center"${an === 'center' ? ' selected' : ''}>中央を固定</option>
+    </select></div>`;
+    html += `<p class="pnote"><b>数値を入力してEnter（または他へフォーカス）すると、寸法線の長さが実寸に合わせて変わります。</b>基準側の端点は固定。数値以外(例 W=4.8)は表記のみ、空欄は実測値の自動表示。図上のダブルクリックでも入力できます。</p>`;
+    html += `<div class="prow"><label>引出し量</label><input type="range" id="pOff" min="-60" max="60" value="${o.off ?? 16}"><span class="val" id="pOffV">${o.off ?? 16}</span></div>`;
+  }
+  if (o.type === 'dimchain') {
+    html += `<div class="prow"><label>引出し量</label><input type="range" id="pOff" min="-60" max="60" value="${o.off ?? 16}"><span class="val" id="pOffV">${o.off ?? 16}</span></div>`;
+    const g = dimChainGeo(o);
+    html += `<h3 style="margin-top:10px">区間ごとの寸法値 (m)</h3>`;
+    for (let i = 0; i < o.pts.length - 1; i++) {
+      const autoM = (Math.abs(g.proj[i + 1] - g.proj[i]) * state.settings.mPerPx).toFixed(2);
+      const cur = (o.texts && o.texts[i]) || autoM;
+      html += `<div class="prow"><label>区間${i + 1}</label><input type="text" class="pSegText" data-seg="${i}" value="${escAttr(cur)}"></div>`;
+    }
+    html += `<div class="pbtnrow"><button class="pbtn" id="pSegReset">すべて自動に戻す</button></div>`;
+    html += `<p class="pnote"><b>数値を入力してEnterすると、その区間の長さが実寸に合わせて変わります</b>（先頭を固定し、以降の点がずれます。他区間の長さは保持）。数値以外は表記のみ、空欄は実測値の自動表示。図上の該当区間をダブルクリックでも入力できます。</p>`;
+  }
+  if (o.type === 'text') {
+    const esc = (o.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    html += `<div class="prow"><label>内容</label><input type="text" id="pText" value="${esc}"></div>`;
+    html += `<div class="prow"><label>大きさ</label><input type="range" id="pTSize" min="10" max="60" value="${o.size || 18}"><span class="val" id="pTSizeV">${o.size || 18}</span></div>`;
+  }
+  html += objMetricsHtml(o);
+  if (o.pts || o.type === 'dim') html += `<p class="pnote">白い四角(頂点)をドラッグすると形を変えられます。</p>`;
+  html += `<div class="pbtnrow"><button class="pbtn" id="pDup">複製</button><button class="pbtn danger" id="pDel">削除</button></div>`;
+  root.innerHTML = html;
+
+  const bind = (id, fn, ev = 'input') => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  bind('pRot', e => { o.rot = +e.target.value; document.getElementById('pRotV').textContent = e.target.value; render(); autosave(); });
+  bind('pScl', e => { o.scl = +e.target.value / 100; document.getElementById('pSclV').textContent = o.scl.toFixed(1); render(); autosave(); });
+  bind('pDist', e => { const v = parseFloat(e.target.value); if (v >= 0) { o.dist = v; render(); autosave(); } });
+  bind('pLabel', e => { o.label = e.target.value || null; render(); autosave(); });
+  bind('pLabelAng', e => { o.labelAngle = +e.target.value; document.getElementById('pLabelAngV').textContent = e.target.value; render(); autosave(); });
+  bind('pLabelDist', e => { o.labelDist = +e.target.value; document.getElementById('pLabelDistV').textContent = e.target.value; render(); autosave(); });
+  bind('pRowKind', e => { o.kind = e.target.value; if (o.kind !== 'cone') o.bar = false; renderProps(); render(); autosave(); });
+  bind('pInterval', e => { const v = parseFloat(e.target.value); if (v > 0) { o.interval = v; render(); autosave(); } });
+  bind('pBar', e => { o.bar = e.target.checked; render(); autosave(); });
+  bind('pWidth', e => { const v = parseFloat(e.target.value); if (v > 0) { o.width = v; render(); autosave(); } });
+  bind('pStripe', e => { const v = parseFloat(e.target.value); if (v > 0) { o.stripe = v; render(); autosave(); } });
+  bind('pFill', e => { o.fill = e.target.checked; render(); autosave(); });
+  // 寸法値は確定時(Enter/フォーカス移動)に反映。数値なら寸法線の実寸そのものを合わせる
+  bind('pDimText', e => { pushUndo(); applyDimValue(o, 0, e.target.value); renderProps(); render(); autosave(); }, 'change');
+  bind('pAnchor', e => { o.anchor = e.target.value; autosave(); }, 'change');
+  root.querySelectorAll('.pSegText').forEach(el => el.addEventListener('change', e => {
+    pushUndo(); applyDimValue(o, +e.target.dataset.seg, e.target.value);
+    renderProps(); render(); autosave();
+  }));
+  bind('pSegReset', () => { o.texts = null; renderProps(); render(); autosave(); }, 'click');
+  bind('pOff', e => { o.off = +e.target.value; document.getElementById('pOffV').textContent = e.target.value; render(); autosave(); });
+  bind('pText', e => { o.text = e.target.value; render(); autosave(); });
+  bind('pTSize', e => { o.size = +e.target.value; document.getElementById('pTSizeV').textContent = e.target.value; render(); autosave(); });
+  bind('pDel', () => { pushUndo(); state.objects = state.objects.filter(x => x.id !== o.id); clearSel(); renderProps(); render(); }, 'click');
+  bind('pDup', () => {
+    pushUndo();
+    const cp = JSON.parse(JSON.stringify(o)); cp.id = uid();
+    shiftObj(cp, 24);
+    state.objects.push(cp); setSel([cp.id]); renderProps(); render();
+  }, 'click');
+}
+
+// ---------- 背景読込 (PDF/画像) ----------
+async function ensurePdfJs() {
+  if (window.pdfjsLib) return;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = res; s.onerror = () => rej(new Error('cdn'));
+    document.head.appendChild(s);
+  });
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+async function loadBackground(file) {
+  try {
+    let dataURL;
+    if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+      setHint('PDFを読み込み中…');
+      try { await ensurePdfJs(); }
+      catch (e) {
+        setHint('');
+        alert('PDF表示ライブラリの読込に失敗しました(インターネット接続が必要です)。\nオフライン環境では、PDFをスクリーンショット等で画像(PNG/JPG)にしてから読み込んでください。');
+        return;
+      }
+      const buf = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+      let pageNum = 1;
+      if (pdf.numPages > 1) {
+        setHint('');
+        const ans = await askInput({
+          title: 'PDFのページ選択',
+          message: `このPDFは全${pdf.numPages}ページあります。背景に使うページ番号(1〜${pdf.numPages})を入力してください。`,
+          value: '1',
+          validate: v => {
+            const n = parseInt(v, 10);
+            return (!Number.isInteger(n) || n < 1 || n > pdf.numPages) ? `1〜${pdf.numPages} の整数を入力してください。` : '';
+          },
+        });
+        if (ans === null) { setHint(''); return; } // キャンセル: 背景は変更しない
+        pageNum = parseInt(ans, 10);
+        setHint('PDFを読み込み中…');
+      }
+      const page = await pdf.getPage(pageNum);
+      const vp1 = page.getViewport({ scale: 1 });
+      const scale = Math.min(3, 2400 / vp1.width);
+      const vp = page.getViewport({ scale });
+      const oc = document.createElement('canvas');
+      oc.width = Math.round(vp.width); oc.height = Math.round(vp.height);
+      await page.render({ canvasContext: oc.getContext('2d'), viewport: vp }).promise;
+      dataURL = oc.toDataURL('image/png');
+      setHint(pdf.numPages > 1 ? `PDFの ${pageNum}/${pdf.numPages} ページを読み込みました` : '');
+    } else if (file.type.startsWith('image/')) {
+      dataURL = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result); r.onerror = () => rej(new Error('read'));
+        r.readAsDataURL(file);
+      });
+    } else {
+      alert('PDFまたは画像ファイル(PNG/JPG等)を選択してください。'); return;
+    }
+    await setBgFromDataURL(dataURL);
+    pushUndo(); render(); autosave();
+    setTimeout(() => setHint(''), 3000);
+  } catch (e) {
+    console.error(e); setHint('');
+    alert('ファイルの読み込みに失敗しました。別のファイルでお試しください。\n' + (e.message || ''));
+  }
+}
+// 自動保存(localStorage)用に、背景画像を縮小+JPEG圧縮した軽量dataURLを生成する。
+// 表示・JSON書き出しには元のdataURL(高品質)を使い、localStorageの容量圧迫だけを避ける。
+function makeSaveURL(img) {
+  try {
+    const maxDim = 1800; // 長辺の上限px
+    const k = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const cw = Math.max(1, Math.round(img.width * k)), ch = Math.max(1, Math.round(img.height * k));
+    const oc = document.createElement('canvas'); oc.width = cw; oc.height = ch;
+    const c = oc.getContext('2d');
+    c.fillStyle = '#fff'; c.fillRect(0, 0, cw, ch); // JPEGは透過不可のため白地を敷く
+    c.drawImage(img, 0, 0, cw, ch);
+    return oc.toDataURL('image/jpeg', 0.7);
+  } catch (e) { return null; }
+}
+function setBgFromDataURL(dataURL) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const availW = PAPER.w - PAPER.m2 * 2 - 8, availH = PAPER.h - PAPER.m2 * 2 - 8;
+      const k = Math.min(availW / img.width, availH / img.height);
+      const w = img.width * k, h = img.height * k;
+      state.bg = { img, dataURL, saveURL: makeSaveURL(img) || dataURL, x: (PAPER.w - w) / 2, y: (PAPER.h - h) / 2, w, h };
+      res();
+    };
+    img.onerror = () => rej(new Error('画像を展開できませんでした'));
+    img.src = dataURL;
+  });
+}
+
+// ---------- 保存 / 読込 / 出力 ----------
+function download(name, blobOrURL) {
+  const a = document.createElement('a');
+  a.href = typeof blobOrURL === 'string' ? blobOrURL : URL.createObjectURL(blobOrURL);
+  a.download = name; a.click();
+  if (typeof blobOrURL !== 'string') setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function saveJson() {
+  syncActivePattern();
+  const data = {
+    app: 'sagyotaizu', version: 2, savedAt: new Date().toISOString(),
+    settings: state.settings, patterns: state.patterns, activePattern: state.activePattern,
+    bg: state.bg ? { dataURL: state.bg.dataURL, x: state.bg.x, y: state.bg.y, w: state.bg.w, h: state.bg.h } : null,
+  };
+  // ファイル名は工種+日付で工事単位に。図面名(パターン)は各シートに描画される
+  download((state.settings.koshu || state.settings.title || '作業帯図') + '.json',
+    new Blob([JSON.stringify(data)], { type: 'application/json' }));
+}
+async function loadJson(file) {
+  try {
+    const text = await file.text();
+    const d = JSON.parse(text);
+    if (d.app !== 'sagyotaizu' || !(Array.isArray(d.patterns) || Array.isArray(d.objects)))
+      throw new Error('このツールの保存ファイルではありません');
+    Object.assign(state.settings, d.settings || {});
+    state.bg = null;
+    if (d.bg && d.bg.dataURL) {
+      await setBgFromDataURL(d.bg.dataURL);
+      Object.assign(state.bg, { x: d.bg.x, y: d.bg.y, w: d.bg.w, h: d.bg.h });
+    }
+    if (Array.isArray(d.patterns) && d.patterns.length) {          // v2: 複数パターン
+      state.patterns = d.patterns.map(normalizePattern);
+      state.activePattern = Math.min(Math.max(0, d.activePattern || 0), state.patterns.length - 1);
+    } else {                                                        // v1: 単一図面 → パターン1に包む
+      state.patterns = [wrapAsPattern(d.objects, d.settings)];
+      state.activePattern = 0;
+    }
+    loadActivePattern();
+    state.sel = null;
+    syncSettingsUI(); updateScaleBadge(); renderPatternBar(); renderProps(); render(); autosave();
+  } catch (e) {
+    alert('読み込みに失敗しました: ' + (e.message || '不明なエラー'));
+  }
+}
+function renderExportCanvas(scale = 2) {
+  const oc = document.createElement('canvas');
+  oc.width = PAPER.w * scale; oc.height = PAPER.h * scale;
+  const c = oc.getContext('2d');
+  c.scale(scale, scale);
+  const selBak = state.sel; state.sel = null;
+  const p = activePat();
+  // 出力範囲枠つきパターンは枠を用紙全体に拡大して出力(縮尺も実効値に)
+  const opt = { screen: false };
+  if (p && p.frame) { opt.view = frameView(p.frame); opt.mPerPx = state.settings.mPerPx * p.frame.w / PAPER.w; }
+  drawSheet(c, opt);
+  state.sel = selBak;
+  return oc;
+}
+// 指定パターンを一時的にアクティブ扱いにして描画(編集中の選択・Undoには触れない)
+function renderPatternCanvas(p, scale = 2) {
+  const bak = { objects: state.objects, title: state.settings.title, legendPos: state.settings.legendPos, active: state.activePattern };
+  state.objects = p.objects;
+  state.settings.title = p.title;
+  state.settings.legendPos = p.legendPos || null;
+  state.activePattern = state.patterns.indexOf(p);
+  let oc;
+  try { oc = renderExportCanvas(scale); }
+  finally {
+    state.objects = bak.objects; state.settings.title = bak.title;
+    state.settings.legendPos = bak.legendPos; state.activePattern = bak.active;
+  }
+  return oc;
+}
+function patternFileBase(p, i) {
+  const num = String(i + 1).padStart(2, '0');
+  return `${state.settings.koshu || '作業帯図'}_${num}_${(p.name || 'パターン').replace(/[\\/:*?"<>|]/g, '')}`;
+}
+function exportPng(all) {
+  try {
+    syncActivePattern();
+    if (all && state.patterns.length > 1) {
+      // 連番PNGを順次ダウンロード(ブラウザのまとめ制御を避けるため間隔を空ける)
+      state.patterns.forEach((p, i) => {
+        setTimeout(() => {
+          try { renderPatternCanvas(p, 2).toBlob(b => { if (b) download(patternFileBase(p, i) + '.png', b); }, 'image/png'); } catch (e) { /* skip */ }
+        }, i * 450);
+      });
+      showToast(`全${state.patterns.length}パターンをPNGで書き出します（連続ダウンロードの許可を求められたら「許可」してください）。`);
+      return;
+    }
+    renderExportCanvas(2).toBlob(b => {
+      if (!b) { alert('PNGの生成に失敗しました。'); return; }
+      download((state.settings.title || '作業帯図') + '.png', b);
+    }, 'image/png');
+  } catch (e) { alert('PNG出力に失敗しました: ' + e.message); }
+}
+function doPrint(size, all) {
+  try {
+    syncActivePattern();
+    const urls = (all && state.patterns.length > 1)
+      ? state.patterns.map(p => renderPatternCanvas(p, 2).toDataURL('image/png'))
+      : [renderExportCanvas(2).toDataURL('image/png')];
+    const frame = document.getElementById('printFrame');
+    const doc = frame.contentWindow.document;
+    const pages = urls.map(u => `<div class="pg"><img src="${u}"></div>`).join('');
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${state.settings.koshu || '作業帯図'}</title>
+      <style>
+        @page{size:${size} landscape;margin:0}
+        html,body{margin:0;padding:0}
+        .pg{width:100vw;height:100vh;page-break-after:always;overflow:hidden}
+        .pg:last-child{page-break-after:auto}
+        img{width:100%;height:100%;object-fit:contain;display:block}
+      </style></head><body>${pages}</body></html>`);
+    doc.close();
+    const imgs = Array.from(doc.querySelectorAll('img'));
+    const fire = () => { try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e) { alert('印刷の起動に失敗しました: ' + e.message); } };
+    const pending = imgs.filter(im => !im.complete);
+    if (pending.length) {
+      let left = pending.length;
+      pending.forEach(im => im.onload = im.onerror = () => { if (--left === 0) setTimeout(fire, 120); });
+    } else setTimeout(fire, 150);
+  } catch (e) { alert('印刷用データの生成に失敗しました: ' + e.message); }
+}
+
+// ---------- UIバインド ----------
+function syncSettingsUI() {
+  document.getElementById('setTitle').value = state.settings.title;
+  document.getElementById('setKoshu').value = state.settings.koshu;
+  document.getElementById('setLegend').checked = state.settings.showLegend;
+  document.getElementById('setNote').checked = state.settings.showNote;
+  document.getElementById('setScaleBar').checked = !!state.settings.showScaleBar;
+  document.getElementById('setSnap').checked = state.settings.snap !== false;
+  document.getElementById('setSymScale').value = Math.round(state.settings.symScale * 100);
+  document.getElementById('setSymScaleV').textContent = state.settings.symScale.toFixed(1);
+  document.getElementById('bgOpacity').value = Math.round(state.settings.bgOpacity * 100);
+}
+function bindUI() {
+  const $ = id => document.getElementById(id);
+  $('btnBg').onclick = () => $('fileBg').click();
+  $('fileBg').onchange = e => { if (e.target.files[0]) loadBackground(e.target.files[0]); e.target.value = ''; };
+  $('btnLoad').onclick = () => $('fileJson').click();
+  $('fileJson').onchange = e => { if (e.target.files[0]) loadJson(e.target.files[0]); e.target.value = ''; };
+  $('btnSave').onclick = saveJson;
+  $('btnPng').onclick = () => exportPng(false);
+  $('btnPrint').onclick = () => {
+    // パターンが1つなら対象選択を隠す
+    $('prTargetWrap').style.display = state.patterns.length > 1 ? '' : 'none';
+    $('printModal').classList.add('show');
+  };
+  $('prCancel').onclick = () => $('printModal').classList.remove('show');
+  $('prGo').onclick = () => {
+    const size = document.querySelector('input[name=psize]:checked').value === 'a3' ? 'A3' : 'A4';
+    const all = (document.querySelector('input[name=ptarget]:checked') || {}).value === 'all';
+    $('printModal').classList.remove('show');
+    setTimeout(() => doPrint(size, all), 150);
+  };
+  $('btnUndo').onclick = undo;
+  $('btnRedo').onclick = redo;
+  const zoomAtCenter = f => {
+    const r = cv.getBoundingClientRect();
+    const cx = r.width / 2, cy = r.height / 2;
+    const z2 = Math.min(6, Math.max(0.08, state.view.z * f));
+    state.view.ox = cx - (cx - state.view.ox) * (z2 / state.view.z);
+    state.view.oy = cy - (cy - state.view.oy) * (z2 / state.view.z);
+    state.view.z = z2; render();
+  };
+  $('btnZoomIn').onclick = () => zoomAtCenter(1.25);
+  $('btnZoomOut').onclick = () => zoomAtCenter(1 / 1.25);
+  $('btnZoomFit').onclick = zoomFit;
+  $('btnCalib').onclick = openCalibModal;
+  $('setScaleBar').onchange = e => { state.settings.showScaleBar = e.target.checked; render(); autosave(); };
+  $('setSnap').onchange = e => { state.settings.snap = e.target.checked; if (!e.target.checked) state.snapHint = null; render(); autosave(); };
+  $('bgOpacity').oninput = e => { state.settings.bgOpacity = +e.target.value / 100; render(); autosave(); };
+  $('setTitle').oninput = e => { state.settings.title = e.target.value; render(); autosave(); };
+  $('setKoshu').oninput = e => { state.settings.koshu = e.target.value; render(); autosave(); };
+  $('setLegend').onchange = e => { state.settings.showLegend = e.target.checked; render(); autosave(); };
+  $('setNote').onchange = e => { state.settings.showNote = e.target.checked; render(); autosave(); };
+  $('setSymScale').oninput = e => {
+    state.settings.symScale = +e.target.value / 100;
+    $('setSymScaleV').textContent = state.settings.symScale.toFixed(1);
+    render(); autosave();
+  };
+  // ウィザード
+  $('btnWizard').onclick = () => $('wizardModal').classList.add('show');
+  $('wCancel').onclick = () => $('wizardModal').classList.remove('show');
+  document.querySelectorAll('input[name=wpat]').forEach(r => r.onchange = () => {
+    $('wTaperWrap').style.display = document.querySelector('input[name=wpat]:checked').value === 'shasen' ? '' : 'none';
+  });
+  $('wTaperWrap').style.display = 'none';
+  $('wStart').onclick = () => {
+    const width = parseFloat($('wWidth').value), cone = parseFloat($('wCone').value), taper = parseFloat($('wTaper').value);
+    if (!(width > 0) || !(cone > 0)) { alert('幅とコーン間隔には正の数値を入力してください。'); return; }
+    wizardParams = {
+      pattern: document.querySelector('input[name=wpat]:checked').value,
+      width, cone, taper: taper > 0 ? taper : 10,
+      side: +$('wSide').value,
+    };
+    $('wizardModal').classList.remove('show');
+    const warn = state.settings.calibrated ? '' : '【縮尺未設定のため既定値(1m=20px)で配置します】 ';
+    setTool('wizardA', warn + '規制区間の起点をクリックしてください');
+  };
+  // 予告標示板の自動配置モーダル
+  $('btnYokoku').onclick = () => $('yokokuModal').classList.add('show');
+  $('yCancel').onclick = () => $('yokokuModal').classList.remove('show');
+  $('yStart').onclick = () => {
+    const dists = Array.from(document.querySelectorAll('.ydist:checked')).map(c => +c.value);
+    if (!dists.length) { alert('設置する距離を1つ以上選んでください。'); return; }
+    const gap = parseFloat($('yGap').value);
+    yokokuParams = { dists, gap: gap >= 0 ? gap : 3, dir: $('yDir').value };
+    $('yokokuModal').classList.remove('show');
+    setTool('yokoku', '予告標示板: 縦1列に並べる先頭位置をクリックしてください（Escで中止）');
+  };
+  // 縮尺モーダル
+  const setCalibTab = tab => {
+    document.querySelectorAll('#calibModal .tabbtn').forEach(b => b.classList.toggle('active', b.dataset.ctab === tab));
+    $('ctabTwo').style.display = tab === 'two' ? '' : 'none';
+    $('ctabDenom').style.display = tab === 'denom' ? '' : 'none';
+    $('cbApply').style.display = tab === 'denom' ? '' : 'none';
+    if (tab === 'denom') updateDenomPreview();
+  };
+  const updateDenomPreview = () => {
+    const D = parseFloat($('cbDenom').value);
+    const el = $('cbDenomPreview');
+    if (!(D > 0)) { el.textContent = '正の数値を入力してください。'; return; }
+    const mpp = mPerPxFromDenom(D);
+    const realW = (PAPER.w * mpp).toFixed(1);
+    el.innerHTML = `この縮尺だと、図面の横幅で実寸 <b>約${realW}m</b> を表します（1m ＝ ${(1 / mpp).toFixed(1)}px）。`;
+  };
+  document.querySelectorAll('#calibModal .tabbtn').forEach(b => b.onclick = () => setCalibTab(b.dataset.ctab));
+  $('cbDenom').oninput = updateDenomPreview;
+  $('cbCancel').onclick = () => $('calibModal').classList.remove('show');
+  $('cbStartTwo').onclick = () => {
+    $('calibModal').classList.remove('show');
+    setTool('calib', '縮尺設定: 地図上で距離の分かる2点を順にクリックしてください (寸法記載箇所・道路幅など)');
+  };
+  $('cbApply').onclick = () => {
+    const D = parseFloat($('cbDenom').value);
+    if (!(D > 0)) { updateDenomPreview(); return; }
+    pushUndo();
+    state.settings.mPerPx = mPerPxFromDenom(D);
+    state.settings.scaleDenominator = D;
+    state.settings.calibrated = true;
+    $('calibModal').classList.remove('show');
+    updateScaleBadge(); render(); autosave();
+    setHint(`縮尺を 1/${D} に設定しました（A3横出力時）`);
+    setTimeout(() => setHint(''), 3000);
+  };
+  // パターンバー
+  $('pbAdd').onclick = () => addPattern(false);
+  $('pbDup').onclick = () => addPattern(true);
+  $('pbRename').onclick = () => renamePattern();
+  $('pbDel').onclick = () => deletePattern();
+  $('pbFrame').onclick = () => setTool('frame', '出力範囲: 親図面上で対角の2点をクリックして矩形を指定します(用紙比に自動調整。Escで中止)');
+  $('pbFrameClear').onclick = () => { const p = activePat(); if (p && p.frame) { p.frame = null; renderPatternBar(); render(); autosave(); } };
+  $('pbPngAll').onclick = () => exportPng(true);
+  $('btnHelp').onclick = () => $('helpModal').classList.add('show');
+  $('helpClose').onclick = () => $('helpModal').classList.remove('show');
+  document.querySelectorAll('.modal-bg').forEach(m => m.addEventListener('click', e => {
+    if (e.target === m) m.classList.remove('show');
+  }));
+}
+
+// ---------- 初期化 ----------
+async function init() {
+  buildPalette(); bindUI(); resize();
+  // 自動保存の復元
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      Object.assign(state.settings, d.settings || {});
+      if (d.bg && d.bg.dataURL) {
+        await setBgFromDataURL(d.bg.dataURL);
+        Object.assign(state.bg, { x: d.bg.x, y: d.bg.y, w: d.bg.w, h: d.bg.h });
+      }
+      if (Array.isArray(d.patterns) && d.patterns.length) {
+        state.patterns = d.patterns.map(normalizePattern);
+        state.activePattern = Math.min(Math.max(0, d.activePattern || 0), state.patterns.length - 1);
+      } else if (Array.isArray(d.objects)) {                 // v1データからの移行
+        state.patterns = [wrapAsPattern(d.objects, d.settings)];
+        state.activePattern = 0;
+      }
+    }
+  } catch (e) { /* 復元不可でも新規として起動 */ }
+  if (!state.patterns.length) { // 新規起動: 既定パターンを1つ用意
+    const p = makePattern(); p.name = 'パターン1'; p.title = state.settings.title || '作業帯図1';
+    state.patterns = [p]; state.activePattern = 0;
+  }
+  loadActivePattern();
+  syncSettingsUI(); updateScaleBadge(); renderPatternBar(); renderProps();
+  zoomFit();
+}
+init();
+</script>
+</body>
+</html>
