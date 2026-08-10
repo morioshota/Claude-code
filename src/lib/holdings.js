@@ -40,8 +40,51 @@ export const moodOf = (pnl) => {
   return MOODS.tired;
 };
 
-/* 通貨ごとの表示(為替換算はしない=事実のみ) */
-export const fmtMoney = (v, currency, signed = false) => {
+/* ---- 損切りライン ----
+   これは「オーナー自身が事前に決めたルール」であって、アプリからの売買推奨ではない。
+   画面では「あなたが決めた-8%のラインを超えています」という事実だけを伝え、
+   「売るべき」「損切りしましょう」等の指示は書かないこと(CLAUDE.md)。
+   判定に使う株価は遅延データなので、リアルタイムの執行判断には使えない旨も併記する。 */
+
+export const DEFAULT_STOP_LOSS_PCT = -8;  // 未設定の保有銘柄に使う共通の初期値
+export const NEAR_MARGIN_PCT = 2;         // ラインまで2%以内なら「まもなく」を予告
+
+/* 設定値(%)。未設定は共通の初期値、0を入れた銘柄は「判定しない」 */
+export const stopLossPctOf = (stock) => {
+  const raw = stock.stopLossPct;
+  if (raw === 0) return null;
+  const v = Number(raw);
+  if (Number.isFinite(v) && v < 0) return v;
+  return DEFAULT_STOP_LOSS_PCT;
+};
+
+/* ラインに到達する株価(平均取得単価から計算)。保有情報がなければnull */
+export const stopLossPriceOf = (stock) => {
+  const h = holdingOf(stock);
+  const pct = stopLossPctOf(stock);
+  if (!h || pct === null) return null;
+  return h.avg * (1 + pct / 100);
+};
+
+/* 状態: null(対象外) | "ok" | "near"(あと2%以内) | "over"(超過) */
+export const stopLossStateOf = (stock, quote) => {
+  const pnl = pnlOf(stock, quote);
+  const pct = stopLossPctOf(stock);
+  if (!pnl || pct === null) return null;
+  if (pnl.pct <= pct) return "over";
+  if (pnl.pct <= pct + NEAR_MARGIN_PCT) return "near";
+  return "ok";
+};
+
+/* ラインまであと何%か(nearの予告文用)。超過済みなら0 */
+export const marginToStopLoss = (stock, quote) => {
+  const pnl = pnlOf(stock, quote);
+  const pct = stopLossPctOf(stock);
+  if (!pnl || pct === null) return null;
+  return Math.max(0, pnl.pct - pct);
+};
+
+/* 通貨ごとの表示(為替換算はしない=事実のみ) */export const fmtMoney = (v, currency, signed = false) => {
   const sign = signed && v > 0 ? "+" : ""; // マイナスはtoLocaleStringが付ける
   if (currency === "JPY") return `${sign}${Math.round(v).toLocaleString("ja-JP")}円`;
   return `${sign}$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;

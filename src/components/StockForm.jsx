@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { btnStyle, Overlay } from "./ui.jsx";
 import { TYPES, RARITIES, STATUSES } from "../data/constants.js";
+import { DEFAULT_STOP_LOSS_PCT, stopLossPctOf, stopLossPriceOf } from "../lib/holdings.js";
 
 function StockForm({ initial, onSave, onCancel }) {
   const [f, setF] = useState(initial || {
@@ -96,6 +97,43 @@ function StockForm({ initial, onSave, onCancel }) {
             </div>
             <div style={{ fontSize: 10, color: "#5b6284", marginTop: 6, lineHeight: 1.6 }}>
               日本株は円・米国株はドルで入力。時価と含み損益は事実として表示されるだけで、売買判断の指標ではありません
+            </div>
+
+            {/* 損切りライン: オーナー自身が決めるルール。到達価格は平均取得単価から計算して見せる */}
+            <label style={{ ...label, marginTop: 14 }}>にげるライン（損切りライン・任意）</label>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input
+                style={{ ...input, width: 110, flex: "none" }} type="number" inputMode="decimal" max="0" step="any"
+                value={f.stopLossPct ?? ""} placeholder={String(DEFAULT_STOP_LOSS_PCT)}
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+                  if (raw === "") { set("stopLossPct", null); return; }
+                  const v = parseFloat(raw);
+                  set("stopLossPct", Number.isFinite(v) ? v : null);
+                }}
+              />
+              <span style={{ fontSize: 12, color: "#8b93b8" }}>％（平均取得単価から）</span>
+            </div>
+            {(() => {
+              const price = stopLossPriceOf(f);
+              const pct = stopLossPctOf(f);
+              const jp = /^[0-9]/.test(String(f.code || ""));
+              if (pct === null) {
+                return <div style={{ fontSize: 11, color: "#8b93b8", marginTop: 6 }}>この銘柄は損切りラインの判定をしません（0を入力中）</div>;
+              }
+              if (price === null) {
+                return <div style={{ fontSize: 11, color: "#5b6284", marginTop: 6 }}>株数と平均取得単価を入れると、到達する株価が表示されます</div>;
+              }
+              return (
+                <div style={{ fontSize: 11.5, color: "#fca5a5", marginTop: 6, lineHeight: 1.7 }}>
+                  🚨 {pct}% ＝ <b>{jp ? `${Math.round(price).toLocaleString("ja-JP")}円` : `$${price.toFixed(2)}`}</b> を下回ったらライン超過として警告します
+                  {f.stopLossPct == null && <span style={{ color: "#5b6284" }}>（空欄なので共通の初期値 {DEFAULT_STOP_LOSS_PCT}% を使用）</span>}
+                </div>
+              );
+            })()}
+            <div style={{ fontSize: 10, color: "#5b6284", marginTop: 4, lineHeight: 1.6 }}>
+              空欄＝共通の初期値（{DEFAULT_STOP_LOSS_PCT}%）／ 0＝この銘柄は判定しない。
+              あなた自身が決めるルールで、アプリが売買を勧めるものではありません
             </div>
           </div>
         )}
