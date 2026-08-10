@@ -27,6 +27,7 @@ import { STORAGE_KEY, noteKey, TYPES, STATUSES, ACHIEVEMENTS, SEED, BACKUP_FORMA
 import { evoPoolFor, rollEvoFx } from "./data/evolution.js";
 import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/activity.js";
 import { sfx, soundEnabled, setSoundEnabled } from "./lib/sound.js";
+import { fetchHeldQuotes, stopLossStateOf, stopLossPctOf } from "./lib/holdings.js";
 import { calcLevel, stageOf, freshInfo, evalAchievements } from "./lib/stock.js";
 import { today, uid, daysSince } from "./lib/util.js";
 
@@ -48,6 +49,7 @@ export default function KabuDex() {
   const [graduating, setGraduating] = useState(null); // 卒業式モーダル対象のstock
   const [activity, setActivity] = useState(null); // 草カレンダー用 {days, seeded}
   const [soundOn, setSoundOn] = useState(soundEnabled());
+  const [quotes, setQuotes] = useState({}); // 保有銘柄の参考株価(カード・警告・牧場で共有)
   const [checkNagDismissed, setCheckNagDismissed] = useState(() => {
     try { return localStorage.getItem("kabu-checknag") === today(); } catch (e) { return false; }
   });
@@ -96,6 +98,18 @@ export default function KabuDex() {
       setActivity(act);
     })();
   }, []);
+
+  /* 保有情報のある銘柄の参考株価をまとめて取得。失敗しても本体には影響しない */
+  const holdSig = (stocks || [])
+    .map((s) => `${s.id}:${s.status}:${s.shares}:${s.avgPrice}:${s.stopLossPct}`)
+    .join("|");
+  useEffect(() => {
+    if (!stocks) return;
+    let alive = true;
+    fetchHeldQuotes(stocks).then((m) => { if (alive) setQuotes(m); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [holdSig]);
 
   const persist = async (next) => {
     setStocks(next);
@@ -412,6 +426,12 @@ export default function KabuDex() {
   );
   const backupStale = hasWorthSaving && (backupDays === null || backupDays >= 14);
 
+  // にげるライン(損切りライン)の判定。オーナー自身が決めたルールへの到達を知らせるだけで、売買の指示はしない
+  const stopLossMap = {};
+  stocks.forEach((s) => { const st = stopLossStateOf(s, quotes[s.id]); if (st) stopLossMap[s.id] = st; });
+  const overList = stocks.filter((s) => stopLossMap[s.id] === "over");
+  const nearList = stocks.filter((s) => stopLossMap[s.id] === "near");
+
   return (
     <div style={pageStyle}>
       <style>{`
@@ -425,6 +445,7 @@ export default function KabuDex() {
         @keyframes kzShiny { 0%,100%{ filter: drop-shadow(0 0 3px #f0abfc) } 50%{ filter: drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 14px #f0abfc) } }
         @keyframes kzSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes kzShake { 0%,100%{transform:translate(0,0)} 20%{transform:translate(-7px,3px)} 40%{transform:translate(6px,-4px)} 60%{transform:translate(-5px,-2px)} 80%{transform:translate(4px,3px)} }
+        @keyframes kzHazard { from{background-position:0 0} to{background-position:31px 31px} }
         body.kz-shake { animation: kzShake .55s ease; }
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
         ::placeholder { color: #4a5170; }
@@ -483,6 +504,39 @@ export default function KabuDex() {
           </div>
         </div>
 
+        {/* にげるライン超過の警告(常時表示。自分で決めたラインへの到達を知らせる) */}
+        {overList.length > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, marginBottom: 12, borderRadius: 12,
+            padding: "10px 14px", border: "2px solid #f87171", position: "relative", overflow: "hidden",
+            background: "#2a1414",
+          }}>
+            <div style={{
+              position: "absolute", inset: 0, pointerEvents: "none",
+              background: "repeating-linear-gradient(45deg, rgba(251,146,60,.22) 0 11px, rgba(0,0,0,.30) 11px 22px)",
+              backgroundSize: "31px 31px", animation: "kzHazard 1.6s linear infinite",
+            }} />
+            <span style={{ fontSize: 20, zIndex: 1 }}>🚨</span>
+            <span style={{ flex: 1, fontSize: 12.5, color: "#fecaca", lineHeight: 1.6, zIndex: 1 }}>
+              <b>にげるラインを超えた銘柄が{overList.length}件あります</b>
+              <span style={{ display: "block", fontSize: 11, color: "#fca5a5" }}>
+                {overList.map((s) => `${s.name}（${stopLossPctOf(s)}%）`).join("・")}
+              </span>
+              <span style={{ display: "block", fontSize: 10, color: "#b98a8a", marginTop: 2 }}>
+                あなたが決めたラインです。株価は遅延データのため、実際の判断は必ずご自身で確認してください
+              </span>
+            </span>
+          </div>
+        )}
+        {overList.length === 0 && nearList.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#2e230e", border: "1.5px solid #fbbf2466", borderRadius: 12, padding: "10px 14px", marginBottom: 12 }}>
+            <span style={{ fontSize: 20 }}>⚠️</span>
+            <span style={{ flex: 1, fontSize: 12.5, color: "#fcd34d", lineHeight: 1.6 }}>
+              にげるラインが近い銘柄が<b>{nearList.length}件</b>あります（{nearList.map((s) => s.name).join("・")}）
+            </span>
+          </div>
+        )}
+
         {/* バックアップ催促(データ消失対策。記録があり14日以上未バックアップ/未実施のとき・1日1回) */}
         {backupStale && !backupNagDismissed && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#2a1414", border: "1.5px solid #f8717166", borderRadius: 12, padding: "10px 14px", marginBottom: 12 }}>
@@ -536,7 +590,7 @@ export default function KabuDex() {
           </button>
         </div>
 
-        {view === "ranch" && <RanchView stocks={stocks} activity={activity} onSelect={openDetail} />}
+        {view === "ranch" && <RanchView stocks={stocks} activity={activity} quotes={quotes} onSelect={openDetail} />}
         {view === "analysis" && <AnalysisView stocks={stocks} onSelect={openDetail} />}
         {view === "album" && <AlbumView stocks={stocks} onSelect={openDetail} onSaveLesson={saveLesson} />}
 
@@ -582,7 +636,7 @@ export default function KabuDex() {
         ) : (
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))" }}>
             {filtered.map((s) => (
-              <DexCard key={s.id} stock={s} onClick={() => openDetail(s.id)} />
+              <DexCard key={s.id} stock={s} onClick={() => openDetail(s.id)} stopLossState={stopLossMap[s.id]} />
             ))}
           </div>
         )}

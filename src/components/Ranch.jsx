@@ -14,7 +14,10 @@ import { buildPixels } from "../lib/sprites.js";
 import { calcLevel, stageOf, moveTierOf, freshInfo, evalAchievements } from "../lib/stock.js";
 import { ACHIEVEMENTS, TYPES } from "../data/constants.js";
 import { hashStr, mulberry32, today } from "../lib/util.js";
-import { pnlOf, moodOf, fmtMoney, fmtPct, fetchHeldQuotes } from "../lib/holdings.js";
+import {
+  pnlOf, moodOf, fmtMoney, fmtPct, fetchHeldQuotes,
+  stopLossStateOf, stopLossPctOf, marginToStopLoss,
+} from "../lib/holdings.js";
 import { upcomingEvents } from "../lib/events.js";
 import { streaks } from "../lib/activity.js";
 import { dueForCheck } from "./TriggerCheck.jsx";
@@ -67,6 +70,27 @@ const shadeHex = (hex, f) => { // ⚠ #hex専用(rgb文字列を渡すと無効�
   const c = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
   return `rgb(${c((n >> 16) & 255)},${c((n >> 8) & 255)},${c(n & 255)})`;
 };
+/* 2色を混ぜる。戻り値も#hexなので、この結果をそのままshadeHexに渡してよい */
+const mixHex = (a, b, f) => {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const ch = (sh) => {
+    const va = (pa >> sh) & 255, vb = (pb >> sh) & 255;
+    return Math.max(0, Math.min(255, Math.round(va + (vb - va) * f)));
+  };
+  return "#" + [16, 8, 0].map((sh) => ch(sh).toString(16).padStart(2, "0")).join("");
+};
+
+/* ---- 建物のいたみ具合(含み損の事実の写像) ----
+   normal  … 含み損益が-3%より上
+   shabby  … -3%を超える含み損 = ボロ家(色あせ・屋根に穴・板が剥がれる)
+   burning … オーナー自身が決めた「にげるライン」を超過 = 家が燃えている
+   ※ 大きさ・いたみ具合はいずれも事実の写像で、売買を勧めるものではない */
+const conditionOf = (stock, quote) => {
+  const pnl = pnlOf(stock, quote);
+  if (!pnl) return "normal";
+  if (stopLossStateOf(stock, quote) === "over") return "burning";
+  return pnl.pct <= -3 ? "shabby" : "normal";
+};
 
 /* ---- 含み損益→大きさ(事実の写像。0.1刻みに量子化) ---- */
 const boostOf = (pnl) => {
@@ -101,7 +125,7 @@ const plotSizeOf = (stage, f) => {
   return { footTiles, size: footTiles + 5 };
 };
 
-function buildingCanvas(stock, phase, season, f) {
+function buildingCanvas(stock, phase, season, f, condition = "normal") {
   const stage = stageOf(calcLevel(stock)).no;
   const { hw, wall, roof } = scaledDims(stage, f);
   const t = TYPES[stock.type] || TYPES.metal;
@@ -113,9 +137,14 @@ function buildingCanvas(stock, phase, season, f) {
   const cx = Math.floor(W / 2), baseY = H - 2;
   const lit = phase !== "day";
 
-  const wallHex = "#ead9b5";
-  const roofR = t.color, roofL = shadeHex(t.color, 0.68);
-  const roofR2 = shadeHex(t.color, 0.88), roofL2 = shadeHex(t.color, 0.58);
+  // ボロ家(含み損)・炎上(ライン超過)は色あせた木と灰色の屋根になる。
+  // 傷みの位置は証券コードから決定論的に決める(見るたびに変わらないように)
+  const damaged = condition !== "normal";
+  const dmgRng = mulberry32(hashStr(String(stock.code || stock.id) + ":dmg"));
+  const wallHex = damaged ? mixHex("#ead9b5", "#6f6657", 0.55) : "#ead9b5";
+  const roofHex = damaged ? mixHex(t.color, "#5f5850", 0.62) : t.color;
+  const roofR = roofHex, roofL = shadeHex(roofHex, 0.68);
+  const roofR2 = shadeHex(roofHex, 0.88), roofL2 = shadeHex(roofHex, 0.58);
 
   /* 壁ボックス: 板張りの横線・角の柱つき */
   const box = (bx, by, bhw, bwall) => {
@@ -149,12 +178,12 @@ function buildingCanvas(stock, phase, season, f) {
       const band = stripe ? Math.floor(l / 3) % 2 === 0 : Math.floor(l / 2) % 2 === 0;
       let cl = band ? roofL : roofL2, cr = band ? roofR : roofR2;
       if (snow && l >= Math.round(broof * 0.45)) { cl = "#dfe9ee"; cr = "#f4f9fc"; }
-      if (l === broof) { cl = shadeHex(t.color, 1.25); cr = shadeHex(t.color, 1.25); }
+      if (l === broof) { cl = shadeHex(roofHex, 1.25); cr = shadeHex(roofHex, 1.25); }
       fillDia(ctx, bx, top, hwl, cl, cr);
     }
   };
   const slab = (bx, centerY, bhw) => {
-    fillDia(ctx, bx, Math.round(centerY - bhw / 2 - 3), bhw, shadeHex(t.color, 0.5), shadeHex(t.color, 0.62));
+    fillDia(ctx, bx, Math.round(centerY - bhw / 2 - 3), bhw, shadeHex(roofHex, 0.5), shadeHex(roofHex, 0.62));
     fillDia(ctx, bx, Math.round(centerY - bhw / 2), bhw, shadeHex(wallHex, 0.6), shadeHex(wallHex, 0.8));
   };
   /* とびら: 枠+ノブつき */
@@ -200,8 +229,8 @@ function buildingCanvas(stock, phase, season, f) {
   const flag = (bx, topY) => {
     ctx.fillStyle = "#8a6a3a"; ctx.fillRect(bx, topY - 14, 2, 15);
     ctx.fillStyle = "#a8834c"; ctx.fillRect(bx, topY - 14, 1, 15);
-    ctx.fillStyle = t.color; ctx.fillRect(bx + 2, topY - 14, 9, 5);
-    ctx.fillStyle = shadeHex(t.color, 1.3); ctx.fillRect(bx + 2, topY - 14, 9, 1);
+    ctx.fillStyle = roofHex; ctx.fillRect(bx + 2, topY - 14, 9, 5);
+    ctx.fillStyle = shadeHex(roofHex, 1.3); ctx.fillRect(bx + 2, topY - 14, 9, 1);
   };
 
   if (stage === 1) {
@@ -258,6 +287,79 @@ function buildingCanvas(stock, phase, season, f) {
     flag(cx, towerBase - wall2 - hw2 / 2 - Math.max(7, Math.round(roof * 0.8)) - 3);
   }
 
+  /* ---- いたみの上書き(ボロ家・炎上) ----
+     屋根に穴をあけ(透過)、壁にひびと剥がれた板、まどに打ちつけ板、足元に雑草。
+     すでに描いた絵の上に重ねるだけなので、ステージごとの形はそのまま残る */
+  if (damaged) {
+    // 屋根の上下の範囲。ここからはみ出すと「板が宙に浮く」ので必ず内側に収める
+    const roofBotY = stage === 1 ? baseY - 2 : baseY - wall;
+    const roofTopY = stage === 1
+      ? baseY - Math.round(hw / 2) - (wall + roof)
+      : baseY - wall - Math.round(hw / 2) - roof;
+    const roofSpan = Math.max(4, roofBotY - roofTopY);
+    // 高さf(0=てっぺん 1=軒先)での屋根の半幅。傷みはこの内側だけに描く
+    const roofHalfAt = (fr) => Math.max(2, Math.round(hw * fr * 0.8));
+    const spotAt = (fr, spread) => {
+      const py = Math.round(roofTopY + roofSpan * fr);
+      const hx = cx + Math.round((dmgRng() - 0.5) * 2 * roofHalfAt(fr) * spread);
+      return { px: hx, py };
+    };
+
+    // 屋根の穴(素材を抜いて、ふちに焦げ茶の陰)。形が分からなくならないよう小さめ・少なめ
+    const holes = stage >= 3 ? 2 : 1;
+    for (let k = 0; k < holes; k++) {
+      const fr = 0.35 + dmgRng() * 0.4;
+      const { px, py } = spotAt(fr, 0.55);
+      const hwd = Math.max(2, Math.round(hw * (0.08 + dmgRng() * 0.06)));
+      const hh = Math.max(2, Math.round(hwd * 0.8));
+      ctx.clearRect(px - hwd, py, hwd * 2, hh);
+      ctx.fillStyle = "#2b2418";
+      ctx.fillRect(px - hwd, py - 1, hwd * 2, 1);
+      ctx.fillRect(px - hwd, py + hh, hwd * 2, 1);
+    }
+    // 屋根の当て木(応急処置)。アイソメの傾きに沿わせて屋根に貼りつける
+    for (let k = 0; k < 2; k++) {
+      const fr = 0.3 + dmgRng() * 0.45;
+      const { px, py } = spotAt(fr, 0.5);
+      const len = Math.max(5, Math.round(hw * 0.32));
+      const dir = dmgRng() < 0.5 ? -1 : 1;
+      for (let q = 0; q < len; q++) {
+        ctx.fillStyle = q % 4 === 3 ? "#5c3f24" : "#6b4a2b";
+        ctx.fillRect(px + dir * q, py + Math.round(q / 2), 1, 2);
+      }
+    }
+    // 壁のひび(縦のジグザグ)と剥がれた板
+    for (let k = 0; k < (stage >= 3 ? 4 : 2); k++) {
+      const side = dmgRng() < 0.5 ? -1 : 1;
+      const off = Math.round(dmgRng() * hw * 0.8);
+      let px = cx + side * off;
+      let py = baseY - Math.round(off / 2) - 2;
+      const len = Math.max(4, Math.round(wall * (0.4 + dmgRng() * 0.4)));
+      ctx.fillStyle = "#4a4136";
+      for (let s = 0; s < len; s++) {
+        ctx.fillRect(px, py - s, 1, 1);
+        if (s % 3 === 2) px += dmgRng() < 0.5 ? -1 : 1;
+      }
+      if (dmgRng() < 0.6) { // 板が1枚外れて下地が見える
+        ctx.fillStyle = "#3a3228";
+        ctx.fillRect(px - 1, py - len, 4, 2);
+      }
+    }
+    // まどに打ちつけた板(×印)
+    const bw = Math.round(hw * 0.62), by0 = baseY - Math.round(bw / 2) - Math.round(wall * 0.4) - 6;
+    ctx.fillStyle = "#6b4a2b";
+    ctx.fillRect(cx + bw - 1, by0 + 1, 8, 2);
+    ctx.fillRect(cx + bw + 1, by0 - 1, 2, 7);
+    // 足元の雑草
+    ctx.fillStyle = "#4e5c34";
+    for (let k = 0; k < 7; k++) {
+      const px = cx + Math.round((dmgRng() - 0.5) * hw * 2.1);
+      const py = baseY - Math.round(Math.abs(px - cx) / 2);
+      ctx.fillRect(px, py - 3, 1, 3);
+      ctx.fillRect(px + 1, py - 2, 1, 2);
+    }
+  }
+
   if (stock.shiny) { // 色違い持ちの研究所は✨つき
     const sp = (x, y) => {
       ctx.fillStyle = "#ffffff"; ctx.fillRect(x, y, 2, 2);
@@ -276,7 +378,7 @@ function buildingCanvas(stock, phase, season, f) {
       if (img[(y * W + x) * 4 + 3] > 0) { topY = y; break outer; }
     }
   }
-  return { cv, anchorX: cx, anchorY: baseY, topY };
+  return { cv, anchorX: cx, anchorY: baseY, topY, hw };
 }
 
 /* ---- 木(多層カノピー+ハイライト) ---- */
@@ -321,6 +423,41 @@ function treeCanvas(season, big, rng) {
     }
   }
   return { cv, anchorX: cx, anchorY: H - 1 };
+}
+
+/* 炎と煙(ライン超過の家)。毎フレーム描くので建物スプライトとは別に持つ。
+   ドット絵に合わせて矩形だけで組む(丸や半透明のぼかしは使わない) */
+const FIRE_COLS = ["#7a1a05", "#e8410f", "#ff8f3d", "#ffd166", "#fff2c2"];
+function drawFire(ctx, cx, baseY, w, z, now, seed) {
+  const tongues = Math.max(3, Math.round(w / (9 * z)));
+  const slot = w / tongues;
+  for (let k = 0; k < tongues; k++) {
+    const px = cx - w / 2 + (k + 0.5) * slot;
+    const ph = seed + k * 1.7;
+    // 炎は根元が太く先が細い。1pxの横帯を根元から積み、先ほど細く・揺れを大きく
+    const H = Math.max(4, (0.55 + 0.45 * Math.abs(Math.sin(now / (150 + k * 23) + ph))) * 20 * z);
+    const baseW = Math.max(2, slot * 0.95);
+    // 屋根の傾きに沿って炎の根元を少しずらす(まん中が高く、端は低い)
+    const foot = baseY + Math.abs(px - cx) * 0.5;
+    for (let r = 0; r < H; r++) {
+      const fr = r / H;                                   // 0=根元 1=先端
+      const ww = Math.max(1, Math.round(baseW * (1 - fr) * (1 - fr * 0.35)));
+      const wob = Math.sin(now / 110 + ph + fr * 3.4) * 2.4 * z * fr;
+      ctx.fillStyle = fr < 0.22 ? FIRE_COLS[4] : fr < 0.46 ? FIRE_COLS[3] : fr < 0.76 ? FIRE_COLS[2] : FIRE_COLS[1];
+      ctx.fillRect(Math.round(px - ww / 2 + wob), Math.round(foot - r), ww, 1);
+    }
+  }
+  // 煙: 上へ流れて薄くなる四角
+  for (let k = 0; k < 4; k++) {
+    const age = ((now / 1400 + k * 0.25 + seed) % 1);
+    const sx = cx + Math.sin(now / 900 + k * 2 + seed) * 5 * z;
+    const sy = baseY - (18 + age * 26) * z;
+    const size = Math.max(1, Math.round((2 + age * 3) * z));
+    ctx.globalAlpha = 0.34 * (1 - age);
+    ctx.fillStyle = "#6b6b74";
+    ctx.fillRect(Math.round(sx - size / 2), Math.round(sy), size, size);
+    ctx.globalAlpha = 1;
+  }
 }
 
 /* クリーチャーのドット絵(1セル=1px)。牧場では整数倍で拡大 */
@@ -376,7 +513,7 @@ function RanchKairo({ stocks, quotes, onSelect }) {
 
   const actives = stocks.filter((s) => s.status !== "sold");
   const sceneKey = actives
-    .map((s) => `${s.id}:${s.status}:${stageOf(calcLevel(s)).no}:${moveTierOf(s)}:${s.shiny ? "S" : ""}:${s.evoPattern || ""}:${boostOf(pnlOf(s, quotes[s.id]))}:${Math.min(6, s.noteCount || 0)}`)
+    .map((s) => `${s.id}:${s.status}:${stageOf(calcLevel(s)).no}:${moveTierOf(s)}:${s.shiny ? "S" : ""}:${s.evoPattern || ""}:${boostOf(pnlOf(s, quotes[s.id]))}:${Math.min(6, s.noteCount || 0)}:${conditionOf(s, quotes[s.id])}`)
     .join("|") + `|s:${seasonOf(new Date().getMonth() + 1).key}|r:${isRainyToday() ? 1 : 0}|a:${evalAchievements(stocks).size}`;
 
   useEffect(() => {
@@ -391,6 +528,8 @@ function RanchKairo({ stocks, quotes, onSelect }) {
     const members = stocksRef.current.filter((s) => s.status !== "sold");
     const holds = members.filter((s) => s.status === "hold");
     const watchers = members.filter((s) => s.status !== "hold");
+    // 建物のいたみ具合(通常/ボロ家/炎上)。地面のベイクでも使うのでここで定義する
+    const condOf = (s) => conditionOf(s, quotesRef.current[s.id]);
 
     /* ---- 敷地レイアウト: 保有銘柄のみ。ウォッチは東の森へ ---- */
     const ordered = [...holds].sort((a, b) => (a.no || 0) - (b.no || 0));
@@ -480,11 +619,27 @@ function RanchKairo({ stocks, quotes, onSelect }) {
     ground.width = worldW; ground.height = worldH;
     const g = ground.getContext("2d");
     const rngTuft = mulberry32(hashStr("kabu-ranch-tuft"));
+    // 敷地ごとの芝の色(いたみのある銘柄は枯れ色に寄せる)
+    const plotGrass = new Map();
+    plots.forEach((p, id) => {
+      const st = stocksRef.current.find((x) => x.id === id);
+      const cond = st ? condOf(st) : "normal";
+      const f2 = cond === "burning" ? 0.55 : cond === "shabby" ? 0.35 : 0;
+      plotGrass.set(id, f2 === 0 ? null : [mixHex(season.g1, "#8a7a4e", f2), mixHex(season.g2, "#8a7a4e", f2)]);
+    });
+    const grassAt = (i, j) => {
+      for (const [id, p] of plots) {
+        if (i >= p.i0 && i < p.i0 + p.size && j >= p.j0 && j < p.j0 + p.size) return plotGrass.get(id);
+      }
+      return null;
+    };
     for (let i = 0; i < N; i++) {
       for (let j = 0; j < N; j++) {
         const inside = inPlot(i, j);
         const forestT = inForest(i, j);
-        const baseHex = inside ? ((i + j) % 2 === 0 ? season.g1 : season.g2) : forestT ? season.forest : season.wild;
+        const withered = inside ? grassAt(i, j) : null;
+        const baseHex = withered ? ((i + j) % 2 === 0 ? withered[0] : withered[1])
+          : inside ? ((i + j) % 2 === 0 ? season.g1 : season.g2) : forestT ? season.forest : season.wild;
         const dim = !inside && (i + j) % 2 === 1 ? 0.95 : 1;
         fillTile(g, i, j, ox, oy, shadeHex(baseHex, 0.97 * dim), dim === 1 ? baseHex : shadeHex(baseHex, dim));
         const px = ox + isoX(i, j), py = oy + isoY(i, j);
@@ -602,8 +757,9 @@ function RanchKairo({ stocks, quotes, onSelect }) {
     const buildCache = new Map();
     const buildingFor = (s, phase) => {
       const p = plots.get(s.id);
-      const key = `${s.id}:${stageOf(calcLevel(s)).no}:${phase}:${s.shiny ? "S" : ""}:${p ? p.boost : 1}`;
-      if (!buildCache.has(key)) buildCache.set(key, buildingCanvas(s, phase, season, p ? p.boost : 1));
+      const cond = condOf(s);
+      const key = `${s.id}:${stageOf(calcLevel(s)).no}:${phase}:${s.shiny ? "S" : ""}:${p ? p.boost : 1}:${cond}`;
+      if (!buildCache.has(key)) buildCache.set(key, buildingCanvas(s, phase, season, p ? p.boost : 1, cond));
       return buildCache.get(key);
     };
     const rngTree = mulberry32(hashStr("kabu-tree-detail"));
@@ -860,7 +1016,12 @@ function RanchKairo({ stocks, quotes, onSelect }) {
         if (!p) return;
         const b = buildingFor(s, phase);
         const anchorI = p.i0 + p.footTiles / 2 + 0.3, anchorJ = p.j0 + p.footTiles / 2 + 0.3;
-        sprites.push({ depth: anchorI + anchorJ, cv: b.cv, ax: b.anchorX, ay: b.anchorY, topY: b.topY, wi: anchorI, wj: anchorJ, kind: "bld", id: s.id });
+        sprites.push({
+          depth: anchorI + anchorJ, cv: b.cv, ax: b.anchorX, ay: b.anchorY, topY: b.topY,
+          wi: anchorI, wj: anchorJ, kind: "bld", id: s.id,
+          burning: !reduced && condOf(s) === "burning", hw: b.hw,
+          seed: (hashStr(String(s.code || s.id)) % 100) / 16,
+        });
       });
       treeSprites.forEach((tr) => sprites.push({ depth: tr.i + tr.j, cv: tr.cv, ax: tr.anchorX, ay: tr.anchorY, wi: tr.i, wj: tr.j, kind: "tree" }));
       if (signSprite) sprites.push({ depth: signSprite.i + signSprite.j, cv: signSprite.cv, ax: signSprite.anchorX, ay: signSprite.anchorY, wi: signSprite.i, wj: signSprite.j, kind: "sign" });
@@ -872,6 +1033,7 @@ function RanchKairo({ stocks, quotes, onSelect }) {
       sprites.sort((a, b) => a.depth - b.depth);
 
       const hitRects = [];
+      const burning = []; // 炎のあかり(夜のグロー用)
       sprites.forEach((sp) => {
         if (sp.kind === "crit") {
           const { c, s, id } = sp;
@@ -912,6 +1074,12 @@ function RanchKairo({ stocks, quotes, onSelect }) {
           ctx.drawImage(sp.cv, Math.round(scr.x - sp.ax * z), Math.round(scr.y - sp.ay * z), dw, dh);
           if (sp.kind === "bld") {
             hitRects.push({ x: scr.x - sp.ax * z, y: scr.y - sp.ay * z, w: dw, h: dh, id: sp.id, low: true });
+            // にげるライン超過の家は燃えている(炎と煙は毎フレーム描く)
+            if (sp.burning) {
+              const roofTop = scr.y - (sp.ay - sp.topY) * z;
+              drawFire(ctx, scr.x, roofTop + 6 * z, sp.hw * 1.7 * z, z, now, sp.seed);
+              burning.push({ x: scr.x, y: roofTop, z });
+            }
             const evs = eventsMap.get(sp.id);
             if (evs && evs.length > 0) {
               const bobY = reduced ? 0 : Math.sin(now / 400) * 3 * z;
@@ -941,9 +1109,16 @@ function RanchKairo({ stocks, quotes, onSelect }) {
         ctx.fillRect(0, 0, cw, chh);
         ctx.globalCompositeOperation = "source-over";
       }
-      if (phase !== "day") {
+      if (phase !== "day" || burning.length > 0) {
         ctx.globalCompositeOperation = "lighter";
-        torchPos.forEach((tp) => {
+        burning.forEach((bp) => { // 火のあかりは昼でも周囲を照らす
+          const gr3 = ctx.createRadialGradient(bp.x, bp.y, 2, bp.x, bp.y, 46 * bp.z);
+          gr3.addColorStop(0, "rgba(255,120,40,.34)");
+          gr3.addColorStop(1, "rgba(255,120,40,0)");
+          ctx.fillStyle = gr3;
+          ctx.fillRect(bp.x - 46 * bp.z, bp.y - 46 * bp.z, 92 * bp.z, 92 * bp.z);
+        });
+        if (phase !== "day") torchPos.forEach((tp) => {
           const scr = toScreen(ox + isoX(tp.i, tp.j), oy + isoY(tp.i, tp.j));
           const gr2 = ctx.createRadialGradient(scr.x, scr.y - 24 * z, 2, scr.x, scr.y - 24 * z, 52 * z);
           gr2.addColorStop(0, "rgba(255,180,80,.30)");
@@ -1125,19 +1300,21 @@ function DigestTicker({ items }) {
 
 /* ---- 牧場ビュー ---- */
 
-function RanchView({ stocks, activity, onSelect }) {
-  const [quotes, setQuotes] = useState({});
+function RanchView({ stocks, activity, onSelect, quotes: quotesProp }) {
+  const [fetched, setFetched] = useState({});
+  const quotes = quotesProp || fetched;
   const phase = PHASE_INFO[dayPhase()];
   const season = seasonOf(new Date().getMonth() + 1);
   const rainy = isRainyToday();
   const actives = stocks.filter((s) => s.status !== "sold");
 
   useEffect(() => {
+    if (quotesProp) return; // 本体から渡されていれば取り直さない
     let alive = true;
-    fetchHeldQuotes(stocks).then((m) => { if (alive) setQuotes(m); });
+    fetchHeldQuotes(stocks).then((m) => { if (alive) setFetched(m); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stocks.map((s) => `${s.id}:${s.shares}:${s.avgPrice}:${s.status}`).join("|")]);
+  }, [quotesProp, stocks.map((s) => `${s.id}:${s.shares}:${s.avgPrice}:${s.status}`).join("|")]);
 
   const totals = {};
   stocks.forEach((s) => {
@@ -1158,6 +1335,16 @@ function RanchView({ stocks, activity, onSelect }) {
       upcomingEvents(s).forEach((ev) => {
         items.push(`🗓 ${ev.m}/${ev.d}${ev.days === 0 ? "(きょう)" : `(あと${ev.days}日)`} ${s.name}: ${ev.text}`);
       });
+    });
+    // 🔥ライン超過は最優先で先頭に、⚠まもなくはその次
+    actives.forEach((s) => {
+      const st = stopLossStateOf(s, quotes[s.id]);
+      if (st === "over") items.unshift(`🔥 ${s.name}が にげるライン(${stopLossPctOf(s)}%)を超えています`);
+    });
+    actives.forEach((s) => {
+      const st = stopLossStateOf(s, quotes[s.id]);
+      const m = marginToStopLoss(s, quotes[s.id]);
+      if (st === "near" && m !== null) items.push(`⚠️ ${s.name}は にげるラインまであと${m.toFixed(1)}%`);
     });
     dueForCheck(stocks).forEach((s) => items.push(`🔔 ${s.name}のトリガー点検が30日以上あいています`));
     actives.forEach((s) => {
@@ -1214,7 +1401,8 @@ function RanchView({ stocks, activity, onSelect }) {
       <div style={{ fontSize: 10.5, color: "#5b6284", marginTop: 8, lineHeight: 1.7 }}>
         ホカク済みの銘柄は柵つきの敷地でくらし、ウォッチ中の銘柄は東側「やせいの森」の木々のあいだを歩いています。
         研究所は研究ステージで形が変わり（テント→小屋→ラボ→塔つき御殿）、含み損益の事実で敷地ごと大きさが変わります
-        （含み益=大きく・含み損=小さめ）。はたけの作物は調査記録の件数で育ち、メモの日付（決算日など）が近づくと🗓が浮かびます。
+        （含み益=大きく・含み損=小さめ）。<b style={{ color: "#fca5a5" }}>-3%を超える含み損はボロ家になり、
+        あなたが決めた「にげるライン」を超えると家が燃えます</b>。はたけの作物は調査記録の件数で育ち、メモの日付（決算日など）が近づくと🗓が浮かびます。
         <b style={{ color: "#8b93b8" }}>ドラッグで移動、＋−/ホイールでズーム、タップで詳細</b>。
         大きさ・ようす・数値はすべて事実の参考表示で、売買推奨ではありません。
       </div>
@@ -1222,4 +1410,5 @@ function RanchView({ stocks, activity, onSelect }) {
   );
 }
 
-export { dayPhase, PHASE_INFO, seasonOf, isRainyToday, RanchView };
+// buildingCanvas / conditionOf は見た目の検証(スクショ比較)で使うため公開している
+export { dayPhase, PHASE_INFO, seasonOf, isRainyToday, RanchView, buildingCanvas, conditionOf };

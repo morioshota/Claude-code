@@ -4,29 +4,59 @@ import { Creature, RarityBadge, TypeChip, StatusBadge } from "./ui.jsx";
 import { TYPES, RARITIES } from "../data/constants.js";
 import { calcLevel, stageOf, freshInfo } from "../lib/stock.js";
 
-function DexCard({ stock, onClick }) {
+/* 損切りライン超過の警告柄(虎柄=工事現場のハザードテープ)。
+   これはオーナー自身が決めたラインへの到達を知らせる目印で、売買の指示ではない */
+const HAZARD_STRIPES = "repeating-linear-gradient(45deg, rgba(251,146,60,.30) 0 11px, rgba(0,0,0,.42) 11px 22px)";
+
+function DexCard({ stock, onClick, stopLossState }) {
   const t = TYPES[stock.type] || TYPES.metal;
   const r = RARITIES.find((x) => x.key === stock.rarity) || RARITIES[0];
   const lv = calcLevel(stock);
   const stage = stageOf(lv);
   const fresh = freshInfo(stock);
   const sold = stock.status === "sold";
+  const over = stopLossState === "over";
+  const near = stopLossState === "near";
 
   const inner = (
     <div style={{
       background: stage.no >= 3
         ? `radial-gradient(120% 90% at 50% 0%, ${t.dark} 0%, #12152a 65%)`
         : `linear-gradient(160deg, ${t.dark} 0%, #12152a 70%)`,
-      border: stage.no >= 4 ? "none" : `${stage.no >= 2 ? 2 : 1.5}px solid ${sold ? "#374151" : t.color}${stage.no >= 3 ? "aa" : "66"}`,
+      border: over ? "2px solid #f87171"
+        : near ? "2px dashed #fbbf24"
+        : stage.no >= 4 ? "none"
+        : `${stage.no >= 2 ? 2 : 1.5}px solid ${sold ? "#374151" : t.color}${stage.no >= 3 ? "aa" : "66"}`,
       borderRadius: 13, padding: 12, position: "relative", height: "100%", boxSizing: "border-box",
-      boxShadow: !sold && (stage.no >= 3 || stock.rarity >= 4) ? r.glow : "none",
+      overflow: "hidden",
+      boxShadow: over ? "0 0 18px rgba(248,113,113,.45)"
+        : !sold && (stage.no >= 3 || stock.rarity >= 4) ? r.glow : "none",
     }}>
+      {/* 虎柄レイヤー(超過時のみ)。中身より背面に敷いて文字は読めるまま保つ */}
+      {over && (
+        <div style={{
+          position: "absolute", inset: 0, background: HAZARD_STRIPES, backgroundSize: "31px 31px",
+          animation: "kzHazard 1.6s linear infinite", pointerEvents: "none", zIndex: 0,
+        }} />
+      )}
+      {(over || near) && (
+        <span style={{
+          position: "absolute", top: 6, left: 6, zIndex: 2,
+          fontFamily: "'DotGothic16', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5,
+          background: over ? "#f87171" : "#fbbf24", color: "#2a0505",
+          borderRadius: 5, padding: "1px 6px",
+          animation: over ? "kzAura 1.1s ease-in-out infinite" : "none",
+        }}>
+          {over ? "⚠ ライン超過" : "⚠ まもなく"}
+        </span>
+      )}
       {stage.no >= 3 && !sold && (
         <>
-          <span style={{ position: "absolute", top: 6, left: 8, color: t.color, fontSize: 10, opacity: .8 }}>✦</span>
-          <span style={{ position: "absolute", bottom: 8, right: 8, color: t.color, fontSize: 10, opacity: .8 }}>✦</span>
+          <span style={{ position: "absolute", top: 6, left: 8, color: t.color, fontSize: 10, opacity: .8, zIndex: 1 }}>✦</span>
+          <span style={{ position: "absolute", bottom: 8, right: 8, color: t.color, fontSize: 10, opacity: .8, zIndex: 1 }}>✦</span>
         </>
       )}
+      <div style={{ position: "relative", zIndex: 1 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
         <span style={{ fontFamily: "'DotGothic16', monospace", fontSize: 11, color: "#6b7394" }}>No.{String(stock.no).padStart(3, "0")}</span>
         <RarityBadge rarity={stock.rarity} size={13} />
@@ -61,6 +91,7 @@ function DexCard({ stock, onClick }) {
           {fresh && <span title={fresh.label} style={{ fontSize: 12 }}>{fresh.icon}</span>}
           <span style={{ fontFamily: "'DotGothic16', monospace", fontSize: 12, color: "#ffd166" }}>Lv.{lv}</span>
         </span>
+      </div>
       </div>
     </div>
   );
