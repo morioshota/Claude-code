@@ -99,27 +99,56 @@ function StockForm({ initial, onSave, onCancel }) {
               日本株は円・米国株はドルで入力。時価と含み損益は事実として表示されるだけで、売買判断の指標ではありません
             </div>
 
-            {/* 損切りライン: オーナー自身が決めるルール。到達価格は平均取得単価から計算して見せる */}
-            <label style={{ ...label, marginTop: 14 }}>にげるライン（損切りライン・任意）</label>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {/* 損切りライン: オーナー自身が決めるルール。到達価格は平均取得単価から計算して見せる。
+                ⚠ iOSのテンキーにはマイナスキーが無いので、入力は「何%下がったら」の正の数で受ける。
+                   内部の保存値は従来どおり負の数(-8)のまま */}
+            <label style={{ ...label, marginTop: 14 }} htmlFor="kz-stoploss">にげるライン（損切りライン・任意）</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: "#8b93b8", whiteSpace: "nowrap" }}>平均取得単価から</span>
               <input
-                style={{ ...input, width: 110, flex: "none" }} type="number" inputMode="decimal" max="0" step="any"
-                value={f.stopLossPct ?? ""} placeholder={String(DEFAULT_STOP_LOSS_PCT)}
+                id="kz-stoploss" aria-label="にげるライン"
+                style={{ ...input, width: 84, flex: "none", textAlign: "right" }}
+                type="number" inputMode="decimal" min="0" step="any"
+                value={f.stopLossPct == null ? "" : String(Math.abs(f.stopLossPct))}
+                placeholder={String(Math.abs(DEFAULT_STOP_LOSS_PCT))}
                 onChange={(e) => {
                   const raw = e.target.value.trim();
                   if (raw === "") { set("stopLossPct", null); return; }
                   const v = parseFloat(raw);
-                  set("stopLossPct", Number.isFinite(v) ? v : null);
+                  if (!Number.isFinite(v)) { set("stopLossPct", null); return; }
+                  set("stopLossPct", v === 0 ? 0 : -Math.abs(v)); // マイナスは自動で付ける
                 }}
               />
-              <span style={{ fontSize: 12, color: "#8b93b8" }}>％（平均取得単価から）</span>
+              <span style={{ fontSize: 12, color: "#8b93b8", whiteSpace: "nowrap" }}>％ 下がったら</span>
+            </div>
+            {/* よく使う値のボタン(スマホでは打つより速い) */}
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>
+              {[5, 8, 10, 15, 20].map((p) => {
+                const on = f.stopLossPct === -p;
+                return (
+                  <button key={p} onClick={() => set("stopLossPct", -p)} style={{
+                    all: "unset", cursor: "pointer", padding: "4px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 700,
+                    border: `1.5px solid ${on ? "#f87171" : "#2a3050"}`,
+                    background: on ? "#f8717122" : "transparent", color: on ? "#fca5a5" : "#6b7394",
+                  }}>-{p}%</button>
+                );
+              })}
+              <button onClick={() => set("stopLossPct", 0)} style={{
+                all: "unset", cursor: "pointer", padding: "4px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 700,
+                border: `1.5px solid ${f.stopLossPct === 0 ? "#8b93b8" : "#2a3050"}`,
+                background: f.stopLossPct === 0 ? "#8b93b822" : "transparent", color: f.stopLossPct === 0 ? "#c7cdec" : "#6b7394",
+              }}>判定しない</button>
+              <button onClick={() => set("stopLossPct", null)} style={{
+                all: "unset", cursor: "pointer", padding: "4px 10px", borderRadius: 999, fontSize: 11.5,
+                border: "1.5px solid #2a3050", color: "#6b7394",
+              }}>初期値に戻す</button>
             </div>
             {(() => {
               const price = stopLossPriceOf(f);
               const pct = stopLossPctOf(f);
               const jp = /^[0-9]/.test(String(f.code || ""));
               if (pct === null) {
-                return <div style={{ fontSize: 11, color: "#8b93b8", marginTop: 6 }}>この銘柄は損切りラインの判定をしません（0を入力中）</div>;
+                return <div style={{ fontSize: 11, color: "#8b93b8", marginTop: 6 }}>この銘柄は にげるラインの判定をしません</div>;
               }
               if (price === null) {
                 return <div style={{ fontSize: 11, color: "#5b6284", marginTop: 6 }}>株数と平均取得単価を入れると、到達する株価が表示されます</div>;
@@ -132,7 +161,7 @@ function StockForm({ initial, onSave, onCancel }) {
               );
             })()}
             <div style={{ fontSize: 10, color: "#5b6284", marginTop: 4, lineHeight: 1.6 }}>
-              空欄＝共通の初期値（{DEFAULT_STOP_LOSS_PCT}%）／ 0＝この銘柄は判定しない。
+              空欄＝共通の初期値（{DEFAULT_STOP_LOSS_PCT}%）。マイナスは自動で付くので数字だけ入れてください。
               あなた自身が決めるルールで、アプリが売買を勧めるものではありません
             </div>
           </div>
