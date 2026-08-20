@@ -1,0 +1,17 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# エディタ
+.vscode/
+.idea/
+*.swp
+
+# 一時ファイル
+*.tmp
+*.bak
+/tmp/
+
+# Node（テスト実行のみで依存はないが念のため）
+node_modules/

@@ -1,0 +1,7 @@
+{
+  "name": "fukkoban-grade-finder",
+  "private": true,
+  "type": "commonjs",
+  "description": "覆工板 最適勾配 検討ツール（単一HTML・ビルド不要）。このpackage.jsonは親リポジトリが type:module のため、test/core.test.js を CommonJS として実行させるためだけに置いている。依存パッケージは無い。",
+  "scripts": { "test": "node test/core.test.js" }
+}
