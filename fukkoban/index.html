@@ -3,12 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>覆工板 最適勾配 検討ツール v1.1.0</title>
+<title>覆工板 最適勾配 検討ツール v1.2.0</title>
 <!-- ==========================================================
      覆工板 最適勾配 検討ツール  /  Optimal Grade Finder for Road Decking
-     Version : 1.1.0
+     Version : 1.2.0
      Author  : Shota Onuma
      単一HTMLファイル・ビルド不要・外部依存なし（three.js r128 を同梱＝完全オフライン動作）
+     使い方ページは guide/index.html（ヘッダーの「📖 使い方」から別タブで開く。
+     このファイル単体を配布した場合はリンク先が無いため開けない＝ツールの動作には影響しない）
      詳細は README.md / CODE_STRUCTURE.md を参照
      ========================================================== -->
 <!-- ==========================================================
@@ -67,6 +69,8 @@
   .btn.primary:hover{background:var(--accent-d)}
   .btn.ghost{background:transparent;border-color:#3A4856;color:#C3CAD2}
   .btn.ghost:hover{background:#2E3A47}
+  a.btn{display:inline-flex;align-items:center;text-decoration:none;line-height:1.42}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   /* layout */
   .wrap{display:flex;flex:1;min-height:0}
   aside{
@@ -202,13 +206,15 @@
 <body>
 <header>
   <div class="mark"></div>
-  <h1>覆工板 最適勾配 検討ツール<small>OPTIMAL GRADE FINDER FOR ROAD DECKING<span class="cred">Created by Shota Onuma　/　v1.1.0</span></small></h1>
+  <h1>覆工板 最適勾配 検討ツール<small>OPTIMAL GRADE FINDER FOR ROAD DECKING<span class="cred">Created by Shota Onuma　/　v1.2.0</span></small></h1>
   <div class="spacer"></div>
   <button class="btn primary" id="btnOpt">最適勾配を算出</button>
   <button class="btn ghost" id="btnCsvIn">CSV取込</button>
   <button class="btn ghost" id="btnCsvOut">CSV書出</button>
   <button class="btn ghost" id="btnSave">保存</button>
   <button class="btn ghost" id="btnReset">初期化</button>
+  <a class="btn ghost" id="btnHelp" href="guide/index.html" target="_blank" rel="noopener"
+     title="使い方を別タブで開きます（入力中の値はそのまま残ります）">📖 使い方</a>
   <input type="file" id="fileIn" accept=".csv,text/csv" style="display:none">
 </header>
 
