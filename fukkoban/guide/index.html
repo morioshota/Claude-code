@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>覆工板 最適勾配 検討ツール ― 使い方</title>
+<!-- ==========================================================
+     覆工板 最適勾配 検討ツール  /  使い方（マニュアル）
+     Version : 1.1.0 対応
+     Author  : Shota Onuma
+     単一HTMLファイル・外部依存なし・ビルド不要（ツール本体と同じ方針）
+     ツール本体（../index.html）には一切手を入れていない
+     ========================================================== -->
+<style>
+  :root{
+    --paper:#FAF9F6; --panel:#F2F0EA; --ink:#1F2933; --ink2:#5A6472;
+    --line:#D9D5C8; --line2:#C7C2B2; --accent:#E8590C; --accent-d:#C24300;
+    --ok:#3F8F5B; --warn:#C2410C; --blue:#2563EB;
+    --mono:"SFMono-Regular", ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    --sans:"Inter", system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth; scroll-padding-top:78px}
+  body{
+    margin:0; font-family:var(--sans); color:var(--ink); background:var(--paper);
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:24px 24px; background-position:-1px -1px;
+    -webkit-text-size-adjust:100%;
+  }
+
+  /* ---- header ---- */
+  header{
+    position:sticky; top:0; z-index:20;
+    display:flex; align-items:center; gap:16px; padding:11px 22px;
+    background:var(--ink); color:#fff; border-bottom:3px solid var(--accent);
+  }
+  header .mark{width:32px;height:32px;border:2px solid var(--accent);position:relative;flex-shrink:0;border-radius:3px}
+  header .mark::before{content:"";position:absolute;inset:5px 4px;border-top:2px solid var(--accent);transform:rotate(-9deg)}
+  header h1{font-size:14.5px;letter-spacing:.03em;margin:0;font-weight:650;line-height:1.35}
+  header h1 small{display:block;font-weight:400;font-size:10.5px;color:#A9B2BD;letter-spacing:.12em;margin-top:3px}
+  header .spacer{flex:1}
+  .btn{
+    font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.02em;
+    padding:8px 14px;border-radius:5px;border:1px solid transparent;cursor:pointer;
+    background:var(--accent);color:#fff;text-decoration:none;white-space:nowrap;transition:.12s;
+  }
+  .btn:hover{background:var(--accent-d)}
+  .btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+  /* ---- layout ---- */
+  .wrap{max-width:1160px;margin:0 auto;padding:30px 22px 90px;display:grid;grid-template-columns:216px 1fr;gap:44px;align-items:start}
+  nav.toc{position:sticky;top:96px;font-size:12.5px;line-height:1.5}
+  nav.toc .tochd{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);font-weight:700;margin-bottom:10px}
+  nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  nav.toc a{
+    display:flex;gap:9px;text-decoration:none;color:var(--ink2);padding:5px 8px;border-radius:4px;
+    border-left:2px solid transparent;transition:.12s;
+  }
+  nav.toc a:hover{color:var(--ink);background:var(--panel);border-left-color:var(--line2)}
+  nav.toc a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  nav.toc a .n{font-family:var(--mono);font-size:11px;color:var(--line2);flex-shrink:0}
+  nav.toc a:hover .n{color:var(--accent)}
+
+  article{min-width:0;max-width:74ch}
+
+  /* ---- typography ---- */
+  .lede{font-size:15px;line-height:1.85;color:var(--ink);margin:0 0 8px}
+  p{line-height:1.9;font-size:14px;margin:0 0 15px}
+  section{margin:0 0 46px;scroll-margin-top:82px}
+  h2{
+    font-size:19px;font-weight:700;letter-spacing:.01em;margin:0 0 16px;padding-bottom:9px;
+    border-bottom:2px solid var(--ink);display:flex;align-items:baseline;gap:12px;text-wrap:balance;
+  }
+  h2 .n{font-family:var(--mono);font-size:13px;color:var(--accent-d);font-weight:600}
+  h3{font-size:14.5px;font-weight:700;margin:26px 0 10px;padding-left:10px;border-left:3px solid var(--accent)}
+  b,strong{font-weight:700}
+  a{color:var(--accent-d)}
+  ul,ol{padding-left:1.35em;margin:0 0 15px}
+  li{line-height:1.85;font-size:14px;margin-bottom:5px}
+
+  /* ---- steps ---- */
+  ol.steps{list-style:none;padding:0;counter-reset:st;display:flex;flex-direction:column;gap:12px}
+  ol.steps>li{
+    counter-increment:st;position:relative;background:#fff;border:1px solid var(--line2);border-radius:7px;
+    padding:13px 16px 13px 52px;margin:0;
+  }
+  ol.steps>li::before{
+    content:counter(st);position:absolute;left:14px;top:12px;
+    width:24px;height:24px;border-radius:50%;background:var(--ink);color:#fff;
+    font-family:var(--mono);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;
+  }
+  ol.steps>li>b:first-of-type{display:block;margin-bottom:3px}
+  ol.steps>li .sub b{display:inline}
+  ol.steps>li .sub{font-size:12.5px;color:var(--ink2);line-height:1.75}
+
+  /* ---- tables ---- */
+  .tw{overflow-x:auto;margin:0 0 16px;border:1px solid var(--line2);border-radius:6px;background:#fff}
+  table{border-collapse:collapse;width:100%;font-size:13px;min-width:440px}
+  th{background:var(--ink);color:#fff;font-weight:500;font-size:11px;letter-spacing:.05em;text-align:left;padding:8px 11px;white-space:nowrap}
+  td{padding:8px 11px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.7}
+  tr:last-child td{border-bottom:none}
+  tbody tr:nth-child(even) td{background:#FCFBF8}
+  td.num,th.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  td code{white-space:nowrap}
+
+  /* ---- callouts ---- */
+  .note,.warn,.tip{border-left:3px solid;border-radius:0 6px 6px 0;padding:12px 15px;margin:0 0 16px;font-size:13.5px;line-height:1.8}
+  .note{background:#F4F6FB;border-color:var(--blue)}
+  .warn{background:#FDF1E9;border-color:var(--warn)}
+  .tip{background:#EEF6F0;border-color:var(--ok)}
+  .note>b:first-child,.warn>b:first-child,.tip>b:first-child{display:block;margin-bottom:3px;font-size:12.5px;letter-spacing:.02em}
+  .note>b:first-child{color:var(--blue)} .warn>b:first-child{color:var(--warn)} .tip>b:first-child{color:var(--ok)}
+
+  code{font-family:var(--mono);font-size:.92em;background:var(--panel);padding:1.5px 5px;border-radius:3px;border:1px solid var(--line)}
+  pre{
+    font-family:var(--mono);font-size:12px;line-height:1.75;background:#fff;border:1px solid var(--line2);
+    border-radius:6px;padding:13px 15px;overflow-x:auto;margin:0 0 16px;
+  }
+  pre code{background:none;border:none;padding:0;font-size:12px}
+  kbd{
+    font-family:var(--mono);font-size:11.5px;background:#fff;border:1px solid var(--line2);
+    border-bottom-width:2px;border-radius:4px;padding:1px 6px;white-space:nowrap;
+  }
+
+  /* ---- figures ---- */
+  figure{margin:0 0 18px;border:1px solid var(--line2);border-radius:7px;background:#fff;overflow:hidden}
+  figure .fw{overflow-x:auto;padding:12px 14px}
+  figure svg{display:block;min-width:440px}
+  figcaption{font-size:11.5px;color:var(--ink2);padding:9px 14px;border-top:1px solid var(--line);background:var(--panel);line-height:1.6}
+
+  /* ---- misc ---- */
+  .chip{display:inline-block;padding:1px 7px;border-radius:3px;font-size:11.5px;font-weight:600;font-family:var(--mono)}
+  .chip.pos{background:#FCEBDD;color:var(--warn)} .chip.neg{background:#E4ECFB;color:var(--blue)} .chip.ok{background:#E4F1E9;color:var(--ok)}
+  .kv{font-family:var(--mono);font-size:13.5px;background:#fff;border:1px solid var(--line2);border-radius:6px;padding:13px 16px;margin:0 0 16px;line-height:2;overflow-x:auto}
+  .kv .lbl{color:var(--ink2);font-family:var(--sans);font-size:12px}
+  footer{
+    border-top:1px solid var(--line2);margin-top:10px;padding:22px;text-align:center;
+    font-size:11.5px;color:var(--ink2);line-height:1.9;background:var(--panel);
+  }
+  footer b{color:var(--ink)}
+
+  @media (max-width:880px){
+    .wrap{grid-template-columns:1fr;gap:24px;padding:22px 16px 70px}
+    nav.toc{position:static;border:1px solid var(--line2);border-radius:7px;background:#fff;padding:14px 12px}
+    nav.toc ol{display:grid;grid-template-columns:1fr 1fr;gap:2px}
+    header h1{font-size:13px}
+    article{max-width:none}
+  }
+  @media print{
+    @page{margin:14mm}
+    html{scroll-behavior:auto}
+    body{background:#fff;background-image:none;font-size:11pt}
+    header{position:static;background:#fff;color:#000;border-bottom:2px solid #000;padding:0 0 8px;margin-bottom:14px}
+    header .mark,header .btn{display:none}
+    header h1 small{color:#444}
+    nav.toc{display:none}
+    .wrap{display:block;max-width:none;padding:0}
+    article{max-width:none}
+    section{page-break-inside:avoid;margin-bottom:26px}
+    h2{page-break-after:avoid}
+    figure,.tw,pre{page-break-inside:avoid}
+    footer{background:#fff;border-top:1px solid #000}
+  }
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="mark"></div>
+  <h1>覆工板 最適勾配 検討ツール ― 使い方<small>OPTIMAL GRADE FINDER FOR ROAD DECKING　/　v1.1.0 対応</small></h1>
+  <div class="spacer"></div>
+  <a class="btn" href="../">ツールを開く</a>
+</header>
+
+<div class="wrap">
+
+  <nav class="toc" aria-label="目次">
+    <div class="tochd">目次</div>
+    <ol>
+      <li><a href="#s1"><span class="n">1</span><span>このツールは何をするか</span></a></li>
+      <li><a href="#s2"><span class="n">2</span><span>クイックスタート</span></a></li>
+      <li><a href="#s3"><span class="n">3</span><span>軸と符号の約束</span></a></li>
+      <li><a href="#s4"><span class="n">4</span><span>最適化モードの選び方</span></a></li>
+      <li><a href="#s5"><span class="n">5</span><span>設定項目の意味</span></a></li>
+      <li><a href="#s6"><span class="n">6</span><span>4つの画面の見かた</span></a></li>
+      <li><a href="#s7"><span class="n">7</span><span>管理値テーブルの読み方</span></a></li>
+      <li><a href="#s8"><span class="n">8</span><span>印刷して提出する</span></a></li>
+      <li><a href="#s9"><span class="n">9</span><span>CSVで受け渡す</span></a></li>
+      <li><a href="#s10"><span class="n">10</span><span>保存とデータの扱い</span></a></li>
+      <li><a href="#s11"><span class="n">11</span><span>困ったとき</span></a></li>
+      <li><a href="#s12"><span class="n">12</span><span>計算の中身と限界</span></a></li>
+    </ol>
+  </nav>
+
+  <article>
+
+    <!-- 1 -->
+    <section id="s1">
+      <h2><span class="n">01</span>このツールは何をするか</h2>
+      <p class="lede">
+        覆工板を敷いたときの<b>覆工面と既設舗装の高低差が最小になる勾配</b>を、実測高から自動で求めます。
+        縦断勾配・横断勾配・基準高の3つを、入力したすべての測点に対して最適になるよう決めるのが仕事です。
+      </p>
+      <p>
+        手作業でやると「この点に合わせると向こうが浮く」を延々と繰り返すことになります。
+        このツールは全測点をまとめて評価して、その繰り返しを1回の計算で終わらせます。
+        出てくるのは勾配だけではなく、<b>各測点の高低差・すり付け長・受桁天端・床付け</b>まで、そのまま検討書に使える数字です。
+      </p>
+
+      <h3>使う前に用意するもの</h3>
+      <ul>
+        <li><b>既設舗装の実測高</b>（標高でも、現場の任意基準からの相対高でもかまいません）</li>
+        <li>覆工エリアを格子に区切ったときの<b>測点の間隔</b></li>
+        <li>（管理値まで出すなら）<b>覆工板の厚さ</b>と<b>受桁の桁高</b></li>
+      </ul>
+
+      <div class="tip">
+        <b>ネット接続は不要です</b>
+        v1.1.0 から3D表示のライブラリを本体に同梱しました。<code>index.html</code> をUSBで持ち込んで
+        ダブルクリックするだけで、回線のない現場PCでも全機能が動きます。
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section id="s2">
+      <h2><span class="n">02</span>クイックスタート</h2>
+      <p>初めてなら、まず<b>サンプル値で一周</b>してみるのが早いです。ツールを開いた直後はサンプルが入った状態になっています。</p>
+
+      <ol class="steps">
+        <li>
+          <b>覆工エリアを決める</b>
+          <div class="sub">
+            左のサイドバー上部で「縦断 測点数 / 測点間隔」「横断 測点数 / 測点間隔」を入力し、
+            <b>「グリッドを作り直す」</b>を押します。<br>
+            測点が等間隔でないときは<b>「測点間隔を個別入力」</b>にチェックを入れると、区間ごとに距離を指定できます。
+          </div>
+        </li>
+        <li>
+          <b>既設舗装高を入力する</b>
+          <div class="sub">
+            <b>①グリッド入力</b>タブの表に、各交点の実測高（m）を打ち込みます。
+            <kbd>Tab</kbd> <kbd>Enter</kbd> <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> でセルを移動できます。<br>
+            <b>測れなかった点は空欄のままで構いません。</b>空欄は計算から自動的に除外されます。
+          </div>
+        </li>
+        <li>
+          <b>最適化モードを選ぶ</b>
+          <div class="sub">
+            サイドバーの3択。迷ったら<b>「バランス（RMS最小）」</b>のままで結構です。→ <a href="#s4">4章</a>
+          </div>
+        </li>
+        <li>
+          <b>「最適勾配を算出」を押す</b>
+          <div class="sub">
+            画面上部のオレンジのボタン。サイドバー下部に縦断勾配・横断勾配・最大／最小高低差・RMS が出ます。
+          </div>
+        </li>
+        <li>
+          <b>4つのタブで結果を確認する</b>
+          <div class="sub">
+            ②ヒートマップで<b>どこが高い／低いか</b>を掴み、③3Dで<b>面の傾き</b>を確認し、④管理値テーブルで<b>施工に渡す数字</b>を拾います。
+          </div>
+        </li>
+        <li>
+          <b>印刷または CSV で出す</b>
+          <div class="sub">
+            タブの右端<b>「🖨 この表示を印刷」</b>で、表示中のタブがそのまま検討資料になります。→ <a href="#s8">8章</a>
+          </div>
+        </li>
+      </ol>
+
+      <div class="note">
+        <b>設定を変えたら押し直す</b>
+        測点数・間隔・モード・勾配制限を変えた場合は、もう一度<b>「最適勾配を算出」</b>を押してください。
+        （覆工板厚・桁高・許容段差・すり付け勾配だけは、変更すると自動で反映されます）
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section id="s3">
+      <h2><span class="n">03</span>軸と符号の約束</h2>
+      <p>ここだけ最初に頭に入れてください。<b>表の行が縦断（S）、列が横断（T）</b>です。原点は表の左上のセルです。</p>
+
+      <figure>
+        <div class="fw">
+          <svg viewBox="0 0 470 208" style="max-width:470px;margin:0 auto" role="img" aria-label="グリッドの軸の向きを示す図。行が縦断S方向で下向きが正、列が横断T方向で右向きが正、原点は左上">
+            <defs>
+              <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+                <path d="M0,0 L7,3.2 L0,6.4 z" fill="#1F2933"/>
+              </marker>
+            </defs>
+            <!-- cells -->
+            <g stroke="#C7C2B2" fill="#FFFFFF">
+              <rect x="100" y="66" width="66" height="38"/><rect x="166" y="66" width="66" height="38"/>
+              <rect x="232" y="66" width="66" height="38"/><rect x="298" y="66" width="66" height="38"/>
+              <rect x="100" y="104" width="66" height="38"/><rect x="166" y="104" width="66" height="38"/>
+              <rect x="232" y="104" width="66" height="38"/><rect x="298" y="104" width="66" height="38"/>
+              <rect x="100" y="142" width="66" height="38"/><rect x="166" y="142" width="66" height="38"/>
+              <rect x="232" y="142" width="66" height="38"/><rect x="298" y="142" width="66" height="38"/>
+            </g>
+            <rect x="100" y="66" width="66" height="38" fill="#FFF4EC" stroke="#E8590C" stroke-width="2"/>
+            <!-- cell labels -->
+            <g font-family="ui-monospace,monospace" font-size="11" fill="#5A6472" text-anchor="middle">
+              <text x="133" y="90" fill="#C24300" font-weight="700">S0･T0</text>
+              <text x="199" y="90">S0･T1</text><text x="265" y="90">S0･T2</text><text x="331" y="90">S0･T3</text>
+              <text x="133" y="128">S1･T0</text><text x="199" y="128">S1･T1</text>
+              <text x="265" y="128">S1･T2</text><text x="331" y="128">S1･T3</text>
+              <text x="133" y="166">S2･T0</text><text x="199" y="166">S2･T1</text>
+              <text x="265" y="166">S2･T2</text><text x="331" y="166">S2･T3</text>
+            </g>
+            <!-- T arrow -->
+            <line x1="100" y1="46" x2="356" y2="46" stroke="#1F2933" stroke-width="1.4" marker-end="url(#ar)"/>
+            <text x="100" y="34" font-family="system-ui,sans-serif" font-size="12" fill="#1F2933" font-weight="600">横断 T（右へ進むほど正）→</text>
+            <!-- S arrow -->
+            <line x1="80" y1="66" x2="80" y2="192" stroke="#1F2933" stroke-width="1.4" marker-end="url(#ar)"/>
+            <text x="74" y="130" font-family="system-ui,sans-serif" font-size="12" fill="#1F2933" font-weight="600"
+                  text-anchor="middle" transform="rotate(-90 74 130)">縦断 S（下へ進むほど正）</text>
+            <!-- origin -->
+            <circle cx="100" cy="66" r="4" fill="#E8590C"/>
+            <text x="378" y="70" font-family="system-ui,sans-serif" font-size="11.5" fill="#C24300" font-weight="700">← 原点</text>
+            <text x="378" y="86" font-family="ui-monospace,monospace" font-size="11" fill="#5A6472">S=0, T=0</text>
+          </svg>
+        </div>
+        <figcaption>グリッドの軸。原点は左上セル。<b>縦断勾配 gS</b> は S方向の傾き、<b>横断勾配 gT</b> は T方向の傾き（いずれも％表示）。それぞれ「Sが増える向き」「Tが増える向き」に上がるときが正。</figcaption>
+      </figure>
+
+      <h3>高低差 Δ（デルタ）の符号</h3>
+      <div class="kv">
+        Δ ＝ 覆工面の高さ − 既設舗装の高さ　<span class="lbl">（単位：mm）</span>
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>符号</th><th>意味</th><th>現場でどうなるか</th><th>画面の色</th></tr></thead>
+          <tbody>
+            <tr><td><span class="chip pos">＋</span></td><td>覆工面が既設より<b>高い</b></td><td>既設舗装側を<b>上げてすり付け</b>る</td><td>暖色（オレンジ）</td></tr>
+            <tr><td><span class="chip neg">−</span></td><td>覆工面が既設より<b>低い</b></td><td><b>段差になる</b>。切削または下げ処理が必要</td><td>寒色（青）</td></tr>
+            <tr><td><span class="chip ok">±0</span></td><td>許容段差の範囲内</td><td>実質ぴったり。処理不要</td><td>緑</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="warn">
+        <b>マイナスの扱いに注意</b>
+        <span class="chip neg">−</span> は覆工板が既設より低い＝<b>車両が乗り上げる段差</b>になる側です。
+        これを出したくない場合は、モードを<b>「覆工面は既設以上」</b>にすると全点で Δ ≧ 0 になります。
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section id="s4">
+      <h2><span class="n">04</span>最適化モードの選び方</h2>
+      <p>同じ実測値でも「何を最小にしたいか」で答えが変わります。3つの考え方から選びます。</p>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>モード</th><th>何を最小にするか</th><th>こういうときに</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>バランス<br>（RMS最小）</b></td>
+              <td>高低差の二乗平均（RMS）</td>
+              <td><b>迷ったらこれ。</b>上げ・下げのすり付けを全体に均等に散らす。総手間が一番小さくなりやすい</td>
+            </tr>
+            <tr>
+              <td><b>覆工面は<br>既設以上</b></td>
+              <td>覆工面を既設より下げないまま、全体の持ち上げ量</td>
+              <td><b>段差を絶対に出したくないとき。</b>全点が Δ ≧ 0 になり、上げすり付けだけで納まる。その分すり付け量は増える</td>
+            </tr>
+            <tr>
+              <td><b>最大高低差を<br>最小化</b></td>
+              <td>いちばん大きい段差そのもの</td>
+              <td><b>一点の突出を抑えたいとき。</b>最大＋と最大−が同じ大きさになる（±対称）。すり付けの最大値に制限があるときに有効</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="tip">
+        <b>3つ試して見比べるのが確実です</b>
+        モードを切り替えると自動で再計算されます。サイドバーの<b>最大／最小高低差とRMS</b>を見比べて、
+        現場条件に合うものを選んでください。1秒で切り替わるので、実際に比べたほうが早いです。
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section id="s5">
+      <h2><span class="n">05</span>設定項目の意味</h2>
+
+      <h3>すり付け / 許容値</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>項目</th><th>意味</th></tr></thead>
+          <tbody>
+            <tr><td><b>すり付け勾配（%）</b></td><td>すり付け長を逆算するための勾配。<b>すり付け長 ＝ |Δ| ÷ すり付け勾配</b>。1.0% なら 10mm の段差に対して 1.0m</td></tr>
+            <tr><td><b>許容段差（± mm）</b></td><td>「これ以内なら合っているとみなす」しきい値。ヒートマップの<b>緑帯</b>と管理値テーブルの<span class="chip ok">緑チップ</span>の判定に使う</td></tr>
+            <tr><td><b>勾配を丸める</b></td><td>計算結果をきりのいい数字に丸める。現場で施工しやすくなる代わりに高低差はわずかに増える</td></tr>
+            <tr><td><b>丸め単位（%）</b></td><td>0.1 なら 0.1% 単位（例 0.43% → 0.4%）</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>覆工構造（管理値用）</h3>
+      <p>ここは勾配の計算そのものには影響しません。<b>管理値テーブルの受桁天端・床付けを出すため</b>だけに使います。</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>項目</th><th>意味</th></tr></thead>
+          <tbody>
+            <tr><td><b>覆工板 厚（mm）</b></td><td>覆工面から受桁天端までの落とし込み量</td></tr>
+            <tr><td><b>受桁 桁高（mm）</b></td><td>受桁天端から床付けまでの高さ</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>勾配の上下限（任意）</h3>
+      <p>
+        排水の都合や設計条件で勾配に制限があるときに使います。チェックを入れて下限〜上限（%）を指定すると、
+        <b>その範囲内でいちばん高低差が小さくなる勾配</b>を探します。
+      </p>
+      <div class="note">
+        <b>制限をかけたら高低差を必ず見直す</b>
+        範囲を狭めるほど、当然ながら高低差は大きくなります。制限をかけた後は
+        サイドバーの最大／最小高低差と、②ヒートマップの色の出方を必ず確認してください。
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section id="s6">
+      <h2><span class="n">06</span>4つの画面の見かた</h2>
+
+      <h3>① グリッド入力</h3>
+      <p>既設舗装高を入れる表です。行が縦断S、列が横断T。ヘッダには測点の<b>累積距離（m）</b>が表示されるので、測量野帳と突き合わせやすくなっています。</p>
+      <ul>
+        <li><b>サンプル値を入れる</b> … 練習用のダミー値を投入（実データは上書きされます）</li>
+        <li><b>空にする</b> … 全セルを消去</li>
+      </ul>
+
+      <h3>② 平面ヒートマップ</h3>
+      <p>覆工エリアを真上から見た色分けです。<b>どこが浮いて、どこが沈むか</b>が一目で分かります。セルの数字は高低差（mm）。</p>
+      <ul>
+        <li><b>暖色</b>＝覆工が高い（＋）／<b>寒色</b>＝覆工が低い（−）／<b>緑</b>＝許容段差内</li>
+        <li>色の濃さは、そのケースの最大高低差を基準に自動でスケーリングされます</li>
+      </ul>
+
+      <h3>③ 3D高低差ビュー</h3>
+      <p>既設面（灰）と覆工面（オレンジ）を立体で重ねて見ます。打合せで説明するときに一番伝わる画面です。</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>操作</th><th>動き</th></tr></thead>
+          <tbody>
+            <tr><td>ドラッグ</td><td>回転</td></tr>
+            <tr><td>ホイール</td><td>ズーム</td></tr>
+            <tr><td>右ドラッグ</td><td>平行移動</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>左上のパネルで表示を切り替えられます。</p>
+      <ul>
+        <li><b>鉛直 誇張</b> … 高さ方向の倍率（1〜200倍）。実寸だと数ミリの差は見えないので、<b>40倍前後</b>から調整するのが実用的です</li>
+        <li><b>既設面 / 覆工面 / 高低差バー / 数値ラベル / 測点ラベル</b> … それぞれ表示ON/OFF</li>
+      </ul>
+      <div class="note">
+        <b>鉛直誇張は「見るため」の倍率です</b>
+        画面の見た目の傾きは実際の勾配ではありません。数字は必ずサイドバーと④管理値テーブルで確認してください。
+      </div>
+
+      <h3>④ 管理値テーブル</h3>
+      <p>施工に渡す数字の一覧です。読み方は次の章で説明します。</p>
+    </section>
+
+    <!-- 7 -->
+    <section id="s7">
+      <h2><span class="n">07</span>管理値テーブルの読み方</h2>
+      <p>各測点で、上から順に<b>覆工面高 → 受桁天端 → 床付け</b>と高さが決まります。</p>
+
+      <figure>
+        <div class="fw">
+          <svg viewBox="0 0 700 240" style="max-width:700px;margin:0 auto" role="img" aria-label="断面の高さ関係の模式図。覆工面高から覆工板厚を引くと受桁天端、さらに桁高を引くと床付け。覆工面と既設舗装面の差が高低差デルタ">
+            <defs>
+              <marker id="d1" markerWidth="8" markerHeight="8" refX="6.2" refY="3" orient="auto"><path d="M0,0 L6.2,3 L0,6 z" fill="#5A6472"/></marker>
+              <marker id="d1s" markerWidth="8" markerHeight="8" refX="1.8" refY="3" orient="auto"><path d="M6.2,0 L0,3 L6.2,6 z" fill="#5A6472"/></marker>
+              <marker id="d2" markerWidth="8" markerHeight="8" refX="6.2" refY="3" orient="auto"><path d="M0,0 L6.2,3 L0,6 z" fill="#C24300"/></marker>
+              <marker id="d2s" markerWidth="8" markerHeight="8" refX="1.8" refY="3" orient="auto"><path d="M6.2,0 L0,3 L6.2,6 z" fill="#C24300"/></marker>
+              <pattern id="grd" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="9" stroke="#C7C2B2" stroke-width="1"/>
+              </pattern>
+            </defs>
+
+            <text x="14" y="24" font-family="system-ui,sans-serif" font-size="12.5" fill="#1F2933" font-weight="700">断面の高さ関係（模式図）</text>
+            <text x="14" y="44" font-family="ui-monospace,monospace" font-size="11" fill="#5A6472">受桁天端 ＝ 覆工面高 − 覆工板厚　／　床付け ＝ 受桁天端 − 桁高</text>
+
+            <!-- 床付け以下 -->
+            <rect x="240" y="180" width="320" height="32" fill="url(#grd)" stroke="#C7C2B2"/>
+            <!-- 受桁 -->
+            <rect x="240" y="122" width="320" height="58" fill="#F2F0EA" stroke="#C7C2B2"/>
+            <g stroke="#C7C2B2"><line x1="360" y1="122" x2="360" y2="180"/><line x1="470" y1="122" x2="470" y2="180"/></g>
+            <!-- 覆工板 -->
+            <rect x="240" y="84" width="320" height="38" fill="#FDE7D6" stroke="#E8590C" stroke-width="1.6"/>
+
+            <!-- 既設舗装面（覆工エリアの手前側） -->
+            <line x1="58" y1="106" x2="240" y2="106" stroke="#9AA0A6" stroke-width="1.8" stroke-dasharray="7 5"/>
+            <text x="58" y="124" font-family="system-ui,sans-serif" font-size="11.5" fill="#5A6472">既設舗装面（実測高）</text>
+            <!-- 覆工面レベルの延長 -->
+            <line x1="128" y1="84" x2="240" y2="84" stroke="#E8590C" stroke-width="1.2" stroke-dasharray="3 3"/>
+
+            <!-- Δ -->
+            <line x1="150" y1="84" x2="150" y2="106" stroke="#C24300" stroke-width="1.5" marker-start="url(#d2s)" marker-end="url(#d2)"/>
+            <text x="161" y="99" font-family="ui-monospace,monospace" font-size="12.5" fill="#C24300" font-weight="700">Δ</text>
+            <text x="177" y="99" font-family="system-ui,sans-serif" font-size="11" fill="#C24300">高低差</text>
+
+            <!-- 寸法（内側） -->
+            <line x1="292" y1="84" x2="292" y2="122" stroke="#5A6472" stroke-width="1.2" marker-start="url(#d1s)" marker-end="url(#d1)"/>
+            <text x="303" y="107" font-family="system-ui,sans-serif" font-size="11" fill="#1F2933">覆工板 厚</text>
+            <line x1="292" y1="122" x2="292" y2="180" stroke="#5A6472" stroke-width="1.2" marker-start="url(#d1s)" marker-end="url(#d1)"/>
+            <text x="303" y="156" font-family="system-ui,sans-serif" font-size="11" fill="#1F2933">受桁 桁高</text>
+            <text x="480" y="156" font-family="system-ui,sans-serif" font-size="11" fill="#5A6472" text-anchor="middle">受　桁</text>
+            <text x="400" y="201" font-family="system-ui,sans-serif" font-size="11" fill="#5A6472" text-anchor="middle">床付け以下（掘削・支持）</text>
+
+            <!-- 右のレベル名 -->
+            <g stroke="#C7C2B2" stroke-width="1">
+              <line x1="560" y1="84" x2="576" y2="84"/><line x1="560" y1="122" x2="576" y2="122"/><line x1="560" y1="180" x2="576" y2="180"/>
+            </g>
+            <g font-family="system-ui,sans-serif" font-size="11.5">
+              <text x="582" y="88" fill="#C24300" font-weight="700">覆工面高</text>
+              <text x="582" y="126" fill="#1F2933">受桁天端</text>
+              <text x="582" y="184" fill="#1F2933">床付け</text>
+            </g>
+          </svg>
+        </div>
+        <figcaption>覆工面高が決まれば、覆工板厚と桁高を引くだけで受桁天端・床付けが決まる。Δ は覆工面と既設舗装面の差で、図は<b>＋（覆工が高い）</b>の状態。</figcaption>
+      </figure>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>列</th><th>意味</th></tr></thead>
+          <tbody>
+            <tr><td><b>測点 (S,T)</b></td><td>グリッド上の位置。<code>S1･T2</code> は上から2行目・左から3列目</td></tr>
+            <tr><td><b>横断T / 縦断S</b></td><td>原点からの累積距離（m）</td></tr>
+            <tr><td><b>既設高</b></td><td>入力した実測高（m）</td></tr>
+            <tr><td><b>覆工面高</b></td><td>算出された覆工面の高さ（m）。<b>これが基準になる数字</b></td></tr>
+            <tr><td><b>受桁天端</b></td><td>覆工面高 − 覆工板厚（m）</td></tr>
+            <tr><td><b>床付け</b></td><td>受桁天端 − 桁高（m）</td></tr>
+            <tr><td><b>高低差Δ</b></td><td>覆工面高 − 既設高（mm）。色チップで許容内かどうかが分かる</td></tr>
+            <tr><td><b>すり付け長</b></td><td>|Δ| ÷ すり付け勾配（m）。その点で必要なすり付けの長さ</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn">
+        <b>「すり付け 総延長」は参考値です</b>
+        サイドバーに出る総延長は、<b>各測点で必要なすり付け長を単純に合計した数字</b>です。
+        実際の施工延長ではありません（隣り合う点のすり付けは重なります）。
+        規模感の把握と案の比較に使い、拾い出しは別途行ってください。
+      </div>
+    </section>
+
+    <!-- 8 -->
+    <section id="s8">
+      <h2><span class="n">08</span>印刷して提出する</h2>
+      <p>タブ右端の<b>「🖨 この表示を印刷」</b>を押すと、<b>そのとき表示しているタブ</b>が印刷されます。4つのタブを個別に出せます。</p>
+      <p>印刷すると、画面には無い<b>見出しが自動で付きます</b>。</p>
+      <div class="kv">
+        <span class="lbl">タイトル</span>　覆工板 最適勾配 検討結果<br>
+        <span class="lbl">印刷対象</span>　どのタブを印刷したか<br>
+        <span class="lbl">勾配</span>　縦断勾配 ／ 横断勾配 ／ 基準高（原点）<br>
+        <span class="lbl">諸元</span>　最適化モード ／ 最大Δ ／ 最小Δ ／ RMS ／ 出力日
+      </div>
+      <p>サイドバーやボタン類は印刷されません。そのまま検討書に綴じられます。<b>3Dビューも画像として印刷できます</b>。</p>
+      <div class="tip">
+        <b>PDFで残すには</b>
+        印刷ダイアログのプリンター選択で「PDFとして保存」（Microsoft Print to PDF など）を選びます。
+        4タブぶん出しておくと、検討の記録として過不足のないセットになります。
+      </div>
+    </section>
+
+    <!-- 9 -->
+    <section id="s9">
+      <h2><span class="n">09</span>CSVで受け渡す</h2>
+      <p>測量値をExcelで持っている場合や、入力値を他の人に渡す場合に使います。</p>
+      <ul>
+        <li><b>CSV書出</b> … 現在のグリッドを <code>fukko_grid.csv</code> として保存</li>
+        <li><b>CSV取込</b> … 書き出した形式のCSVを読み込む（測点数も自動で合わせます）</li>
+      </ul>
+
+      <h3>ファイルの形式</h3>
+      <pre><code># 覆工板 既設舗装高グリッド (行=縦断S, 列=横断T, 値=既設高m)
+# 測点間隔=等間隔 dS=5 dT=1.5
+S\T,T0(0.00m),T1(1.50m),T2(3.00m)
+S0(0.00m),100.012,99.998,99.981
+S1(5.00m),100.031,100.017,100.002
+S2(10.00m),100.048,100.036,100.020</code></pre>
+      <ul>
+        <li><code>#</code> で始まる行は<b>コメント</b>として読み飛ばされます</li>
+        <li><b>1列目は測点ラベル</b>です。値は2列目から</li>
+        <li>空欄セルは<b>空のまま</b>にしておけば、欠測として扱われます</li>
+      </ul>
+      <div class="note">
+        <b>Excelで開くときは文字コードに注意</b>
+        日本語の見出しが入っているため、環境によっては文字化けすることがあります。
+        化けた場合は、Excelの「データ」→「テキストまたはCSVから」で<b>UTF-8</b>を指定して読み込んでください。
+      </div>
+    </section>
+
+    <!-- 10 -->
+    <section id="s10">
+      <h2><span class="n">10</span>保存とデータの扱い</h2>
+      <p>
+        入力内容は<b>「最適勾配を算出」を押したとき</b>と<b>「保存」ボタンを押したとき</b>に、
+        そのPCのブラウザ内へ自動的に記憶されます。次に開くと前回の続きから始められます。
+      </p>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>保存されるもの</th><th>保存されないもの</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>グリッドの実測高／測点数・間隔（個別間隔も含む）／最適化モード／すり付け・許容値／覆工板厚・桁高／勾配の上下限</td>
+              <td>3Dビューのカメラ位置・鉛直誇張などの表示設定</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn">
+        <b>保存先は「そのPCのそのブラウザ」だけです</b>
+        別のPCや別のブラウザには引き継がれません。<b>サーバーにも送信されません</b>（そもそも通信しません）。
+        ブラウザの閲覧履歴・サイトデータを消すと<b>入力内容も消えます</b>。<br>
+        現場をまたいで残したい検討は、必ず<b>CSV書出</b>か<b>印刷（PDF）</b>で手元に保存してください。
+      </div>
+
+      <p><b>「初期化」</b>ボタンは、保存内容を消して最初の状態に戻します。確認ダイアログが出ますが、<b>取り消しはできません</b>。</p>
+    </section>
+
+    <!-- 11 -->
+    <section id="s11">
+      <h2><span class="n">11</span>困ったとき</h2>
+      <div class="tw">
+        <table>
+          <thead><tr><th>症状</th><th>原因と対処</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>「有効な測点が3点以上必要です」と出る</b></td>
+              <td>平面を決めるには最低3点いります。実測高が入っているセルを3つ以上にしてください</td>
+            </tr>
+            <tr>
+              <td><b>3Dビューが真っ白／エラーが出る</b></td>
+              <td>そのPCのブラウザがWebGLに対応していない可能性があります。<b>他のタブ（入力・ヒートマップ・管理値）は通常どおり使えます</b>。別のブラウザでもお試しください</td>
+            </tr>
+            <tr>
+              <td><b>3Dタブに切り替えても何も出ない</b></td>
+              <td>先に<b>「最適勾配を算出」</b>を押してください。算出前は描くものがありません</td>
+            </tr>
+            <tr>
+              <td><b>勾配が思ったより大きい／小さい</b></td>
+              <td>実測高の入力ミス（桁違い・符号）を疑ってください。②ヒートマップで<b>1点だけ極端な色</b>になっていれば、その点が原因です</td>
+            </tr>
+            <tr>
+              <td><b>設定を変えても結果が変わらない</b></td>
+              <td>測点数・間隔・勾配の上下限を変えた場合は、<b>「最適勾配を算出」</b>を押し直す必要があります</td>
+            </tr>
+            <tr>
+              <td><b>版が古い気がする（Web版）</b></td>
+              <td>画面右上の作者名の下がバージョン表示です。古ければ <kbd>Ctrl</kbd>+<kbd>F5</kbd> で強制再読み込み</td>
+            </tr>
+            <tr>
+              <td><b>入力が消えた</b></td>
+              <td>ブラウザのサイトデータ削除、シークレットウィンドウ使用、別PCでの起動が原因です。→ <a href="#s10">10章</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 12 -->
+    <section id="s12">
+      <h2><span class="n">12</span>計算の中身と限界</h2>
+      <p>ブラックボックスのまま使うと検討根拠を説明できないので、やっていることを書いておきます。</p>
+
+      <h3>やっていること</h3>
+      <p>
+        覆工面を1枚の平面 <code>h = a + gS×S + gT×T</code> と置きます
+        （<code>a</code>＝原点の高さ、<code>gS</code>＝縦断勾配、<code>gT</code>＝横断勾配）。
+        入力された全測点について、この平面と既設高の差 Δ を計算し、
+        <b>選んだモードの評価値が最小になる a・gS・gT を探します</b>。
+      </p>
+      <ul>
+        <li>まず<b>最小二乗法</b>で平面を直接求めます（バランスモードで制限なしなら、これがそのまま答えです）</li>
+        <li>他のモードや勾配制限・丸めがある場合は、そこを出発点に<b>勾配を少しずつ動かして</b>評価値が下がらなくなるまで探索します</li>
+        <li>空欄セルは、はじめから計算対象に入りません</li>
+        <li>測点位置は<b>累積距離</b>で扱うため、非等間隔でも正しく計算されます</li>
+      </ul>
+
+      <h3>このツールが答えられないこと</h3>
+      <ul>
+        <li><b>覆工面は1枚の平面として扱います。</b>途中で折れる縦断（縦断曲線・拝み勾配）は表現できません</li>
+        <li><b>結果の精度は入力の精度そのものです。</b>実測高が粗ければ、出てくる勾配も同じだけ粗くなります</li>
+        <li><b>すり付けの取り合い・排水・受桁の割付・支持力は対象外です。</b>高さの検討に絞ったツールです</li>
+        <li>勾配の丸めや上下限をかけた場合、<b>丸めた後のΔが実際の値</b>です。必ず④管理値テーブルで確認してください</li>
+      </ul>
+
+      <div class="note">
+        <b>位置づけ</b>
+        検討・比較のためのツールです。実施にあたっては現地条件の確認と監督員協議のうえで判断してください。
+      </div>
+    </section>
+
+  </article>
+</div>
+
+<footer>
+  覆工板 最適勾配 検討ツール ― 使い方　/　<b>v1.1.0 対応</b><br>
+  Created by Shota Onuma　/　このページも単一HTML・外部依存なしでオフライン閲覧できます<br>
+  <a href="../">ツールを開く</a>
+</footer>
+
+</body>
+</html>
