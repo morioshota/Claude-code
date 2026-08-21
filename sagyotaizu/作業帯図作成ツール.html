@@ -31,6 +31,7 @@ header .brand .mark{
 }
 header .brand b{font-size:14px; letter-spacing:.06em;}
 header .brand small{opacity:.65; font-size:10.5px;}
+.cred{display:block;font-weight:400;font-size:9px;letter-spacing:.16em;color:#828C98;margin-top:3px;text-transform:none}
 .hbtn{
   background:#243342; color:#fff; border:1px solid #3a4c5e; border-radius:5px;
   padding:5px 9px; font-size:12px; line-height:1; white-space:nowrap;
@@ -177,7 +178,7 @@ footer b{color:#fff; font-weight:600;}
 </head>
 <body>
 <header>
-  <div class="brand"><div class="mark"></div><div><b>作業帯図作成ツール</b><br><small>道路使用許可申請用</small></div></div>
+  <div class="brand"><div class="mark"></div><div><b>作業帯図作成ツール</b><br><small>道路使用許可申請用<span class="cred">Created by Shota Onuma　/　v3.1</span></small></div></div>
   <div class="hsep"></div>
   <button class="hbtn" id="btnBg">地形図読込 (PDF/画像)</button>
   <label class="mini">透明度 <input type="range" id="bgOpacity" min="10" max="100" value="100"></label>
@@ -390,7 +391,9 @@ footer b{color:#fff; font-weight:600;}
 <script>
 'use strict';
 /* ============================================================
-   作業帯図作成ツール  v1.2
+   作業帯図作成ツール  /  Work Zone Layout Planner
+   Version : 3.1
+   Author  : Shota Onuma
    単一HTML / Canvas 2D / 依存: PDF.js (PDF読込時のみCDNから遅延ロード)
    v1.1: 縮尺設定/文字入力を自前モーダル化(prompt廃止)、印刷をiframe方式+A4/A3選択、導流帯を追加
    v1.2: 縮尺を分母直接入力(1/500等)でも設定可、用紙左下スケールバー、縮尺バッジに分母表示 (R1)
@@ -430,6 +433,8 @@ footer b{color:#fff; font-weight:600;}
          数値以外(W=4.8等)は従来どおり表記のみ
    v3.0: A型バリケードの絵柄を現物準拠に刷新(白箱+×印 → 黄橙のA型スタンド＋「安全第一」
          標示板: オレンジ地に外向きの黒山形＋緑十字)。列ツールのパレットアイコンも更新
+   v3.1: ヘッダーに制作クレジット(Created by Shota Onuma / バージョン)を表示。覆工板ツールと
+         同じ書式・スタイル(.cred)に統一。冒頭コメントもVersion/Author表記に揃えた
    ============================================================ */
 
 // ---------- 定数・状態 ----------
