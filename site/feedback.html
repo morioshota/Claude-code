@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja" data-root="./">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>要望・不具合を送る | GENBA TOOLS</title>
+<meta name="description" content="ツールへの要望・不具合報告・新しいツールの提案を作成者に送るフォーム。">
+<meta name="theme-color" content="#0a0f1c">
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/config.js"></script>
+<script src="assets/tools.js"></script>
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<div class="hazard" aria-hidden="true"></div>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="ホーム"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline">現場で生まれた、ブラウザで動く実務ツール</small></span></a>
+    <button class="nav-toggle" aria-label="メニュー" aria-expanded="false">☰</button>
+    <nav class="nav" aria-label="サイト内">
+      <a href="./#tools">ツール一覧</a>
+      <a href="./#updates">更新情報</a>
+      <a href="./#about">作成者</a>
+      <button class="theme-toggle" type="button" aria-label="テーマ切替">☀️</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="section" style="padding-top:clamp(40px,6vw,70px)">
+    <div class="wrap" style="max-width:820px">
+      <nav class="breadcrumb" aria-label="現在位置" style="margin-bottom:22px"><a href="./">ホーム</a><span>/</span><span>要望・不具合を送る</span></nav>
+      <div class="section-head">
+        <div class="kicker">FEEDBACK / 要望・不具合</div>
+        <h2>現場の声を、次の改良に</h2>
+        <p>「この記号が欲しい」「ここで止まる」「こんなツールがあれば」。どんな小さなことでも歓迎です。名前・連絡先は任意です。</p>
+      </div>
+
+      <form class="form card" id="feedback-form" novalidate>
+        <p class="notice" style="margin:0"><span id="fb-mode">送信のしくみを確認しています…</span></p>
+
+        <div class="field">
+          <label for="fb-tool">対象のツール<span class="req">必須</span></label>
+          <select id="fb-tool" name="tool" required></select>
+        </div>
+
+        <div class="field">
+          <label>種別<span class="req">必須</span></label>
+          <div class="radio-cards" role="radiogroup">
+            <label><input type="radio" name="kind" value="不具合" required>🐛 不具合<small>動かない・表示が崩れる</small></label>
+            <label><input type="radio" name="kind" value="改善要望" checked>✨ 改善要望<small>こうなると助かる</small></label>
+            <label><input type="radio" name="kind" value="新機能">🧰 新機能<small>記号・パターン・出力など</small></label>
+            <label><input type="radio" name="kind" value="質問・その他">💬 質問・その他</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="fb-title">件名<span class="req">必須</span></label>
+          <input id="fb-title" name="title" type="text" maxlength="120" placeholder="例: コーン列に「ラバーポール」を追加してほしい" required>
+        </div>
+
+        <div class="field">
+          <label for="fb-body">内容<span class="req">必須</span></label>
+          <textarea id="fb-body" name="body" required placeholder="困っている場面と、こうなると助かる形をできるだけ具体的に。&#10;不具合の場合: どの操作をしたら → 何が起きたか → 期待していた動き"></textarea>
+          <div class="help">スクリーンショットがある場合は、GitHub Issue やメールに添付してください（このフォームは文章のみ）。</div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="fb-env">環境<span class="muted small" style="margin-left:6px">任意</span></label>
+            <input id="fb-env" name="env" type="text" placeholder="例: Windows 11 / Edge / 会社PC（オフライン）">
+          </div>
+          <div class="field">
+            <label for="fb-contact">連絡先<span class="muted small" style="margin-left:6px">任意</span></label>
+            <input id="fb-contact" name="contact" type="text" placeholder="返信が必要なときだけ（メール等）">
+            <div class="help">書かれた連絡先は返信の目的だけに使い、公開しません。</div>
+          </div>
+        </div>
+
+        <div class="honey" aria-hidden="true"><label>このフィールドは空のままにしてください<input type="text" name="_gotcha" tabindex="-1" autocomplete="off"></label></div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn primary lg" type="submit" id="fb-submit">送信する</button>
+          <a class="btn lg ghost" id="fb-gform" href="#" target="_blank" rel="noopener">Googleフォームで送る ↗</a>
+          <span class="muted small">送信内容: ツール・種別・件名・内容・環境・連絡先・送信元ページ・ブラウザ情報</span>
+        </div>
+        <div class="form-result" id="fb-result" role="status" aria-live="polite"></div>
+      </form>
+
+      <div class="card" style="margin-top:22px">
+        <p style="margin:0 0 6px"><b>いただいた要望の扱い</b></p>
+        <ul class="muted small" style="margin:0;padding-left:18px;display:grid;gap:4px">
+          <li>作成者本人が読みます。実務での効きが大きいものから順に対応します（すべてに対応できるとは限りません）。</li>
+          <li>対応したものは各ツールの更新履歴と、ホームの「更新情報」に載ります。</li>
+          <li>不具合は「操作 → 起きたこと → 期待した動き」の3点があると早く直せます。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="./"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline">現場で生まれた、ブラウザで動く実務ツール</small></span></a>
+      <p class="copy" style="margin-top:14px">© <span data-year>2026</span> <span data-cfg="author">Shota Onuma</span></p>
+    </div>
+    <div><h4>LINKS</h4><ul><li><a href="./#tools">ツール一覧</a></li><li><a data-cfg-href="repoUrl" href="#" target="_blank" rel="noopener">ソースコード（GitHub）↗</a></li></ul></div>
+    <div class="titleblock" aria-label="表題欄">
+      <div>PAGE</div><div>FEEDBACK</div>
+      <div>AUTHOR</div><div data-cfg="author">Shota Onuma</div>
+      <div>UPDATED</div><div data-latest>—</div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

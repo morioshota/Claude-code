@@ -1,0 +1,38 @@
+name: ツールへの要望・不具合報告
+description: GENBA TOOLS のツールに対する要望・不具合・新ツールの提案
+title: "[ツール名] 件名"
+labels: ["要望"]
+body:
+  - type: input
+    id: tool
+    attributes:
+      label: 対象のツール
+      placeholder: 作業帯図作成ツール / 覆工板 最適勾配 検討ツール / 新しいツールの提案 など
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 種別
+      options:
+        - 不具合
+        - 改善要望
+        - 新機能
+        - 質問・その他
+    validations:
+      required: true
+  - type: textarea
+    id: body
+    attributes:
+      label: 内容
+      description: 困っている場面と、こうなると助かる形を具体的に。不具合は「操作 → 起きたこと → 期待した動き」の順で。
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: 環境（任意）
+      placeholder: Windows 11 / Edge / 会社PC（オフライン）
+  - type: markdown
+    attributes:
+      value: スクリーンショットがあれば、この下のコメント欄にドラッグ＆ドロップで添付できます。

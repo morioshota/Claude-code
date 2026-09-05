@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja" data-root="../" data-tool="civil-3d">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>土木3Dビルダー（開発中） — 平面図と横断図から検討用3Dモデルを | GENBA TOOLS</title>
+<meta name="description" content="DWG/DXFの平面図をトレースして立坑を押し出し、横断図をジオリファレンスして現況地盤を生成。試験掘り・埋設物・構造物を同じ標高系で重ねて納まりを確認するプロトタイプ。">
+<meta name="theme-color" content="#0a0f1c">
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/config.js"></script>
+<script src="../assets/tools.js"></script>
+<script src="../assets/site.js" defer></script>
+<style>:root{--accent:#5aa9ff}:root[data-theme="light"]{--accent:#2563eb}</style>
+</head>
+<body>
+<div class="hazard" aria-hidden="true"></div>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../" aria-label="ホーム"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline">現場で生まれた、ブラウザで動く実務ツール</small></span></a>
+    <button class="nav-toggle" aria-label="メニュー" aria-expanded="false">☰</button>
+    <nav class="nav" aria-label="ページ内">
+      <a href="../#tools">ツール一覧</a>
+      <a href="#features">できること（予定）</a>
+      <a class="cta" data-tool-feedback href="../feedback.html?tool=civil-3d">💬 使ってみたい・要望</a>
+      <button class="theme-toggle" type="button" aria-label="テーマ切替">☀️</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="lp-hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="wrap">
+      <nav class="breadcrumb" aria-label="現在位置"><a href="../">ホーム</a><span>/</span><a href="../#tools">ツール一覧</a><span>/</span><span>土木3Dビルダー</span></nav>
+      <div class="top">
+        <div>
+          <div class="no"><span class="badge">T-003</span><span class="stamp wip">開発中</span><span class="badge" data-tool-field="version">v0.1</span></div>
+          <h1>土木3Dビルダー<small>CIVIL 3D BUILDER — PROTOTYPE</small></h1>
+          <p class="lead">
+            平面図（線形）と横断図を組み合わせて、<b>検討用の3Dモデル</b>をブラウザ上で生成するプロトタイプ。
+            試験掘りデータの確認、仮設（オープンカット）の設計、構造物設置の当たり確認に使うことを想定しています。
+            現在は開発中で、公開ビルドの準備を進めています。
+          </p>
+          <div class="cta-row" style="display:flex;gap:12px;flex-wrap:wrap">
+            <span class="btn lg" aria-disabled="true">準備中（公開までお待ちください）</span>
+            <a class="btn primary lg" data-tool-feedback href="../feedback.html?tool=civil-3d">使ってみたい・こう使いたい →</a>
+          </div>
+          <div class="badges"><span class="chip">🧊 three.js</span><span class="chip">📐 DWG / DXF 読込</span><span class="chip">🖥 WebGL対応PC</span><span class="chip">🧪 プロトタイプ</span></div>
+        </div>
+        <div class="card reveal" style="min-height:280px;display:grid;place-items:center;text-align:center;background:repeating-linear-gradient(135deg, transparent 0 18px, var(--grid) 18px 19px), var(--card)">
+          <div><div style="font-size:3rem" aria-hidden="true">🏗</div><p class="mono muted small" style="margin:8px 0 0;letter-spacing:.14em">SCREENSHOTS COMING SOON</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" style="background:var(--bg-2)">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">FEATURES / 試作済みの機能</div><h2>図面の「線の意味」を人が指定し、立体化は機械が担う</h2><p>PDFや紙からの全自動3D化は精度が出ず危険なため、意図的に対象外。CAD（DWG/DXF）の線を人が指し示す半自動方式です。</p></div>
+      <div class="grid cols-3">
+        <div class="card feature reveal"><div class="icon">📄</div><h3>DWG / DXF をブラウザで表示</h3><p>レイヤ別に色分け、文字ラベル（断面線・寸法・注記）も表示。DWGはWASM版LibreDWGで直接読み込み。</p></div>
+        <div class="card feature reveal d1"><div class="icon">⬆️</div><h3>平面トレース → 押し出し</h3><p>土留め・掘削の輪郭をクリックでなぞり、深さ（矢板長 L=3500 等）を入力して立坑の3Dソリッドを生成。底面積・掘削体積を自動算出。</p></div>
+        <div class="card feature reveal d2"><div class="icon">🗺</div><h3>横断図の半自動ジオリファレンス</h3><p>平面で断面線の2端点、横断で標高既知の2点を指定して地盤ラインをトレース。複数断面をロフトして現況地盤サーフェスに。</p></div>
+        <div class="card feature reveal"><div class="icon">🕳</div><h3>試験掘り（柱状図）の3D配置</h3><p>土層（名前・層厚）を入力しGL面をクリックして配置。矢板・掘削深さと土層の関係を目視で検討。</p></div>
+        <div class="card feature reveal d1"><div class="icon">🧱</div><h3>構造物・埋設物の当たり確認</h3><p>MH・カルバートを寸法で配置し半透明で干渉を確認。企業者管（ガス/水道/下水/電力/通信）は管径・土被りから3D化。</p></div>
+        <div class="card feature reveal d2"><div class="icon">🧩</div><h3>統合ビュー</h3><p>現況地盤・立坑・試験掘り・構造物を同一の実標高系で重ね合わせ。掘削底のEL・掘削体積を提示し、設置検討を1画面で。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap two-col">
+      <div class="notice reveal"><b>公開について。</b> このツールはビルド工程（Vite）と WebAssembly を使うため、他のツールのように「HTMLファイル1枚」では配布できません。Web公開の準備ができ次第、このページから開けるようにします。先に試したい・こういう現場で使いたいという声があれば、優先順位の参考にしますので要望フォームからお知らせください。</div>
+      <div class="card reveal d1">
+        <p style="margin:0 0 6px"><b>開発の記録</b></p>
+        <ul class="timeline" id="tool-changelog" style="margin-top:12px"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<a class="btn primary fab" data-tool-feedback href="../feedback.html?tool=civil-3d">💬 <span>使ってみたい・要望</span></a>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="../"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline">現場で生まれた、ブラウザで動く実務ツール</small></span></a>
+      <p class="copy" style="margin-top:14px">検討用のプロトタイプです。設計・施工の判断は関係機関との協議と有資格者の確認のもとで行ってください。<br>© <span data-year>2026</span> <span data-cfg="author">Shota Onuma</span></p>
+    </div>
+    <div><h4>LINKS</h4><ul><li><a href="../#tools">ツール一覧</a></li><li><a data-tool-feedback href="../feedback.html?tool=civil-3d">要望を送る</a></li><li><a data-cfg-href="repoUrl" href="#" target="_blank" rel="noopener">ソースコード（GitHub）↗</a></li></ul></div>
+    <div class="titleblock" aria-label="表題欄">
+      <div>TOOL</div><div>T-003 土木3Dビルダー</div>
+      <div>STATUS</div><div>開発中</div>
+      <div>UPDATED</div><div data-tool-field="updated">—</div>
+      <div>AUTHOR</div><div data-cfg="author">Shota Onuma</div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

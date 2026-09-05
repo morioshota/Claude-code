@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja" data-root="../" data-tool="fukkoban">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>覆工板 最適勾配 検討ツール — 実測高から段差最小の勾配を算出 | GENBA TOOLS</title>
+<meta name="description" content="既設舗装の実測高をグリッドに入れるだけで、覆工面と既設の高低差が最小になる縦断・横断勾配を算出。ヒートマップ・3D・管理値テーブル・印刷。単一HTML・オフライン可。">
+<meta name="theme-color" content="#0a0f1c">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://morioshota.github.io/Claude-code/site/tools/fukkoban.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GENBA TOOLS">
+<meta property="og:title" content="覆工板 最適勾配 検討ツール — 実測高から段差最小の勾配を算出">
+<meta property="og:description" content="グリッドに実測高を入れて1クリック。段差が最小になる覆工板の勾配と、各測点の高低差・すり付け長・受桁天端・床付けを出力。">
+<meta property="og:url" content="https://morioshota.github.io/Claude-code/site/tools/fukkoban.html">
+<meta property="og:image" content="https://morioshota.github.io/Claude-code/site/assets/og/fukkoban.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/config.js"></script>
+<script src="../assets/tools.js"></script>
+<script src="../assets/site.js" defer></script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"覆工板 最適勾配 検討ツール","applicationCategory":"BusinessApplication","operatingSystem":"Web browser (Chrome/Edge)","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Person","name":"Shota Onuma"},"url":"https://morioshota.github.io/Claude-code/site/tools/fukkoban.html"}
+</script>
+<style>:root{--accent:#f39a3c}:root[data-theme="light"]{--accent:#e8590c}</style>
+</head>
+<body>
+<div class="hazard" aria-hidden="true"></div>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../" aria-label="ホーム"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline">現場で生まれた、ブラウザで動く実務ツール</small></span></a>
+    <button class="nav-toggle" aria-label="メニュー" aria-expanded="false">☰</button>
+    <nav class="nav" aria-label="ページ内">
+      <a href="../#tools">ツール一覧</a>
+      <a href="#features">できること</a>
+      <a href="#howto">使い方</a>
+      <a href="#faq">FAQ</a>
+      <a data-tool-guide href="../../fukkoban/guide/" target="_blank" rel="noopener">📖 使い方ページ</a>
+      <a class="cta" data-tool-open href="../../fukkoban/" target="_blank" rel="noopener">ツールを開く ↗</a>
+      <button class="theme-toggle" type="button" aria-label="テーマ切替">☀️</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="lp-hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="wrap">
+      <nav class="breadcrumb" aria-label="現在位置"><a href="../">ホーム</a><span>/</span><a href="../#tools">ツール一覧</a><span>/</span><span>覆工板 最適勾配 検討ツール</span></nav>
+      <div class="top">
+        <div>
+          <div class="no"><span class="badge">T-002</span><span class="stamp released">公開中</span><span class="badge" data-tool-field="version">v1.2.0</span></div>
+          <h1>覆工板 最適勾配 検討ツール<small>OPTIMAL GRADE FINDER FOR ROAD DECKING</small></h1>
+          <p class="lead">
+            「この点に合わせると向こうが浮く」を、もう繰り返さない。
+            既設舗装の実測高をグリッドに入れて1クリックすれば、全測点をまとめて評価して<b>高低差が最小になる縦断・横断勾配</b>を算出。
+            各測点の高低差・すり付け長・受桁天端・床付けまで、そのまま検討書に使える数字が出ます。
+          </p>
+          <div class="cta-row" style="display:flex;gap:12px;flex-wrap:wrap">
+            <a class="btn primary lg" data-tool-open href="../../fukkoban/" target="_blank" rel="noopener">ツールを開く（無料・登録不要）↗</a>
+            <a class="btn lg ghost" data-tool-guide href="../../fukkoban/guide/" target="_blank" rel="noopener">📖 使い方ページ（詳細）</a>
+          </div>
+          <div class="badges">
+            <span class="chip">📄 単一HTML</span><span class="chip">📵 完全オフライン（3Dライブラリ同梱）</span><span class="chip">🖥 PC推奨</span><span class="chip">🔒 データは端末内</span><span class="chip">🖨 タブごとに印刷</span><span class="chip">📊 CSV取込/書出</span>
+          </div>
+        </div>
+        <div class="browser reveal">
+          <div class="bar"><i></i><i></i><i></i><span>覆工板 最適勾配 検討ツール — 3D高低差ビュー</span></div>
+          <img src="../assets/img/fukkoban-d3.webp" alt="3D高低差ビュー。既設面（灰）と覆工面（オレンジ）を重ね、各測点の高低差をmmで表示" width="1800" height="1125">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:20px">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">PAIN / こんな作業、毎回やっていませんか</div><h2>Excelで勾配を手探り、点が増えるほど収束しない</h2></div>
+      <div class="grid cols-3">
+        <div class="card feature reveal"><div class="icon">🔁</div><h3>合わせては浮く、の繰り返し</h3><p>ある測点に高さを合わせると別の点が浮く。勾配を0.1%ずつ動かして全体を見直す作業が、測点が増えるほど終わらない。</p></div>
+        <div class="card feature reveal d1"><div class="icon">📉</div><h3>段差をどこで飲むか説明しづらい</h3><p>「なぜこの勾配にしたか」を数字で示せない。最大段差・すり付け量の根拠が検討書に書けない。</p></div>
+        <div class="card feature reveal d2"><div class="icon">🧮</div><h3>受桁天端・床付けの拾い直し</h3><p>勾配が変わるたびに、覆工板厚と桁高を引いた受桁天端・床付けを全測点で計算し直す。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" style="background:var(--bg-2)">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">FEATURES / できること</div><h2>入力は実測高だけ。あとは1クリック</h2><p>覆工面を1枚の平面として置き、入力した全測点に対して最適になる縦断勾配・横断勾配・基準高を求めます。</p></div>
+      <div class="grid cols-3">
+        <div class="card feature reveal"><div class="icon">🔲</div><h3>グリッド入力</h3><p>行＝縦断(S)、列＝横断(T)の表に実測高を入力。標高でも現場基準の相対高でも可。測れなかった点は空欄のままで計算から除外。非等間隔の測点にも対応。</p></div>
+        <div class="card feature reveal d1"><div class="icon">⚖️</div><h3>3つの最適化モード</h3><p><b>バランス（RMS最小）</b>／<b>覆工面は既設以上</b>（段差ゼロ・上げすり付けのみ）／<b>最大高低差を最小化</b>（±対称）。切り替えは即時再計算、見比べて選べます。</p></div>
+        <div class="card feature reveal d2"><div class="icon">🎚</div><h3>勾配の制限と丸め</h3><p>排水や設計条件による勾配の上下限、0.1%単位などへの丸めに対応。制限した範囲でいちばん高低差が小さい勾配を探します。</p></div>
+        <div class="card feature reveal"><div class="icon">🟧</div><h3>平面ヒートマップ</h3><p>どこが浮いて、どこが沈むかを色で一望。暖色＝覆工が高い、寒色＝低い、緑＝許容段差内。セルには高低差(mm)。</p></div>
+        <div class="card feature reveal d1"><div class="icon">🧊</div><h3>3D高低差ビュー</h3><p>既設面と覆工面を立体で重ね、鉛直誇張で数ミリの差を見える化。打合せで説明するときに一番伝わる画面。ライブラリ同梱でオフラインでも動作。</p></div>
+        <div class="card feature reveal d2"><div class="icon">📋</div><h3>管理値テーブル</h3><p>測点ごとに 既設高・覆工面高・受桁天端・床付け・高低差Δ・すり付け長 を一覧。覆工板厚と桁高を入れれば、施工に渡す数字がそろいます。</p></div>
+        <div class="card feature reveal"><div class="icon">🖨</div><h3>タブごとに印刷</h3><p>表示中のタブがそのまま検討資料に。勾配・モード・最大/最小Δ・RMS・出力日の見出しが自動で付き、PDF保存にも対応。</p></div>
+        <div class="card feature reveal d1"><div class="icon">📊</div><h3>CSVで受け渡し</h3><p>測量値をExcelから取り込み、グリッドをCSVで書き出し。コメント行と測点ラベル付きの分かりやすい形式。</p></div>
+        <div class="card feature reveal d2"><div class="icon">💾</div><h3>ブラウザ内に自動保存</h3><p>算出・保存のたびにそのPCのブラウザへ記憶。次回は続きから。サーバーへの送信はありません（そもそも通信しません）。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="howto">
+    <div class="wrap two-col">
+      <div>
+        <div class="section-head"><div class="kicker">HOW TO / 使い方</div><h2>クイックスタート</h2><p>開いた直後はサンプル値が入っています。まずサンプルで一周してみるのが早いです。</p></div>
+        <div class="steps">
+          <div class="step reveal"><div class="num"></div><div><h3>覆工エリアを決める</h3><p>サイドバーで縦断・横断の測点数と間隔を入力し「グリッドを作り直す」。等間隔でなければ「測点間隔を個別入力」に。</p></div></div>
+          <div class="step reveal d1"><div class="num"></div><div><h3>既設舗装高を入力</h3><p>①グリッド入力の表に実測高(m)を打ち込む。Tab/矢印キーで移動。測れなかった点は空欄でOK。</p></div></div>
+          <div class="step reveal d2"><div class="num"></div><div><h3>モードを選んで「最適勾配を算出」</h3><p>迷ったら「バランス（RMS最小）」。サイドバー下部に縦断勾配・横断勾配・最大/最小高低差・RMSが出ます。</p></div></div>
+          <div class="step reveal d3"><div class="num"></div><div><h3>4つのタブで確認</h3><p>②ヒートマップで高低の分布、③3Dで面の傾き、④管理値テーブルで施工に渡す数字を確認。</p></div></div>
+          <div class="step reveal d3"><div class="num"></div><div><h3>印刷 or CSV</h3><p>「🖨 この表示を印刷」で表示中のタブをそのまま検討資料に。「PDFとして保存」で記録にも。</p></div></div>
+        </div>
+      </div>
+      <div class="gallery">
+        <figure class="reveal"><img src="../assets/img/fukkoban.webp" alt="グリッド入力画面。行が縦断S、列が横断Tの表に既設高を入力" loading="lazy"><figcaption>① グリッド入力 — 行＝縦断S、列＝横断T</figcaption></figure>
+        <figure class="reveal d1"><img src="../assets/img/fukkoban-heat.webp" alt="平面ヒートマップ。暖色が覆工が高い、寒色が低い、緑が許容内" loading="lazy"><figcaption>② 平面ヒートマップ — 浮き・沈みを色で一望</figcaption></figure>
+        <figure class="reveal d2"><img src="../assets/img/fukkoban-d3.webp" alt="3D高低差ビュー" loading="lazy"><figcaption>③ 3D高低差ビュー — 鉛直誇張で差を見える化</figcaption></figure>
+        <figure class="reveal d3"><img src="../assets/img/fukkoban-mgmt.webp" alt="管理値テーブル" loading="lazy"><figcaption>④ 管理値テーブル — 覆工面高・受桁天端・床付け・Δ・すり付け長</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="background:var(--bg-2)">
+    <div class="wrap two-col">
+      <div>
+        <div class="section-head"><div class="kicker">SPEC / 動作環境</div><h2>使う前に知っておくこと</h2></div>
+        <div class="table-wrap"><table class="spec">
+          <tr><th>対応ブラウザ</th><td>Chrome / Edge などのデスクトップ向けモダンブラウザ。3DビューはWebGL対応が必要（非対応でも入力・ヒートマップ・管理値は使えます）。</td></tr>
+          <tr><th>通信</th><td>不要。3D表示ライブラリ（three.js）も本体に同梱しており、回線のない現場PCでも全機能が動きます。</td></tr>
+          <tr><th>保存先</th><td>そのPCのそのブラウザ内のみ。別PCには引き継がれず、サイトデータを消すと入力も消えます。<b>現場をまたいで残す検討はCSV書出か印刷（PDF）で</b>。</td></tr>
+          <tr><th>計算の考え方</th><td>覆工面を平面 h = a + gS×S + gT×T と置き、最小二乗法で求めた平面を出発点に、モード・制限・丸めに応じて評価値が最小になる勾配を探索。</td></tr>
+          <tr><th>形式</th><td>単一HTMLファイル。「使い方」ページだけは別ファイル（guideフォルダ）なので、単体で持ち出す場合は印刷しておくと便利です。</td></tr>
+        </table></div>
+      </div>
+      <div style="display:grid;gap:16px">
+        <div class="notice reveal"><b>このツールが答えられないこと。</b> 覆工面は1枚の平面として扱うため、途中で折れる縦断（縦断曲線・拝み勾配）は表現できません。結果の精度は入力（実測高）の精度そのものです。すり付けの取り合い・排水・受桁の割付・支持力は対象外で、<b>高さの検討に絞ったツール</b>です。実施にあたっては現地条件の確認と監督員協議のうえで判断してください。</div>
+        <div class="card reveal d1">
+          <p style="margin:0 0 6px"><b>更新履歴</b> <span class="muted small">最新 <span data-tool-field="updated">—</span></span></p>
+          <ul class="timeline" id="tool-changelog" style="margin-top:12px"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <div class="wrap" style="max-width:860px">
+      <div class="section-head"><div class="kicker">FAQ / よくある質問</div><h2>質問と答え</h2></div>
+      <div class="faq">
+        <details><summary>「有効な測点が3点以上必要です」と出ます</summary><div class="a">平面を決めるには最低3点必要です。実測高が入っているセルを3つ以上にしてください。</div></details>
+        <details><summary>マイナスの高低差はどういう意味ですか？</summary><div class="a">Δ＝覆工面−既設舗装。マイナスは覆工板が既設より低く、車両が乗り上げる段差になる側です。出したくない場合は「覆工面は既設以上」モードにすると全点でΔ≧0になります。</div></details>
+        <details><summary>「すり付け 総延長」はそのまま数量に使えますか？</summary><div class="a">参考値です。各測点で必要なすり付け長を単純合計した数字で、隣り合う点のすり付けは重なるため実際の施工延長ではありません。規模感の把握と案の比較に使い、拾い出しは別途行ってください。</div></details>
+        <details><summary>3Dビューが真っ白です</summary><div class="a">先に「最適勾配を算出」を押してください。それでも出ない場合はブラウザがWebGLに対応していない可能性があります。他のタブは通常どおり使えます。</div></details>
+        <details><summary>設定を変えても結果が変わりません</summary><div class="a">測点数・間隔・勾配の上下限を変えた場合は「最適勾配を算出」を押し直す必要があります（覆工板厚・桁高・許容段差・すり付け勾配は自動反映）。</div></details>
+        <details><summary>3Dの見た目の傾きが実際より大きいのですが</summary><div class="a">鉛直誇張は「見るため」の倍率です。数字は必ずサイドバーと④管理値テーブルで確認してください。</div></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      <div class="band reveal"><div class="inner">
+        <div><h2>サンプル値で、まず一周</h2><p>開いた直後にサンプルが入っています。「最適勾配を算出」を押すだけで4つの画面を試せます。</p></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary lg" data-tool-open href="../../fukkoban/" target="_blank" rel="noopener">ツールを開く ↗</a><a class="btn lg" data-tool-feedback href="../feedback.html?tool=fukkoban">要望・不具合を送る</a></div>
+      </div></div>
+    </div>
+  </section>
+</main>
+
+<a class="btn primary fab" data-tool-feedback href="../feedback.html?tool=fukkoban">💬 <span>このツールへの要望</span></a>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="../"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline">現場で生まれた、ブラウザで動く実務ツール</small></span></a>
+      <p class="copy" style="margin-top:14px">このツールは検討・比較を目的としています。実施にあたっては現地条件の確認と監督員協議のうえで判断してください。<br>© <span data-year>2026</span> <span data-cfg="author">Shota Onuma</span></p>
+    </div>
+    <div><h4>LINKS</h4><ul><li><a href="../#tools">ツール一覧</a></li><li><a data-tool-guide href="../../fukkoban/guide/" target="_blank" rel="noopener">使い方ページ ↗</a></li><li><a data-tool-feedback href="../feedback.html?tool=fukkoban">要望・不具合を送る</a></li><li><a data-cfg-href="repoUrl" href="#" target="_blank" rel="noopener">ソースコード（GitHub）↗</a></li></ul></div>
+    <div class="titleblock" aria-label="表題欄">
+      <div>TOOL</div><div>T-002 覆工板 最適勾配 検討ツール</div>
+      <div>VERSION</div><div data-tool-field="version">—</div>
+      <div>UPDATED</div><div data-tool-field="updated">—</div>
+      <div>AUTHOR</div><div data-cfg="author">Shota Onuma</div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

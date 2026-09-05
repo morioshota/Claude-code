@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<!--
+  新しいツールのLPテンプレート。
+  1) このファイルを tools/<ツールid>.html にコピー
+  2) 「★」の付いた箇所を書き換える（data-tool の id は assets/tools.js の id と一致させる）
+  3) assets/tools.js にツールを追加する（版・更新日・履歴・開くURLはそこから自動で埋まる）
+  4) スクリーンショットを assets/img/ に置き（WebP推奨・横1800px程度）、img の src を差し替える
+  詳しくは site/README.md
+-->
+<html lang="ja" data-root="../" data-tool="★tool-id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>★ツール名 — ★ひとこと | GENBA TOOLS</title>
+<meta name="description" content="★120字以内でツールの説明">
+<meta name="theme-color" content="#0a0f1c">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://morioshota.github.io/Claude-code/site/tools/★tool-id.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GENBA TOOLS">
+<meta property="og:title" content="★ツール名 — ★ひとこと">
+<meta property="og:description" content="★説明">
+<meta property="og:url" content="https://morioshota.github.io/Claude-code/site/tools/★tool-id.html">
+<meta property="og:image" content="https://morioshota.github.io/Claude-code/site/assets/og/★tool-id.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/config.js"></script>
+<script src="../assets/tools.js"></script>
+<script src="../assets/site.js" defer></script>
+</head>
+<body>
+<div class="hazard" aria-hidden="true"></div>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../" aria-label="ホーム"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline"></small></span></a>
+    <button class="nav-toggle" aria-label="メニュー" aria-expanded="false">☰</button>
+    <nav class="nav" aria-label="ページ内">
+      <a href="../#tools">ツール一覧</a>
+      <a href="#features">できること</a>
+      <a href="#howto">使い方</a>
+      <a href="#faq">FAQ</a>
+      <a class="cta" data-tool-open href="#" target="_blank" rel="noopener">ツールを開く ↗</a>
+      <button class="theme-toggle" type="button" aria-label="テーマ切替">☀️</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="lp-hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="wrap">
+      <nav class="breadcrumb" aria-label="現在位置"><a href="../">ホーム</a><span>/</span><a href="../#tools">ツール一覧</a><span>/</span><span>★ツール名</span></nav>
+      <div class="top">
+        <div>
+          <div class="no"><span class="badge" data-tool-field="no">T-0XX</span><span class="stamp released">公開中</span><span class="badge" data-tool-field="version">v1.0</span></div>
+          <h1>★ツール名<small>★ENGLISH NAME</small></h1>
+          <p class="lead">★誰の、どんな困りごとを、どう解決するか。3文程度。</p>
+          <div class="cta-row" style="display:flex;gap:12px;flex-wrap:wrap">
+            <a class="btn primary lg" data-tool-open href="#" target="_blank" rel="noopener">ツールを開く（無料・登録不要）↗</a>
+            <a class="btn lg ghost" href="#howto">使い方を見る</a>
+          </div>
+          <div class="badges"><span class="chip">📄 単一HTML</span><span class="chip">📵 オフライン可</span><span class="chip">🖥 PC推奨</span><span class="chip">🔒 データは端末内</span></div>
+        </div>
+        <div class="browser reveal">
+          <div class="bar"><i></i><i></i><i></i><span>★ツール名 — 画面キャプチャ</span></div>
+          <img src="../assets/img/★tool-id.webp" alt="★画面の説明" width="1800" height="1125">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:20px">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">PAIN / こんな作業、毎回やっていませんか</div><h2>★困りごとの見出し</h2></div>
+      <div class="grid cols-3">
+        <div class="card feature reveal"><div class="icon">★</div><h3>★困りごと1</h3><p>★説明</p></div>
+        <div class="card feature reveal d1"><div class="icon">★</div><h3>★困りごと2</h3><p>★説明</p></div>
+        <div class="card feature reveal d2"><div class="icon">★</div><h3>★困りごと3</h3><p>★説明</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" style="background:var(--bg-2)">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">FEATURES / できること</div><h2>★機能の見出し</h2><p>★一言</p></div>
+      <div class="grid cols-3">
+        <div class="card feature reveal"><div class="icon">★</div><h3>★機能</h3><p>★説明</p></div>
+        <div class="card feature reveal d1"><div class="icon">★</div><h3>★機能</h3><p>★説明</p></div>
+        <div class="card feature reveal d2"><div class="icon">★</div><h3>★機能</h3><p>★説明</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="howto">
+    <div class="wrap two-col">
+      <div>
+        <div class="section-head"><div class="kicker">HOW TO / 使い方</div><h2>基本のステップ</h2></div>
+        <div class="steps">
+          <div class="step reveal"><div class="num"></div><div><h3>★手順1</h3><p>★説明</p></div></div>
+          <div class="step reveal d1"><div class="num"></div><div><h3>★手順2</h3><p>★説明</p></div></div>
+          <div class="step reveal d2"><div class="num"></div><div><h3>★手順3</h3><p>★説明</p></div></div>
+        </div>
+      </div>
+      <div class="gallery">
+        <figure class="reveal"><img src="../assets/img/★tool-id.webp" alt="★" loading="lazy"><figcaption>★キャプション</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="background:var(--bg-2)">
+    <div class="wrap two-col">
+      <div>
+        <div class="section-head"><div class="kicker">SPEC / 動作環境</div><h2>使う前に知っておくこと</h2></div>
+        <div class="table-wrap"><table class="spec">
+          <tr><th>対応ブラウザ</th><td>★</td></tr>
+          <tr><th>通信</th><td>★</td></tr>
+          <tr><th>保存先</th><td>★</td></tr>
+        </table></div>
+      </div>
+      <div style="display:grid;gap:16px">
+        <div class="notice reveal"><b>このツールがしないこと。</b> ★判断の線引き（何を人が決めるか）</div>
+        <div class="card reveal d1"><p style="margin:0 0 6px"><b>更新履歴</b> <span class="muted small">最新 <span data-tool-field="updated">—</span></span></p><ul class="timeline" id="tool-changelog" style="margin-top:12px"></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <div class="wrap" style="max-width:860px">
+      <div class="section-head"><div class="kicker">FAQ / よくある質問</div><h2>質問と答え</h2></div>
+      <div class="faq">
+        <details><summary>★質問</summary><div class="a">★答え</div></details>
+        <details><summary>★質問</summary><div class="a">★答え</div></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap"><div class="band reveal"><div class="inner">
+      <div><h2>★締めの一言</h2><p>インストール不要。開いてすぐ使えます。</p></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary lg" data-tool-open href="#" target="_blank" rel="noopener">ツールを開く ↗</a><a class="btn lg" data-tool-feedback href="../feedback.html">要望・不具合を送る</a></div>
+    </div></div></div>
+  </section>
+</main>
+
+<a class="btn primary fab" data-tool-feedback href="../feedback.html">💬 <span>このツールへの要望</span></a>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="../"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline"></small></span></a>
+      <p class="copy" style="margin-top:14px">★免責（作図/計算の補助であり判断は人が行う旨）<br>© <span data-year>2026</span> <span data-cfg="author"></span></p>
+    </div>
+    <div><h4>LINKS</h4><ul><li><a href="../#tools">ツール一覧</a></li><li><a data-tool-feedback href="../feedback.html">要望・不具合を送る</a></li><li><a data-cfg-href="repoUrl" href="#" target="_blank" rel="noopener">ソースコード（GitHub）↗</a></li></ul></div>
+    <div class="titleblock" aria-label="表題欄">
+      <div>TOOL</div><div><span data-tool-field="no"></span> <span data-tool-field="name"></span></div>
+      <div>VERSION</div><div data-tool-field="version">—</div>
+      <div>UPDATED</div><div data-tool-field="updated">—</div>
+      <div>AUTHOR</div><div data-cfg="author"></div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
