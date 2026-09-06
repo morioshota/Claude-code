@@ -72,6 +72,9 @@ const wire = () => {
   if (wired || typeof window === "undefined") return;
   wired = true;
   window.addEventListener("scroll", kick, { passive: true });
+  // ⚠ 要素のscrollイベントはバブリングしない。モーダル(Overlay)は自前のスクロール枠なので
+  //   window だけを見ていると詳細画面の光が動かない。captureで拾うと全部の枠が拾える
+  document.addEventListener("scroll", kick, { passive: true, capture: true });
   window.addEventListener("resize", kick);
 };
 

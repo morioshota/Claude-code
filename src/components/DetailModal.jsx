@@ -1,11 +1,12 @@
 /* 銘柄詳細モーダル */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AnalysisPanel } from "./Analysis.jsx";
 import { NoteItem } from "./notes.jsx";
 import { Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay } from "./ui.jsx";
 import { TYPES, RARITIES, STAGES } from "../data/constants.js";
-import { calcLevel, calcCP, stageOf, freshInfo } from "../lib/stock.js";
+import { calcLevel, calcCP, stageOf, rarityOf, freshInfo } from "../lib/stock.js";
+import { registerCard } from "../lib/cardfx.js";
 import { fetchQuote } from "../lib/quotes.js";
 import {
   holdingOf, pnlOf, moodOf, fmtMoney, fmtPct,
@@ -88,9 +89,23 @@ function StopLossRow({ stock, quote }) {
   );
 }
 
+/* 説明欄の枠を光が走る。強さは研究レベル由来のレアリティ(1〜5)で変わる。
+   位置はスクロールに連動する(cardfx.jsが --hp を書き込む) */
+function SectionFx({ rank, color, style, children }) {
+  const ref = useRef(null);
+  useEffect(() => registerCard(ref.current), []);
+  if (rank <= 1) return <div style={style}>{children}</div>;
+  return (
+    <div ref={ref} className={`kzSecFx kzSecFx${Math.min(5, rank)}`} style={{ ...style, "--kzSecCol": color }}>
+      {children}
+    </div>
+  );
+}
+
 function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, onLog, onOpenNoteEditor, onOpenAi, onDeleteNote, onSaveFundamentals }) {
   const t = TYPES[stock.type] || TYPES.metal;
-  const r = RARITIES.find((x) => x.key === stock.rarity) || RARITIES[0];
+  const rank = rarityOf(stock);
+  const r = RARITIES.find((x) => x.key === rank) || RARITIES[0];
   const lv = calcLevel(stock);
   const stage = stageOf(lv);
   const cp = calcCP(stock);
@@ -120,7 +135,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           ? "linear-gradient(#0e1122,#0e1122), linear-gradient(120deg,#f0abfc,#ffd166,#4ade80,#60a5fa,#f0abfc)"
           : "none",
         backgroundOrigin: "border-box", backgroundClip: stage.no >= 4 ? "padding-box, border-box" : "border-box",
-        boxShadow: stock.rarity >= 4 || stage.no >= 3 ? r.glow : "0 8px 40px rgba(0,0,0,.6)",
+        boxShadow: rank >= 4 || stage.no >= 3 ? r.glow : "0 8px 40px rgba(0,0,0,.6)",
       }}>
         {/* ヘッダー */}
         <div style={{ background: `linear-gradient(135deg, ${t.dark}, #0e1122 80%)`, padding: "18px 18px 14px", position: "relative" }}>
@@ -134,7 +149,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 11, color: "#6b7394" }}>
-                No.{String(stock.no).padStart(3, "0")}　<RarityBadge rarity={stock.rarity} size={12} />（{r.name}）
+                No.{String(stock.no).padStart(3, "0")}　<RarityBadge rarity={rank} size={12} />（{r.name}）
               </div>
               <div style={{ fontSize: 20, fontWeight: 800, color: "#f2f4ff" }}>{stock.name}</div>
               <div style={{ fontSize: 12, color: "#8b93b8" }}>{stock.code}・{stock.market || "市場未設定"}</div>
@@ -175,7 +190,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
 
           {tab === "research" && (<>
           {/* ステータス */}
-          <div style={section}>
+          <SectionFx rank={rank} color={t.color} style={section}>
             <div style={h}>STATUS ─ {stage.desc}</div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ fontFamily: "'DotGothic16', monospace", color: "#ffd166", fontSize: 16 }}>Lv.{lv}</span>
@@ -210,10 +225,10 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
             <div style={{ fontSize: 10, color: "#5b6284", marginTop: 8 }}>
               ※ Lv・CP・鮮度は研究の蓄積量と経過日数を表す指標です。投資判断の根拠にはなりません。
             </div>
-          </div>
+          </SectionFx>
 
           {/* 生態調査記録 */}
-          <div style={{ ...section, border: "1px solid #2d5a3d" }}>
+          <SectionFx rank={rank} color="#4ade80" style={{ ...section, border: "1px solid #2d5a3d" }}>
             <div style={{ ...h, color: "#4ade80" }}>🔬 生態調査記録（投資メモの保管庫）</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
               <button onClick={onOpenNoteEditor} style={{ ...btnStyle("#4ade80"), padding: "7px 12px", fontSize: 12 }}>＋ 記録を追加（＋3Lv）</button>
@@ -226,48 +241,48 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
                 : [...notes].reverse().map((n, i) => (
                   <NoteItem key={n.id} note={n} index={i} total={notes.length} onDelete={onDeleteNote} />
                 ))}
-          </div>
+          </SectionFx>
 
           {/* マクロ仮説 */}
-          <div style={section}>
+          <SectionFx rank={rank} color={t.color} style={section}>
             <div style={h}>マクロ仮説（とくせい）</div>
             <div style={{ fontSize: 13, color: "#dfe4ff", lineHeight: 1.7 }}>
               {stock.hypothesis || <span style={{ color: "#5b6284" }}>未設定（編集から追加できます）</span>}
             </div>
-          </div>
+          </SectionFx>
 
           {/* わざ・よわてん */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
-            <div style={{ ...section, marginBottom: 0 }}>
+            <SectionFx rank={rank} color={t.color} style={{ ...section, marginBottom: 0 }}>
               <div style={h}>わざ（強気材料）</div>
               {stock.bullets.length === 0
                 ? <div style={{ fontSize: 12, color: "#5b6284" }}>まだ覚えていない。リサーチで習得しよう</div>
                 : stock.bullets.map((b, i) => (
                   <div key={i} style={{ fontSize: 13, color: "#fca5a5", padding: "4px 0", borderBottom: i < stock.bullets.length - 1 ? "1px dashed #262d4d" : "none" }}>🔥 {b}</div>
                 ))}
-            </div>
-            <div style={{ ...section, marginBottom: 0 }}>
+            </SectionFx>
+            <SectionFx rank={rank} color={t.color} style={{ ...section, marginBottom: 0 }}>
               <div style={h}>よわてん（リスク）</div>
               {stock.risks.length === 0
                 ? <div style={{ fontSize: 12, color: "#5b6284" }}>未把握。弱点を知らないのは危険…</div>
                 : stock.risks.map((b, i) => (
                   <div key={i} style={{ fontSize: 13, color: "#93c5fd", padding: "4px 0", borderBottom: i < stock.risks.length - 1 ? "1px dashed #262d4d" : "none" }}>⚠️ {b}</div>
                 ))}
-            </div>
+            </SectionFx>
           </div>
 
           {/* 見直しトリガー */}
-          <div style={section}>
+          <SectionFx rank={rank} color={t.color} style={section}>
             <div style={h}>にげるタイミング（前提が崩れる条件）</div>
             {(!stock.triggers || stock.triggers.length === 0)
               ? <div style={{ fontSize: 12, color: "#5b6284" }}>未設定。「何が起きたら見直すか」を決めておくと安心</div>
               : stock.triggers.map((b, i) => (
                 <div key={i} style={{ fontSize: 13, color: "#fcd34d", padding: "4px 0" }}>🚪 {b}</div>
               ))}
-          </div>
+          </SectionFx>
 
           {/* クイックメモ */}
-          <div style={section}>
+          <SectionFx rank={rank} color={t.color} style={section}>
             <div style={h}>クイックメモ（ひとこと記録・＋1Lv）</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
               <input
@@ -287,7 +302,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
                   {l.text}
                 </div>
               ))}
-          </div>
+          </SectionFx>
 
           </>)}
 

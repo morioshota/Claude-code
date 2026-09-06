@@ -22,7 +22,7 @@ import { TriggerCheckModal, dueForCheck } from "./components/TriggerCheck.jsx";
 import { FxLayer, EvoCeremony, ShinyCeremony, burstConfetti } from "./components/fx.jsx";
 import { PartyModal, BadgeModal, DataPortModal } from "./components/modals.jsx";
 import { NoteEditor } from "./components/notes.jsx";
-import { btnStyle, FilterChip, pageStyle } from "./components/ui.jsx";
+import { btnStyle, PressButton, FilterChip, pageStyle } from "./components/ui.jsx";
 import { STORAGE_KEY, noteKey, TYPES, STATUSES, ACHIEVEMENTS, SEED, BACKUP_FORMAT } from "./data/constants.js";
 import { evoPoolFor, rollEvoFx } from "./data/evolution.js";
 import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/activity.js";
@@ -494,6 +494,41 @@ export default function KabuDex() {
         .kzGlintGlow { opacity: .55; filter: blur(1.1px); animation-name: kzGlintGlow; }
         @keyframes kzGlint { 0%,100%{ transform: scale(.28) rotate(0deg); opacity:.35 } 50%{ transform: scale(1) rotate(45deg); opacity:1 } }
         @keyframes kzGlintGlow { 0%,100%{ transform: scale(.5) rotate(0deg); opacity:.18 } 50%{ transform: scale(1.55) rotate(45deg); opacity:.65 } }
+
+        /* ---- 押し込めるボタン ----
+           土台の影(kzBtnShadow)で浮かせ、押すと沈む。選択中(kzBtnOn)は沈んだ姿勢で固定し、
+           内側に影を入れて「押し込まれている」と分かるようにする。
+           ⚠ ブラウザ既定の見た目を消す all:unset は必ず【このCSS側】で行うこと。
+             インラインstyleに all:unset を書くと、インラインのほうが強いので
+             ここの box-shadow / transform / :active が全部消える(実際に踏んだ) */
+        .kzBtn { all: unset; box-sizing: border-box; cursor: pointer; position: relative;
+          display: inline-flex; align-items: center; justify-content: center; text-align: center;
+          box-shadow: 0 3px 0 var(--kzBtnShadow, #00000066), 0 4px 8px rgba(0,0,0,.32);
+          transform: translateY(0); transition: transform .09s ease, box-shadow .09s ease, background .15s ease; }
+        .kzBtn:active { transform: translateY(3px); box-shadow: 0 0 0 var(--kzBtnShadow, #00000066), 0 1px 3px rgba(0,0,0,.3); }
+        .kzBtnOn { transform: translateY(3px);
+          box-shadow: 0 0 0 var(--kzBtnShadow, #00000066), inset 0 2px 7px rgba(0,0,0,.55), inset 0 -1px 0 rgba(255,255,255,.06); }
+        .kzBtnOn:active { transform: translateY(3px); }
+        .kzChip { box-shadow: 0 2px 0 var(--kzBtnShadow, #00000066); }
+        .kzChip:active { transform: translateY(2px); box-shadow: 0 0 0 var(--kzBtnShadow, #00000066); }
+        .kzChip.kzBtnOn { transform: translateY(2px); box-shadow: 0 0 0 var(--kzBtnShadow,#00000066), inset 0 2px 5px rgba(0,0,0,.5); }
+
+        /* ---- 説明欄の枠を走る光(詳細画面) ----
+           研究レベル由来のレアリティで強さが変わる。位置(--hp)はスクロール連動 */
+        .kzSecFx { position: relative; }
+        .kzSecFx::before { content:""; position:absolute; inset:-1px; border-radius:inherit; pointer-events:none;
+          padding:1.5px; background: linear-gradient(100deg,
+            transparent 38%, var(--kzSecCol,#8b93b8) 47%, #ffffff 50%, var(--kzSecCol,#8b93b8) 53%, transparent 62%);
+          background-size: 300% 100%; background-position: var(--hp,50%) 0;
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask-composite: exclude; opacity: 0; }
+        .kzSecFx2::before { opacity: .30; }
+        .kzSecFx3::before { opacity: .48; }
+        .kzSecFx4::before { opacity: .68; }
+        .kzSecFx5::before { opacity: .90; filter: drop-shadow(0 0 5px var(--kzSecCol,#ffd166)); }
+        /* ステージ5は内側にも淡い光をまとう */
+        .kzSecFx5 { box-shadow: inset 0 0 22px rgba(255,209,102,.09); }
         body.kz-shake { animation: kzShake .55s ease; }
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
         ::placeholder { color: #4a5170; }
@@ -619,31 +654,27 @@ export default function KabuDex() {
           </div>
         )}
 
-        {/* ビュー切り替え */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-          {[["dex", "📕 図鑑"], ["ranch", "🏞 ぼくじょう"], ["analysis", "📊 分析"], ["album", "🎓 アルバム"]].map(([k, label]) => (
-            <button key={k} onClick={() => setView(k)} style={{
-              all: "unset", cursor: "pointer", padding: "8px 18px", borderRadius: 10,
-              fontFamily: "'DotGothic16', monospace", fontSize: 13, letterSpacing: 1,
-              border: `1.5px solid ${view === k ? "#ffd166" : "#252b48"}`,
-              background: view === k ? "#ffd16618" : "transparent",
-              color: view === k ? "#ffd166" : "#5b6284",
-            }}>{label}</button>
+        {/* ビュー切り替え(均等グリッド。スマホで高さが凸凹しないよう1行1段に固定) */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr) 44px 44px", gap: 7, marginBottom: 10 }}>
+          {[["dex", "📕", "図鑑"], ["ranch", "🏞", "ぼくじょう"], ["analysis", "📊", "分析"], ["album", "🎓", "アルバム"]].map(([k, icon, label]) => (
+            <PressButton key={k} color="#ffd166" active={view === k} onClick={() => setView(k)}
+              style={{ flexDirection: "column", gap: 1, padding: "7px 2px", fontFamily: "'DotGothic16', monospace", fontSize: 11.5, letterSpacing: 0.5 }}>
+              <span style={{ fontSize: 15, lineHeight: 1 }}>{icon}</span>
+              <span>{label}</span>
+            </PressButton>
           ))}
-          {tiltSupported() && (
-            <button
-              onClick={async () => { if (tilt) disableTilt(); else { const ok = await enableTilt(); if (!ok) setTilt(false); } }}
-              title={tilt ? "端末の傾きでカードが動きます" : "端末を傾けるとカードが動くようにする"}
-              style={{ all: "unset", cursor: "pointer", marginLeft: "auto", fontSize: 17, padding: "6px 10px", borderRadius: 10, border: `1.5px solid ${tilt ? "#c084fc" : "#252b48"}`, opacity: tilt ? 1 : 0.45 }}>
-              📱
-            </button>
-          )}
-          <button
+          <PressButton
+            color="#c084fc" active={tilt} title={tilt ? "端末の傾きでカードが動きます" : "端末を傾けるとカードが動くようにする"}
+            onClick={async () => { if (!tiltSupported()) return; if (tilt) disableTilt(); else { const ok = await enableTilt(); if (!ok) setTilt(false); } }}
+            style={{ padding: "7px 0", fontSize: 16, opacity: tiltSupported() ? 1 : 0.35 }}>
+            📱
+          </PressButton>
+          <PressButton
+            color="#60a5fa" active={soundOn} title={soundOn ? "効果音オン" : "効果音オフ"}
             onClick={() => { const next = !soundOn; setSoundOn(next); setSoundEnabled(next); if (next) sfx("sparkle"); }}
-            title={soundOn ? "効果音オン" : "効果音オフ"}
-            style={{ all: "unset", cursor: "pointer", marginLeft: tiltSupported() ? 0 : "auto", fontSize: 17, padding: "6px 10px", borderRadius: 10, border: "1.5px solid #252b48", opacity: soundOn ? 1 : 0.45 }}>
+            style={{ padding: "7px 0", fontSize: 16 }}>
             {soundOn ? "🔊" : "🔇"}
-          </button>
+          </PressButton>
         </div>
 
         {view === "ranch" && <RanchView stocks={stocks} activity={activity} quotes={quotes} onSelect={openDetail} />}
@@ -651,23 +682,25 @@ export default function KabuDex() {
         {view === "album" && <AlbumView stocks={stocks} onSelect={openDetail} onSaveLesson={saveLesson} />}
 
         {view === "dex" && (<>
-        {/* 操作列 */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12, alignItems: "center" }}>
-          <button onClick={() => { setSelectedId(null); setFormMode("add"); }} style={{ all: "unset", cursor: "pointer", background: "#ffd166", color: "#221a00", fontWeight: 800, fontSize: 13, borderRadius: 10, padding: "9px 16px", boxShadow: "0 0 14px rgba(255,209,102,.25)" }}>
+        {/* 操作列。副ボタンは4つなので2列×2行にすると必ず埋まる
+            (自動折り返しにすると3+1で最後の1つだけ半端に残り、凸凹して見えた) */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 8 }}>
+          <PressButton color="#ffd166" filled onClick={() => { setSelectedId(null); setFormMode("add"); }}
+            style={{ gridColumn: "1 / -1", fontSize: 13.5, padding: "11px 12px" }}>
             ＋ あたらしくゲット
-          </button>
-          <button onClick={() => setPanel("party")} style={{ ...btnStyle("#60a5fa"), padding: "8px 13px" }}>📊 パーティ分析</button>
-          <button onClick={() => setPanel("badges")} style={{ ...btnStyle("#ffd166"), padding: "8px 13px" }}>🎖 実績 {unlockedCount}/{ACHIEVEMENTS.length}</button>
-          <button onClick={() => setPanel("check")} style={{ ...btnStyle("#fbbf24"), padding: "8px 13px" }}>
-            🔔 点検{due.length > 0 && <span style={{ background: "#f87171", color: "#fff", borderRadius: 999, fontSize: 10, padding: "1px 6px", marginLeft: 4 }}>{due.length}</span>}
-          </button>
-          <button onClick={() => setPanel("data")} style={{ ...btnStyle("#4ade80"), padding: "8px 13px" }}>💾 バックアップ</button>
-          <input
-            value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="🔍 名前・コードで検索"
-            style={{ flex: 1, minWidth: 150, background: "#12152a", border: "1px solid #2a3050", borderRadius: 10, color: "#eef1ff", padding: "9px 12px", fontSize: 13, outline: "none" }}
-          />
+          </PressButton>
+          <PressButton color="#60a5fa" onClick={() => setPanel("party")}>📊 パーティ分析</PressButton>
+          <PressButton color="#ffd166" onClick={() => setPanel("badges")}>🎖 実績 {unlockedCount}/{ACHIEVEMENTS.length}</PressButton>
+          <PressButton color="#fbbf24" onClick={() => setPanel("check")}>
+            🔔 点検{due.length > 0 && <span style={{ background: "#f87171", color: "#fff", borderRadius: 999, fontSize: 10, padding: "1px 6px", marginLeft: 2 }}>{due.length}</span>}
+          </PressButton>
+          <PressButton color="#4ade80" onClick={() => setPanel("data")}>💾 バックアップ</PressButton>
         </div>
+        <input
+          value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="🔍 名前・コードで検索"
+          style={{ width: "100%", boxSizing: "border-box", marginBottom: 12, background: "#12152a", border: "1px solid #2a3050", borderRadius: 11, color: "#eef1ff", padding: "10px 12px", fontSize: 13, outline: "none", boxShadow: "inset 0 2px 6px rgba(0,0,0,.45)" }}
+        />
 
         {/* フィルタ */}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>

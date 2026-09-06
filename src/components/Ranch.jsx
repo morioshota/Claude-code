@@ -108,6 +108,7 @@ const BUILD_DIMS = [null,
   { hw: 22, wall: 16, roof: 14 },  // ST2 小屋
   { hw: 26, wall: 20, roof: 16 },  // ST3 ラボ
   { hw: 28, wall: 26, roof: 14 },  // ST4 御殿
+  { hw: 32, wall: 30, roof: 16 },  // ST5 大御殿(両翼+三本旗)
 ];
 
 const scaledDims = (stage, f) => {
@@ -269,7 +270,20 @@ function buildingCanvas(stock, phase, season, f, condition = "normal") {
     ctx.fillStyle = t.color; ctx.fillRect(cx - 2, apexY - 14, 6, 5);
     ctx.fillStyle = lit ? "#fff2c2" : "#ffffff"; ctx.fillRect(cx, apexY - 13, 2, 2);
   } else {
-    /* ST4: 御殿 = 本館(平屋根)+塔+旗+金の帯 */
+    /* ST4: 御殿 = 本館(平屋根)+塔+旗+金の帯 / ST5: それに両翼と旗を足した大御殿 */
+    if (stage >= 5) {
+      // 先に両翼を描く(本館より奥に見えるように)。左右対称の小さな棟
+      const whw = Math.max(9, Math.round(hw * 0.45)), wwall = Math.max(7, Math.round(wall * 0.55));
+      [-1, 1].forEach((sgn) => {
+        const wx = cx + sgn * Math.round(hw * 1.15);
+        const wy = baseY - Math.round(hw * 0.3);
+        box(wx, wy, whw, wwall);
+        goldTrim(wx, wy, whw, wwall);
+        slab(wx, wy - wwall, whw);
+        win(wx, wy, Math.round(whw * 0.45), Math.round(wwall * 0.4), true);
+        flag(wx, wy - wwall - Math.round(whw / 2) - 3);
+      });
+    }
     box(cx, baseY, hw, wall);
     door(cx, baseY, f);
     win(cx, baseY, Math.round(hw * 0.42), Math.round(wall * 0.22), true);
