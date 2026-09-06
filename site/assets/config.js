@@ -23,7 +23,7 @@ window.SITE_CONFIG = {
         「メールで送る」（contactEmail を設定した場合）に自動で切り替わる。
      ※ Google フォームを使う場合は feedbackFormUrl にフォームのURLを貼ると
         フォームページからそのまま開けるボタンが出る。                       */
-  feedbackEndpoint: '',
+  feedbackEndpoint: 'https://formspree.io/f/xyeydweo',
   feedbackFormUrl: '',
   contactEmail: '',          // 例: 'you@example.com'（公開されるので注意）
 
