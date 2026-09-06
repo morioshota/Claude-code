@@ -212,8 +212,22 @@
     });
   }
 
+  /* ---------- カーソル追従グリッド（ホーム。マウス操作の端末だけ） ---------- */
+  function initCursorGrid() {
+    const g = $('#cgrid'); if (!g) return;
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) { g.remove(); return; }
+    const lab = $('#cgrid-lab'); let raf = 0, mx = -1, my = -1;
+    function paint() { raf = 0; g.style.setProperty('--mx', mx + 'px'); g.style.setProperty('--my', my + 'px');
+      // 本文の背景グリッド（32px）と目を合わせる
+      g.style.setProperty('--gy', (-(window.scrollY % 32)) + 'px');
+      if (lab) lab.textContent = 'X ' + String(Math.round(mx)).padStart(4, '0') + ' / Y ' + String(Math.round(my + window.scrollY)).padStart(4, '0'); }
+    document.addEventListener('pointermove', (e) => { mx = e.clientX; my = e.clientY; g.classList.add('on'); if (!raf) raf = requestAnimationFrame(paint); }, { passive: true });
+    document.addEventListener('pointerleave', () => g.classList.remove('on'));
+    window.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(paint); }, { passive: true });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
-    initTheme(); initNav(); fillConfig(); initCatalog(); initTimeline(); initToolPage(); initFeedback(); initReveal();
+    initTheme(); initNav(); fillConfig(); initCatalog(); initTimeline(); initToolPage(); initFeedback(); initReveal(); initCursorGrid();
   });
   // テーマは描画前に適用してちらつきを防ぐ
   try { const t = localStorage.getItem(THEME_KEY); if (t === 'light') document.documentElement.setAttribute('data-theme', 'light'); } catch (e) { /* noop */ }

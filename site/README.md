@@ -15,10 +15,16 @@ site/
 ├── index.html            ホーム（ヒーロー / ツール一覧 / こだわり / 更新情報 / 作成者 / CTA）
 ├── feedback.html         要望・不具合フォーム（?tool=<id> で対象ツールを事前選択）
 ├── tools/
-│   ├── sagyotaizu.html   T-001 作業帯図作成ツール LP
-│   ├── fukkoban.html     T-002 覆工板 最適勾配 検討ツール LP
-│   ├── civil-3d.html     T-003 土木3Dビルダー LP（開発中・準備中表示）
-│   └── _template.html    新規LPのテンプレート（★を書き換える）
+│   ├── sagyotaizu.html         T-001 作業帯図作成ツール LP（ポップ案・マスコット付き。_build から生成）
+│   ├── sagyotaizu-details.html T-001 くわしく（動作環境・FAQ・更新履歴。台帳から自動で埋まる）
+│   ├── fukkoban.html           T-002 覆工板 最適勾配 検討ツール LP（洗練案・3D＋体験。_build から生成）
+│   ├── fukkoban-details.html   T-002 くわしく
+│   ├── civil-3d.html           T-003 土木3Dビルダー LP（開発中・準備中表示）
+│   └── _template.html          「くわしく」型ページのテンプレート（★を書き換える）
+├── _build/                     上記2つのLPの生成元（python3 site/_build/build_site.py で再生成）
+│   ├── pattern_a.py / pattern_f.py   各LPの本文・CSS・JS
+│   ├── build.py                共通セクション・共通CSS/JS
+│   └── parts/                  マスコットSVG（mascots.py）・ミニ体験（demo.*）
 ├── assets/
 │   ├── config.js         サイト名・作成者・URL・要望フォームの送信先 ← 運用で触るのはここ
 │   ├── tools.js          ツール台帳（カード一覧・更新情報・フォーム選択肢の単一情報源）
@@ -28,6 +34,17 @@ site/
 │   └── og/               SNS共有カード画像（1200×630 PNG）
 └── README.md             このファイル
 ```
+
+## LP（sagyotaizu.html / fukkoban.html）を直すとき
+
+この2ページは `site/_build/` から生成している。**生成物を直接編集せず**、`pattern_a.py`（作業帯図）/ `pattern_f.py`（覆工板）/ `parts/` を直してから
+
+```bash
+python3 site/_build/build_site.py
+```
+
+で書き出す（Pythonだけで動く。npm等は不要）。マスコットの絵・動きは `parts/mascots.py`。
+ヒーローやミニ体験の計算はツール本体と同じ評価式（覆工板は `optimizePlane` と同じ手順）で、数値の見せ方を変えるときはそこを崩さないこと。
 
 ## 新しいツールを載せる手順
 
