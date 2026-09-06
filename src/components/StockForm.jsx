@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { btnStyle, Overlay } from "./ui.jsx";
-import { TYPES, RARITIES, STATUSES } from "../data/constants.js";
+import { TYPES, STATUSES } from "../data/constants.js";
 import { DEFAULT_STOP_LOSS_PCT, stopLossPctOf, stopLossPriceOf } from "../lib/holdings.js";
 
 function StockForm({ initial, onSave, onCancel }) {
   const [f, setF] = useState(initial || {
-    name: "", code: "", market: "", type: "tech", rarity: 2, status: "watch",
+    name: "", code: "", market: "", type: "tech", status: "watch",
     hypothesis: "", bullets: [], risks: [], triggers: [], logs: [],
   });
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
@@ -50,19 +50,6 @@ function StockForm({ initial, onSave, onCancel }) {
             }}>
               {t.icon} {t.label}<span style={{ fontSize: 9, opacity: .7 }}>（{t.sub}）</span>
             </button>
-          ))}
-        </div>
-
-        <label style={label}>レアリティ（自分の確信度・注目度でOK）</label>
-        <div style={{ display: "flex", gap: 6 }}>
-          {RARITIES.map((r) => (
-            <button key={r.key} onClick={() => set("rarity", r.key)} style={{
-              all: "unset", cursor: "pointer", padding: "6px 12px", borderRadius: 8,
-              border: `1.5px solid ${f.rarity === r.key ? r.color : "#2a3050"}`,
-              color: f.rarity === r.key ? r.color : "#5b6284",
-              fontFamily: "'DotGothic16', monospace", fontWeight: 700, fontSize: 13,
-              boxShadow: f.rarity === r.key ? r.glow : "none",
-            }}>{r.label}</button>
           ))}
         </div>
 

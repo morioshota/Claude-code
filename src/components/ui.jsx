@@ -144,6 +144,34 @@ const btnStyle = (color) => ({
   borderRadius: 10, padding: "8px 14px", fontSize: 12.5, fontWeight: 700,
 });
 
+/* ---- 押し込めるボタン ----
+   立体的に浮いていて、押すと沈む(:activeはCSS側の .kzBtn で処理)。
+   選択中は「押し込まれたまま」になり、いまどれを選んでいるかが姿勢で分かる。
+   色はボタンの主色。押し込みの深さ(3px)はCSSと合わせてある。
+   ⚠ ここに all:"unset" を書かないこと。インラインのほうが強いので .kzBtn の
+     box-shadow / transform / :active が丸ごと消える(リセットはCSS側の .kzBtn が担当) */
+function PressButton({ color = "#8b93b8", active = false, filled = false, onClick, title, style, children }) {
+  const base = filled ? color : "transparent";
+  return (
+    <button
+      type="button" onClick={onClick} title={title}
+      className={`kzBtn${active ? " kzBtnOn" : ""}`}
+      style={{
+        display: "flex", gap: 6,
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        border: `1.5px solid ${active ? color : `${color}77`}`,
+        background: filled ? base : active ? `${color}26` : `${color}0f`,
+        color: filled ? "#1b1200" : color,
+        // 沈み込みの土台。押すとこの影が縮む
+        "--kzBtnShadow": active ? `${color}55` : `${color}44`,
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function Overlay({ onClose, children, z = 50 }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(5,7,18,.82)", backdropFilter: "blur(4px)", zIndex: z, display: "flex", justifyContent: "center", alignItems: "flex-start", overflowY: "auto", padding: "24px 12px" }}>
@@ -154,11 +182,12 @@ function Overlay({ onClose, children, z = 50 }) {
 
 function FilterChip({ active, onClick, color, children }) {
   return (
-    <button onClick={onClick} style={{
-      all: "unset", cursor: "pointer", padding: "4px 11px", borderRadius: 999,
+    <button onClick={onClick} className={`kzBtn kzChip${active ? " kzBtnOn" : ""}`} style={{
+      padding: "5px 12px", borderRadius: 999,
       border: `1.5px solid ${active ? color : "#252b48"}`,
-      background: active ? `${color}1a` : "transparent",
-      color: active ? color : "#5b6284", fontSize: 11.5, fontWeight: 700,
+      background: active ? `${color}26` : "#ffffff08",
+      color: active ? color : "#6b7394", fontSize: 11.5, fontWeight: 700,
+      whiteSpace: "nowrap", "--kzBtnShadow": active ? `${color}55` : "#00000066",
     }}>
       {children}
     </button>
@@ -172,4 +201,4 @@ const pageStyle = {
   fontFamily: "'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', sans-serif",
 };
 
-export { inlineBold, MdView, Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay, FilterChip, pageStyle };
+export { inlineBold, MdView, Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, PressButton, Overlay, FilterChip, pageStyle };

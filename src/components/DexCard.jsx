@@ -11,7 +11,7 @@
 import { useEffect, useRef } from "react";
 import { Creature, RarityBadge, TypeChip, StatusBadge } from "./ui.jsx";
 import { TYPES, RARITIES } from "../data/constants.js";
-import { calcLevel, stageOf, freshInfo } from "../lib/stock.js";
+import { calcLevel, stageOf, rarityOf, freshInfo } from "../lib/stock.js";
 import { registerCard, setPointer, clearPointer } from "../lib/cardfx.js";
 
 /* 損切りライン超過の警告柄(虎柄=工事現場のハザードテープ)。
@@ -20,24 +20,23 @@ const HAZARD_STRIPES = "repeating-linear-gradient(45deg, rgba(251,146,60,.30) 0 
 
 const RADIUS = 13;
 
-/* ホロの強さ(0〜3)。レアリティか研究ステージの高いほうで決まる */
-const holoTierOf = (stock) => {
-  if (stock.status === "sold") return 0;
-  const st = stageOf(calcLevel(stock)).no;
-  const r = stock.rarity || 1;
-  if (r >= 5 || st >= 4) return 3;
-  if (r >= 4 || st >= 3) return 2;
-  if (r >= 2 || st >= 2) return 1;
-  return 0;
-};
+/* 演出の段階は研究ステージそのもの(1〜5)。レアリティも同じ数字。
+   1 ハッケン … 演出なし
+   2 カンサツ … 光沢だけ(虹は出さない)
+   3 カイメイ … 光沢＋内枠
+   4 マスター … ここから虹の反射が出る
+   5 デンセツ … 虹＋走査光＋金の内枠＋四隅の装飾(ひときわ豪華) */
+const holoTierOf = (stock) => (stock.status === "sold" ? 0 : rarityOf(stock));
 
-// 強すぎるとカードの黒基調が飛ぶ。マスク(kzHoloSheet)と合わせて控えめに
-const HOLO_OPACITY = [0, 0.16, 0.26, 0.36];
-const GLARE_OPACITY = [0, 0.20, 0.30, 0.40];
+// 虹は4以降だけ。強すぎるとカードの黒基調が飛ぶのでマスク(kzHoloSheet)と合わせて控えめに
+const HOLO_OPACITY = [0, 0, 0, 0, 0.30, 0.42];
+const GLARE_OPACITY = [0, 0, 0.16, 0.24, 0.32, 0.42];
+const FINE_OPACITY = [0, 0, 0, 0.22, 0.34, 0.46];
 
 function DexCard({ stock, onClick, stopLossState }) {
   const t = TYPES[stock.type] || TYPES.metal;
-  const r = RARITIES.find((x) => x.key === stock.rarity) || RARITIES[0];
+  const rank = rarityOf(stock);
+  const r = RARITIES.find((x) => x.key === rank) || RARITIES[0];
   const lv = calcLevel(stock);
   const stage = stageOf(lv);
   const fresh = freshInfo(stock);
@@ -85,23 +84,36 @@ function DexCard({ stock, onClick, stopLossState }) {
             : `${stage.no >= 2 ? 2 : 1.5}px solid ${sold ? "#374151" : t.color}${stage.no >= 3 ? "aa" : "66"}`,
           boxSizing: "border-box",
           boxShadow: over ? "0 0 18px rgba(248,113,113,.45)"
-            : !sold && (stage.no >= 3 || stock.rarity >= 4) ? r.glow : "none",
+            : !sold && stage.no >= 3 ? r.glow : "none",
         }} />
         {over && (
           <div style={{ ...layer, background: HAZARD_STRIPES, backgroundSize: "31px 31px", animation: "kzHazard 1.6s linear infinite" }} />
         )}
-        {/* 虹の反射。位置(--hp)はスクロール・傾きに連動する */}
-        {tier > 0 && !sold && <div className="kzHoloSheet" style={{ ...layer, opacity: HOLO_OPACITY[tier] }} />}
-        {tier >= 2 && !sold && <div className="kzHoloFine" style={layer} />}
-        {/* 枠内の豪華強調(SSR/UR・ステージ3以上) */}
-        {tier >= 2 && !sold && (
+        {/* 虹の反射はステージ4から。位置(--hp)はスクロール・傾きに連動する */}
+        {tier >= 4 && !sold && <div className="kzHoloSheet" style={{ ...layer, opacity: HOLO_OPACITY[tier] }} />}
+        {tier >= 3 && !sold && <div className="kzHoloFine" style={{ ...layer, opacity: FINE_OPACITY[tier] }} />}
+        {/* 枠内の豪華強調(ステージ3から。5は金＋四隅の装飾) */}
+        {tier >= 3 && !sold && (
           <div style={{
             ...layer, inset: 4, borderRadius: RADIUS - 4,
-            border: `1px solid ${tier >= 3 ? "rgba(255,231,168,.42)" : "rgba(255,255,255,.20)"}`,
-            boxShadow: `inset 0 0 16px ${tier >= 3 ? "rgba(255,209,102,.18)" : "rgba(255,255,255,.09)"}`,
+            border: `1px solid ${tier >= 5 ? "rgba(255,231,168,.55)" : tier >= 4 ? "rgba(255,231,168,.34)" : "rgba(255,255,255,.16)"}`,
+            boxShadow: `inset 0 0 ${tier >= 5 ? 22 : 16}px ${tier >= 5 ? "rgba(255,209,102,.26)" : tier >= 4 ? "rgba(255,209,102,.14)" : "rgba(255,255,255,.07)"}`,
           }} />
         )}
-        {tier >= 3 && !sold && <div className="kzHoloBeam" style={layer} />}
+        {tier >= 5 && !sold && <div className="kzHoloBeam" style={layer} />}
+        {/* デンセツだけの四隅の飾り */}
+        {tier >= 5 && !sold && (
+          <div className="kzCornerFx" style={layer}>
+            {[["top", "left"], ["top", "right"], ["bottom", "left"], ["bottom", "right"]].map(([v, h]) => (
+              <span key={v + h} style={{ position: "absolute", [v]: 5, [h]: 5, width: 11, height: 11,
+                [`border${v === "top" ? "Top" : "Bottom"}`]: "1.5px solid rgba(255,231,168,.75)",
+                [`border${h === "left" ? "Left" : "Right"}`]: "1.5px solid rgba(255,231,168,.75)",
+                [`border${v === "top" ? "TopLeftRadius" : "BottomLeftRadius"}`]: h === "left" ? 5 : 0,
+                [`border${v === "top" ? "TopRightRadius" : "BottomRightRadius"}`]: h === "right" ? 5 : 0,
+              }} />
+            ))}
+          </div>
+        )}
 
         {/* --- 中身: 手前に浮かせる(傾けたときの立体感) --- */}
         <div className="kzCardFg" style={{ position: "relative", padding: 12, boxSizing: "border-box", height: "100%" }}>
@@ -124,7 +136,7 @@ function DexCard({ stock, onClick, stopLossState }) {
           )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <span style={{ fontFamily: "'DotGothic16', monospace", fontSize: 11, color: "#6b7394" }}>No.{String(stock.no).padStart(3, "0")}</span>
-            <RarityBadge rarity={stock.rarity} size={13} />
+            <RarityBadge rarity={rank} size={13} />
           </div>
           {/* クリーチャーはさらに手前(いちばん浮く層) */}
           <div className="kzCardHero" style={{
@@ -161,7 +173,7 @@ function DexCard({ stock, onClick, stopLossState }) {
         </div>
 
         {/* --- 最前面: 光沢。カードの表面で光が滑る感じを出す --- */}
-        {tier > 0 && !sold && <div className="kzGlare" style={{ ...layer, opacity: GLARE_OPACITY[tier] }} />}
+        {tier >= 2 && !sold && <div className="kzGlare" style={{ ...layer, opacity: GLARE_OPACITY[tier] }} />}
       </div>
     </button>
   );

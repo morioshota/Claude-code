@@ -7,13 +7,18 @@ import { daysSince } from "./util.js";
 const calcLevel = (s) => 1 + (s.logs?.length || 0) + (s.noteCount || 0) * 3;
 
 const calcCP = (s) =>
-  s.rarity * 120 + calcLevel(s) * 35 + (s.bullets?.length || 0) * 20 + (s.risks?.length || 0) * 5;
+  rarityOf(s) * 120 + calcLevel(s) * 35 + (s.bullets?.length || 0) * 20 + (s.risks?.length || 0) * 5;
 
 const stageOf = (lv) => {
   let st = STAGES[0];
   for (const s of STAGES) if (lv >= s.min) st = s;
   return st;
 };
+
+/* レアリティは研究レベルから自動で決まる(ステージ番号と同じ1〜5)。
+   自分で選ぶ設定は廃止した——「研究の蓄積量の指標」という位置づけと合わせるため。
+   旧データの s.rarity は参照しない */
+const rarityOf = (s) => stageOf(calcLevel(s)).no;
 
 /* ---- 鮮度(最終調査日からの経過) ---- */
 
@@ -40,7 +45,8 @@ const evalAchievements = (stocks) => {
   if (types >= 10) unlocked.add("typeAll");
   if (notesTotal >= 1) unlocked.add("note1");
   if (notesTotal >= 10) unlocked.add("note10");
-  if (stocks.some((s) => stageOf(calcLevel(s)).no === 4)) unlocked.add("stage4");
+  if (stocks.some((s) => stageOf(calcLevel(s)).no >= 4)) unlocked.add("stage4");
+  if (stocks.some((s) => stageOf(calcLevel(s)).no >= 5)) unlocked.add("stage5");
   if (holds.length > 0 && holds.every((s) => (s.triggers || []).length > 0)) unlocked.add("risk");
   if (holds.length > 0 && holds.every((s) => { const d = daysSince(s.lastResearch); return d !== null && d <= 45; })) unlocked.add("fresh");
   if (stocks.some((s) => s.shiny)) unlocked.add("shiny1");
@@ -60,4 +66,4 @@ const moveTierOf = (stock) => {
 
 // 実時間→時間帯(端末の時計を使用)
 
-export { calcLevel, calcCP, stageOf, freshInfo, evalAchievements, moveTierOf };
+export { calcLevel, calcCP, stageOf, rarityOf, freshInfo, evalAchievements, moveTierOf };
