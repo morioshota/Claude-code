@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ja" data-root="./">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>GENBA TOOLS — 現場で生まれた、ブラウザで動く実務ツール</title>
+<meta name="description" content="土木施工管理の現場で生まれた実務ツール集。作業帯図作成ツール、覆工板 最適勾配 検討ツールなど。インストール不要・ブラウザで動く・データは端末の中だけ。">
+<meta name="theme-color" content="#0a0f1c">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://morioshota.github.io/Claude-code/site/">
+<!-- OGP（SNS・チャットで共有したときのカード表示） -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GENBA TOOLS">
+<meta property="og:title" content="GENBA TOOLS — 現場で生まれた、ブラウザで動く実務ツール">
+<meta property="og:description" content="作業帯図作成ツール、覆工板 最適勾配 検討ツールなど、土木の現場で使うためのブラウザツール集。インストール不要・登録不要。">
+<meta property="og:url" content="https://morioshota.github.io/Claude-code/site/">
+<meta property="og:image" content="https://morioshota.github.io/Claude-code/site/assets/og/site.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/config.js"></script>
+<script src="assets/tools.js"></script>
+<script src="assets/site.js" defer></script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","name":"GENBA TOOLS","url":"https://morioshota.github.io/Claude-code/site/","author":{"@type":"Person","name":"Shota Onuma"}}
+</script>
+</head>
+<body>
+<div class="hazard" aria-hidden="true"></div>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="ホーム">
+      <span class="mark" aria-hidden="true"></span>
+      <span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline">現場で生まれた、ブラウザで動く実務ツール</small></span>
+    </a>
+    <button class="nav-toggle" aria-label="メニュー" aria-expanded="false">☰</button>
+    <nav class="nav" aria-label="サイト内">
+      <a href="#tools">ツール一覧</a>
+      <a href="#principles">こだわり</a>
+      <a href="#updates">更新情報</a>
+      <a href="#about">作成者</a>
+      <a class="cta" href="feedback.html">💬 要望を送る</a>
+      <button class="theme-toggle" type="button" aria-label="テーマ切替">☀️</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- ================= ヒーロー ================= -->
+  <section class="hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="hero-glow b" aria-hidden="true"></div>
+    <div class="wrap">
+      <div>
+        <div class="kicker">TOOLS FROM THE FIELD</div>
+        <h1>
+          <span class="thin l1">現場の「めんどう」を、</span><br>
+          <span class="hl">ブラウザひとつ</span>で片づける。
+        </h1>
+        <p class="lead">
+          土木施工管理の現場で、自分が困ったから作ったツールを公開しています。
+          インストール不要・登録不要。ファイルを開けばすぐ使えて、入力したデータはあなたの端末の外に出ません。
+        </p>
+        <div class="cta-row">
+          <a class="btn primary lg" href="#tools">ツールを見る</a>
+          <a class="btn lg ghost" href="feedback.html">こんなツールが欲しい →</a>
+        </div>
+        <div class="facts">
+          <span>公開中 <b data-tool-count>2</b> ツール</span>
+          <span>費用 <b>無料</b></span>
+          <span>アカウント <b>不要</b></span>
+          <span>データ保存先 <b>あなたのPC内</b></span>
+        </div>
+      </div>
+
+      <!-- 図面アニメーション: 作業帯の平面図が描かれていく -->
+      <div class="drawing" aria-hidden="true">
+        <svg viewBox="0 0 560 400" xmlns="http://www.w3.org/2000/svg">
+          <!-- 図面枠 -->
+          <rect class="frame" x="8" y="8" width="544" height="384" rx="6"></rect>
+          <rect class="ink thin" x="20" y="20" width="520" height="360"></rect>
+          <text class="big" x="32" y="42">作業帯図 — PLAN</text>
+          <text x="440" y="42">SCALE 1:300</text>
+          <!-- 道路（路肩線・中心線） -->
+          <path class="ink draw d1" d="M40 200 C 160 180, 300 250, 520 220"></path>
+          <path class="ink draw d1" d="M40 300 C 160 280, 300 350, 520 320"></path>
+          <path class="ink thin draw d2" stroke-dasharray="10 8" d="M40 250 C 160 230, 300 300, 520 270" style="stroke-dasharray:1200"></path>
+          <!-- 歩道 -->
+          <path class="fill-cyan fade d3" d="M40 200 C 160 180, 300 250, 520 220 L 520 200 C 300 230, 160 160, 40 180 Z"></path>
+          <!-- 作業帯（ハッチング） -->
+          <defs>
+            <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="8" stroke="#f5b400" stroke-width="1.6"/>
+            </pattern>
+          </defs>
+          <path class="fade d3" fill="url(#hatch)" opacity=".85" d="M200 262 L 420 282 L 420 318 L 200 298 Z"></path>
+          <path class="accent draw d2" d="M200 262 L 420 282 L 420 318 L 200 298 Z"></path>
+          <!-- コーン列 -->
+          <g class="fade d4" fill="#f5b400">
+            <circle cx="200" cy="262" r="3"/><circle cx="228" cy="264.5" r="3"/><circle cx="256" cy="267" r="3"/><circle cx="284" cy="269.5" r="3"/>
+            <circle cx="312" cy="272" r="3"/><circle cx="340" cy="274.5" r="3"/><circle cx="368" cy="277" r="3"/><circle cx="396" cy="279.5" r="3"/><circle cx="420" cy="282" r="3"/>
+            <circle cx="160" cy="296" r="3"/><circle cx="180" cy="279" r="3"/>
+          </g>
+          <path class="accent draw d3" d="M160 296 L 200 262"></path>
+          <!-- ガードマン/作業車 -->
+          <g class="fade d4">
+            <rect x="290" y="286" width="40" height="16" rx="3" fill="#f5b400" stroke="#1a1200" stroke-width="1"/>
+            <circle cx="150" cy="300" r="4" fill="#4cc9f0"/><circle cx="440" cy="300" r="4" fill="#4cc9f0"/>
+          </g>
+          <!-- 寸法線 -->
+          <g class="cyan draw d4">
+            <path d="M200 240 L 420 260"></path>
+            <path d="M200 236 L 200 250"></path><path d="M420 256 L 420 270"></path>
+          </g>
+          <text class="fade d5" x="290" y="236" fill="#4cc9f0">L = 38.00 m</text>
+          <g class="cyan draw d4"><path d="M440 282 L 440 318"></path><path d="M436 282 L 448 282"></path><path d="M436 318 L 448 318"></path></g>
+          <text class="fade d5" x="448" y="304">W=3.0</text>
+          <!-- 測点 -->
+          <g class="fade d5">
+            <text x="60" y="345">No.0</text><text x="200" y="345">No.1</text><text x="340" y="345">No.2</text><text x="480" y="345">No.3</text>
+            <text x="470" y="192" fill="#4cc9f0">歩行者通路</text>
+            <text x="150" y="330" fill="#f5b400">作業帯</text>
+          </g>
+          <!-- カーソル -->
+          <g class="blink" stroke="#4cc9f0" stroke-width="1"><line x1="420" y1="272" x2="420" y2="292"/><line x1="410" y1="282" x2="430" y2="282"/></g>
+          <!-- 表題欄 -->
+          <g class="titleblock">
+            <rect x="372" y="336" width="168" height="44"></rect>
+            <line x1="372" y1="358" x2="540" y2="358" stroke="var(--line-2)"/>
+            <line x1="456" y1="336" x2="456" y2="380" stroke="var(--line-2)"/>
+            <text x="378" y="351">図面名</text><text x="462" y="351" class="big" style="font-size:9px">作業帯図1</text>
+            <text x="378" y="373">作成</text><text x="462" y="373">Shota Onuma</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><div class="divider"></div></div>
+
+  <!-- ================= ツール一覧 ================= -->
+  <section class="section" id="tools">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">TOOL CATALOG / 図面台帳</div>
+        <h2>ツール一覧</h2>
+        <p>カードを選ぶと、そのツールの紹介ページ（できること・使い方・注意点）が開きます。「ツールを開く」で本体が新しいタブで起動します。</p>
+      </div>
+      <div class="filterbar">
+        <div class="chips" id="cat-chips" role="group" aria-label="カテゴリで絞り込み"></div>
+        <label class="search"><span aria-hidden="true">🔍</span><input id="tool-search" type="search" placeholder="ツールを検索（名前・用途・タグ）" aria-label="ツールを検索"></label>
+        <span class="count" id="tool-count"></span>
+      </div>
+      <div class="grid cols-3" id="tool-grid"></div>
+      <div class="empty" id="tool-empty" hidden>該当するツールがありません。<br><a href="feedback.html?tool=new" style="color:var(--accent)">欲しいツールを提案する →</a></div>
+    </div>
+  </section>
+
+  <!-- ================= こだわり ================= -->
+  <section class="section" id="principles" style="background:var(--bg-2)">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">PRINCIPLES / つくり方の約束</div>
+        <h2>現場で使えることを最優先に</h2>
+        <p>「かっこいい」より「その場で困らない」。すべてのツールが共通で守っている設計方針です。</p>
+      </div>
+      <div class="grid cols-4">
+        <div class="card principle reveal">
+          <div class="icon" aria-hidden="true">📄</div>
+          <h3>HTMLファイル1枚で動く</h3>
+          <p>インストールもビルドも不要。USBで持ち込んでダブルクリックすれば現場PCでもそのまま開けます。</p>
+        </div>
+        <div class="card principle reveal d1">
+          <div class="icon" aria-hidden="true">📵</div>
+          <h3>オフラインでも使える</h3>
+          <p>ネットが弱い現場事務所でも動くよう、外部ライブラリは極力同梱。通信が必要な機能はその場で案内します。</p>
+        </div>
+        <div class="card principle reveal d2">
+          <div class="icon" aria-hidden="true">🔒</div>
+          <h3>データは端末の外に出ない</h3>
+          <p>入力内容の保存先はあなたのブラウザ（localStorage）とJSON/CSVファイル。サーバーには一切送信しません。</p>
+        </div>
+        <div class="card principle reveal d3">
+          <div class="icon" aria-hidden="true">⚖️</div>
+          <h3>「判断」はしない</h3>
+          <p>規制方法の要否や設計の可否は協議事項。ツールは作図・計算・可視化の補助に徹し、最終判断は人が行います。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 更新情報 ================= -->
+  <section class="section" id="updates">
+    <div class="wrap two-col">
+      <div>
+        <div class="section-head">
+          <div class="kicker">CHANGELOG / 更新情報</div>
+          <h2>最近の更新</h2>
+          <p>ツールは実務で使いながら改良を続けています。各ツールの紹介ページに全履歴があります。</p>
+        </div>
+        <div class="card reveal">
+          <p style="margin:0 0 8px"><b>要望・不具合の報告を歓迎します</b></p>
+          <p class="muted small" style="margin:0 0 14px">「この記号が欲しい」「ここで止まる」など、現場の声がいちばんの改良のヒントです。</p>
+          <a class="btn primary" href="feedback.html">💬 要望・不具合を送る</a>
+        </div>
+      </div>
+      <ul class="timeline" id="timeline" data-limit="8"></ul>
+    </div>
+  </section>
+
+  <!-- ================= 作成者 ================= -->
+  <section class="section" id="about" style="background:var(--bg-2)">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">ABOUT / 作成者</div>
+        <h2>作っている人</h2>
+      </div>
+      <div class="card about reveal">
+        <div class="avatar" aria-hidden="true">SO</div>
+        <div>
+          <h3 style="font-size:1.3rem"><span data-cfg="author">Shota Onuma</span></h3>
+          <p class="muted" style="margin:4px 0 14px"><span data-cfg="authorTitle">土木施工管理（1級土木施工管理技士）</span></p>
+          <p>
+            道路・管路工事の施工管理をしながら、現場で「これ、毎回手でやるの大変だな」と感じた作業をツールにしています。
+            申請図面の作図、仮設の高さ検討、図面から3Dを起こす検討など、すべて自分が実務で使うために作ったものです。
+            使ってみて困ったこと・欲しい機能があれば、遠慮なく<a href="feedback.html" style="color:var(--accent)">要望フォーム</a>から教えてください。
+          </p>
+          <div class="tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">
+            <span class="chip">道路工事</span><span class="chip">管路工</span><span class="chip">仮設工</span><span class="chip">道路使用許可</span><span class="chip">図面・3D</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CTA ================= -->
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      <div class="band reveal">
+        <div class="inner">
+          <div>
+            <h2>次に作るツールを、一緒に決めませんか</h2>
+            <p>現場で毎回困っている作業があれば教えてください。作れそうなものから順に、このサイトに追加していきます。</p>
+          </div>
+          <a class="btn primary lg" href="feedback.html?tool=new">ツールを提案する →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="./"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline">現場で生まれた、ブラウザで動く実務ツール</small></span></a>
+      <p class="copy" style="margin-top:14px">
+        各ツールは作図・計算・可視化の補助を目的としています。申請・設計・施工の最終判断は、必ず関係機関との協議と有資格者の確認のもとで行ってください。<br>
+        © <span data-year>2026</span> <span data-cfg="author">Shota Onuma</span>
+      </p>
+    </div>
+    <div>
+      <h4>LINKS</h4>
+      <ul>
+        <li><a href="#tools">ツール一覧</a></li>
+        <li><a href="feedback.html">要望・不具合を送る</a></li>
+        <li><a data-cfg-href="repoUrl" href="#" target="_blank" rel="noopener">ソースコード（GitHub）↗</a></li>
+      </ul>
+    </div>
+    <div class="titleblock" aria-label="表題欄">
+      <div>SITE</div><div data-cfg="siteName">GENBA TOOLS</div>
+      <div>AUTHOR</div><div data-cfg="author">Shota Onuma</div>
+      <div>UPDATED</div><div data-latest>—</div>
+      <div>TOOLS</div><div><span data-tool-count>2</span> released</div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

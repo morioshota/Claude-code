@@ -9,6 +9,8 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 > ① 変更をコミットし、**`main` にマージして push する**。⚠ **GitHub Pages の配信元は `main`**（2026-08-20に作業ブランチから変更済み。`/fukkoban/` 等も同じ仕組みで公開）。**作業ブランチにpushしただけでは公開URLは更新されない**——実際に v3.1 がこれで取りこぼされた。公開URLは `https://morioshota.github.io/Claude-code/sagyotaizu/`、
 > ② **最新の `sagyotaizu/作業帯図作成ツール.html` を毎回ユーザーへ送付する**（オフライン運用のため。ダウンロード版は更新されないスナップショットなので、更新のたびに渡し直す）。
 > なお見た目の変更は、環境内の Chromium（`/opt/pw-browsers/`）で実描画してから提示すること（`sagyotaizu/test/README.md` 参照）。
+>
+> **ツール紹介サイト `site/`（2026-09 追加）**: 作業帯図ツール・覆工板ツールなど「現場ツール」のホームページ＋各ツールのLP＋要望フォーム。KABU DEXとは無関係。ビルド不要の静的HTML（依存ライブラリなし）で、**GitHub Pages（配信元 `main`）で公開**: `https://morioshota.github.io/Claude-code/site/`。ルートの `index.html`（KABU DEXのVite入口）には「`*.github.io` で開かれたときだけ `./site/` へ移動する」1行のスクリプトがあり、Vite/Vercelでは何もしない。ツールを追加・更新したら `site/assets/tools.js`（台帳）を更新すること。構成・手順は `site/README.md`、初めての公開手順は `docs/HOMEPAGE_GUIDE.md`。
 
 ## オーナーの利用文脈（重要）
 

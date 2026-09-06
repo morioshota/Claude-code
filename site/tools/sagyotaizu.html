@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja" data-root="../" data-tool="sagyotaizu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>作業帯図作成ツール — 道路使用許可申請の作業帯図を半自動で | GENBA TOOLS</title>
+<meta name="description" content="地形図(PDF/画像)を背景に縮尺を合わせ、規制パターンを2クリックで配置。凡例自動生成・A4/A3印刷・PNG出力まで。単一HTML・インストール不要・オフライン可。">
+<meta name="theme-color" content="#0a0f1c">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://morioshota.github.io/Claude-code/site/tools/sagyotaizu.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GENBA TOOLS">
+<meta property="og:title" content="作業帯図作成ツール — 道路使用許可申請の作業帯図を半自動で">
+<meta property="og:description" content="地形図を背景に、規制パターンを起点→終点の2クリックで配置。凡例自動生成・A4/A3印刷・PNG出力。インストール不要。">
+<meta property="og:url" content="https://morioshota.github.io/Claude-code/site/tools/sagyotaizu.html">
+<meta property="og:image" content="https://morioshota.github.io/Claude-code/site/assets/og/sagyotaizu.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/config.js"></script>
+<script src="../assets/tools.js"></script>
+<script src="../assets/site.js" defer></script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"作業帯図作成ツール","applicationCategory":"BusinessApplication","operatingSystem":"Web browser (Chrome/Edge)","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Person","name":"Shota Onuma"},"url":"https://morioshota.github.io/Claude-code/site/tools/sagyotaizu.html"}
+</script>
+<style>:root{--tool:#f5b400}</style>
+</head>
+<body>
+<div class="hazard" aria-hidden="true"></div>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../" aria-label="ホーム"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline">現場で生まれた、ブラウザで動く実務ツール</small></span></a>
+    <button class="nav-toggle" aria-label="メニュー" aria-expanded="false">☰</button>
+    <nav class="nav" aria-label="ページ内">
+      <a href="../#tools">ツール一覧</a>
+      <a href="#features">できること</a>
+      <a href="#howto">使い方</a>
+      <a href="#faq">FAQ</a>
+      <a class="cta" data-tool-open href="../../sagyotaizu/" target="_blank" rel="noopener">ツールを開く ↗</a>
+      <button class="theme-toggle" type="button" aria-label="テーマ切替">☀️</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="lp-hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="wrap">
+      <nav class="breadcrumb" aria-label="現在位置"><a href="../">ホーム</a><span>/</span><a href="../#tools">ツール一覧</a><span>/</span><span>作業帯図作成ツール</span></nav>
+      <div class="top">
+        <div>
+          <div class="no"><span class="badge">T-001</span><span class="stamp released">公開中</span><span class="badge" data-tool-field="version">v3.1</span></div>
+          <h1>作業帯図作成ツール<small>WORK ZONE DIAGRAM BUILDER</small></h1>
+          <p class="lead">
+            道路使用許可申請に添える<b>作業帯図</b>を、地形図の上に半自動で作図。
+            縮尺を合わせて、規制パターンを起点→終点の2クリックで置けば、部材と凡例がそろった図面ができます。
+            手直しはドラッグと回転だけ。そのままA4/A3で印刷、PNGで提出。
+          </p>
+          <div class="cta-row" style="display:flex;gap:12px;flex-wrap:wrap">
+            <a class="btn primary lg" data-tool-open href="../../sagyotaizu/" target="_blank" rel="noopener">ツールを開く（無料・登録不要）↗</a>
+            <a class="btn lg ghost" href="#howto">使い方を見る</a>
+          </div>
+          <div class="badges">
+            <span class="chip">📄 単一HTML</span><span class="chip">📵 オフライン可（PDF読込のみ初回通信）</span><span class="chip">🖥 PC推奨</span><span class="chip">🔒 データは端末内</span><span class="chip">🖨 A4/A3印刷</span>
+          </div>
+        </div>
+        <div class="browser reveal">
+          <div class="bar"><i></i><i></i><i></i><span>作業帯図作成ツール — 車線減少規制の自動配置例</span></div>
+          <img src="../assets/img/sagyotaizu-demo.webp" alt="作業帯図作成ツールの画面。ピンクの作業帯、コーン列、寸法線、凡例が配置された図面" width="1800" height="1125">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 課題 -->
+  <section class="section" style="padding-top:20px">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">PAIN / こんな作業、毎回やっていませんか</div><h2>申請図のために、CADを開いて1時間</h2></div>
+      <div class="grid cols-3">
+        <div class="card feature reveal"><div class="icon">🗺</div><h3>地形図に手で貼り込む</h3><p>PDFの地形図をキャプチャして、CADや作図ソフトにコーンや看板を1つずつ配置。工区が変わるたびにやり直し。</p></div>
+        <div class="card feature reveal d1"><div class="icon">📏</div><h3>縮尺が合わない</h3><p>図面上の距離と実延長が一致せず、コーン間隔や作業帯幅の寸法が合わない。修正のたびに全部ずらす。</p></div>
+        <div class="card feature reveal d2"><div class="icon">🔁</div><h3>パターン違いを何枚も</h3><p>片側交互通行と車線減少で2案、昼夜で別図…。同じ地図に別の配置を描く作業が何度も発生する。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- できること -->
+  <section class="section" id="features" style="background:var(--bg-2)">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">FEATURES / できること</div><h2>読み込む → 縮尺を合わせる → 2クリックで配置</h2><p>作図の骨格（起点・終点・設置側）だけ人が指定し、部材の並びは自動。手直しはすべて図面上で直感的に行えます。</p></div>
+      <div class="grid cols-3">
+        <div class="card feature reveal"><div class="icon">📐</div><h3>地形図を背景に読込</h3><p>PDF（複数ページならページ選択）またはPNG/JPGを背景に。透明度を調整して線が見やすいように。</p></div>
+        <div class="card feature reveal d1"><div class="icon">🎯</div><h3>実寸連動の縮尺</h3><p>2点クリック＋実距離、または「1/500」のような縮尺分母の直接入力。以後の寸法・間隔はすべて実寸で連動し、スケールバーも出せます。</p></div>
+        <div class="card feature reveal d2"><div class="icon">🚧</div><h3>規制パターンの自動配置</h3><p>片側交互通行／車線減少／通行止め＋迂回。起点→終点をクリックすると作業帯・コーン列・ガードマン・標示板をひとまとめに配置。</p></div>
+        <div class="card feature reveal"><div class="icon">🧰</div><h3>20種超の保安施設記号</h3><p>カラーコーン、A型バリケード、クッションドラム、回転灯、各種標示板、ダンプ・バックホウ・ユニック等の建設車両まで。</p></div>
+        <div class="card feature reveal d1"><div class="icon">✏️</div><h3>作業帯・導流帯・寸法</h3><p>作業帯（塗り＋斜線）、導流帯（ゼブラ）、歩行者通路、コーン列、寸法線・連続寸法、文字。寸法値は実寸で手入力もできます。</p></div>
+        <div class="card feature reveal d2"><div class="icon">📋</div><h3>凡例の自動生成</h3><p>図面に置いた記号から凡例を自動で作成。使っていない記号は載らないので、修正のたびに凡例を直す手間がありません。</p></div>
+        <div class="card feature reveal"><div class="icon">🗂</div><h3>1工事＝複数パターン</h3><p>同じ地図の上で「パターン1／2／…」を切り替えて別案を作図。全パターンをまとめて連番PNG・複数ページ印刷。</p></div>
+        <div class="card feature reveal d1"><div class="icon">🧲</div><h3>スナップ・整列・集計</h3><p>頂点の吸着、複数選択の整列・等間隔配置。選択した作業帯の面積や規制延長を自動集計します。</p></div>
+        <div class="card feature reveal d2"><div class="icon">💾</div><h3>保存と出力</h3><p>自動保存（ブラウザ内）＋JSON保存/読込で背景ごと復元。2倍解像度PNG出力、A4/A3横の印刷に対応。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 使い方 -->
+  <section class="section" id="howto">
+    <div class="wrap two-col">
+      <div>
+        <div class="section-head"><div class="kicker">HOW TO / 使い方</div><h2>基本の5ステップ</h2><p>初回でも10分ほどで1枚目が仕上がります。操作はすべて画面上部のボタンと、左のパレットから。</p></div>
+        <div class="steps">
+          <div class="step reveal"><div class="num"></div><div><h3>地形図を読み込む</h3><p>ヘッダー左「地形図読込 (PDF/画像)」。PDFは1ページ目（複数ページなら番号を指定）を自動でラスタ化します。</p></div></div>
+          <div class="step reveal d1"><div class="num"></div><div><h3>縮尺を設定する</h3><p>「縮尺設定」→ 地図上で距離の分かる2点をクリックし実距離(m)を入力。図面の縮尺が分かっていれば「1/500」のように分母を直接入力してもOK。</p></div></div>
+          <div class="step reveal d2"><div class="num"></div><div><h3>規制パターンを自動配置</h3><p>「▶ 規制パターン自動配置」でパターン・作業帯幅・コーン間隔・設置側を選び、図面上で起点→終点を2クリック。</p></div></div>
+          <div class="step reveal d3"><div class="num"></div><div><h3>手直しする</h3><p>ドラッグで移動、<kbd>R</kbd>で15°回転、<kbd>Delete</kbd>で削除、頂点ドラッグで変形。右パネルで寸法値・ラベルを編集。<kbd>Ctrl+Z</kbd>で戻せます。</p></div></div>
+          <div class="step reveal d3"><div class="num"></div><div><h3>出力する</h3><p>「PNG出力」または「印刷 (A4/A3)」。複数パターンがあれば「全パターンPNG」でまとめて出力できます。</p></div></div>
+        </div>
+      </div>
+      <div class="gallery">
+        <figure class="reveal"><img src="../assets/img/sagyotaizu.webp" alt="起動直後の画面。左に記号パレット、中央に図面枠、右に図面設定" loading="lazy"><figcaption>起動直後。左パレット／中央の図面枠／右の図面設定</figcaption></figure>
+        <figure class="reveal d1"><img src="../assets/img/sagyotaizu-demo.webp" alt="車線減少パターンを自動配置した状態" loading="lazy"><figcaption>車線減少パターンを自動配置。凡例・スケールバーは自動</figcaption></figure>
+        <div class="card reveal d2">
+          <p style="margin:0 0 6px"><b>キーボード早見表</b></p>
+          <div class="table-wrap"><table class="spec">
+            <tr><th>選択</th><td>クリック／空所からドラッグで矩形選択／<kbd>Shift</kbd>で増減／<kbd>Ctrl+A</kbd>で全選択</td></tr>
+            <tr><th>回転・削除</th><td><kbd>R</kbd>（15°ずつ）／<kbd>Delete</kbd></td></tr>
+            <tr><th>Undo/Redo</th><td><kbd>Ctrl+Z</kbd>／<kbd>Ctrl+Y</kbd></td></tr>
+            <tr><th>画面移動</th><td><kbd>Space</kbd>+ドラッグ／右ドラッグ／ホイールでズーム</td></tr>
+            <tr><th>作図の確定</th><td>ダブルクリック または <kbd>Enter</kbd>、中止は <kbd>Esc</kbd></td></tr>
+          </table></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 動作環境・注意 -->
+  <section class="section" style="background:var(--bg-2)">
+    <div class="wrap two-col">
+      <div>
+        <div class="section-head"><div class="kicker">SPEC / 動作環境</div><h2>使う前に知っておくこと</h2></div>
+        <div class="table-wrap"><table class="spec">
+          <tr><th>対応ブラウザ</th><td>Chrome / Edge などのデスクトップ向けモダンブラウザ（Canvas 2D 前提）。スマートフォンは想定外です。</td></tr>
+          <tr><th>通信</th><td>PDFの読込にだけ初回インターネット接続が必要（PDF.js をCDNから取得）。オフライン環境ではPDFを画像化してから読み込んでください。</td></tr>
+          <tr><th>保存先</th><td>自動保存はブラウザ内（localStorage）。<b>確実な保管はJSON保存</b>を使ってください。容量超過やプライベートモードでは自動保存が働かないことがあります。</td></tr>
+          <tr><th>用紙</th><td>内部はA3横相当（√2:1）で描画。A4/A3は同じ比率のため、印刷時に用紙へフィットさせて両対応。印刷ダイアログ側でも用紙サイズを確認してください。</td></tr>
+          <tr><th>形式</th><td>単一HTMLファイル。ダウンロードしてUSB等で持ち込めば現場PCでも動きます（ビルド・サーバー不要）。</td></tr>
+        </table></div>
+      </div>
+      <div style="display:grid;gap:16px">
+        <div class="notice reveal"><b>このツールがしないこと。</b> 規制方法や保安施設の要否の<b>判断</b>はしません。これは所轄警察・道路管理者との協議事項であり、ツールは作図補助に徹します。地形図からの完全自動作図も、許可申請の水準に精度が届かないため意図的に対象外です。</div>
+        <div class="card reveal d1">
+          <p style="margin:0 0 6px"><b>更新履歴</b> <span class="muted small">最新 <span data-tool-field="updated">—</span></span></p>
+          <ul class="timeline" id="tool-changelog" style="margin-top:12px"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section" id="faq">
+    <div class="wrap" style="max-width:860px">
+      <div class="section-head"><div class="kicker">FAQ / よくある質問</div><h2>質問と答え</h2></div>
+      <div class="faq">
+        <details><summary>無料ですか？アカウント登録は必要ですか？</summary><div class="a">無料で、登録も不要です。URLを開くか、HTMLファイルをダウンロードして開くだけで使えます。</div></details>
+        <details><summary>入力した地図や図面は外部に送られますか？</summary><div class="a">送られません。すべての処理はあなたのブラウザ内で完結し、保存先もブラウザ内かあなたが保存したJSONファイルだけです。</div></details>
+        <details><summary>会社のPCがオフラインでも使えますか？</summary><div class="a">使えます。PDFの読込だけは初回にインターネット接続が必要なため、オフライン環境では地形図をPNG/JPGにしてから読み込んでください。</div></details>
+        <details><summary>作った図面を後で編集できますか？</summary><div class="a">「保存(JSON)」で書き出したファイルを「読込」すれば、背景地図ごと復元して続きから編集できます。ブラウザ内の自動保存にも残りますが、確実に残すならJSON保存をおすすめします。</div></details>
+        <details><summary>ほしい記号や規制パターンがありません</summary><div class="a">要望フォームから教えてください。実務で必要とされる記号は優先して追加しています（建設車両やA型バリケード列もそうして追加されました）。</div></details>
+        <details><summary>スマートフォンで使えますか？</summary><div class="a">現状はデスクトップブラウザ向けです。細かな作図操作が前提なので、PCでの利用をおすすめします。</div></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      <div class="band reveal"><div class="inner">
+        <div><h2>さっそく1枚、作ってみる</h2><p>インストール不要。開いてすぐ使えます。困ったら要望フォームからどうぞ。</p></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary lg" data-tool-open href="../../sagyotaizu/" target="_blank" rel="noopener">ツールを開く ↗</a><a class="btn lg" data-tool-feedback href="../feedback.html?tool=sagyotaizu">要望・不具合を送る</a></div>
+      </div></div>
+    </div>
+  </section>
+</main>
+
+<a class="btn primary fab" data-tool-feedback href="../feedback.html?tool=sagyotaizu">💬 <span>このツールへの要望</span></a>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="../"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline">現場で生まれた、ブラウザで動く実務ツール</small></span></a>
+      <p class="copy" style="margin-top:14px">このツールは作図補助を目的としています。規制方法・保安施設の要否は所轄警察・道路管理者との協議のもとで決定してください。<br>© <span data-year>2026</span> <span data-cfg="author">Shota Onuma</span></p>
+    </div>
+    <div><h4>LINKS</h4><ul><li><a href="../#tools">ツール一覧</a></li><li><a data-tool-feedback href="../feedback.html?tool=sagyotaizu">要望・不具合を送る</a></li><li><a data-cfg-href="repoUrl" href="#" target="_blank" rel="noopener">ソースコード（GitHub）↗</a></li></ul></div>
+    <div class="titleblock" aria-label="表題欄">
+      <div>TOOL</div><div>T-001 作業帯図作成ツール</div>
+      <div>VERSION</div><div data-tool-field="version">—</div>
+      <div>UPDATED</div><div data-tool-field="updated">—</div>
+      <div>AUTHOR</div><div data-cfg="author">Shota Onuma</div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
