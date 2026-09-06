@@ -392,3 +392,37 @@ button { font-family: inherit; }
 
 /* ---------- キーボード表記 ---------- */
 kbd { font-family: var(--mono); font-size: .8em; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line-2); border-bottom-width: 2px; background: var(--bg-3); color: var(--ink); }
+
+/* ---------- カーソル追従グリッド（ホーム） ---------- */
+.cgrid { position: fixed; inset: 0; pointer-events: none; z-index: 45; opacity: 0; transition: opacity .35s; --mx: -999px; --my: -999px; --gy: 0px; }
+.cgrid.on { opacity: 1; }
+.cgrid .g { position: absolute; inset: 0; background-position: 0 var(--gy);
+  background-image: linear-gradient(color-mix(in srgb, var(--accent-2) 55%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--accent-2) 55%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  -webkit-mask: radial-gradient(200px 200px at var(--mx) var(--my), #000 0, rgba(0,0,0,.55) 45%, transparent 100%);
+  mask: radial-gradient(200px 200px at var(--mx) var(--my), #000 0, rgba(0,0,0,.55) 45%, transparent 100%); }
+.cgrid .h, .cgrid .v { position: absolute; background: color-mix(in srgb, var(--accent-2) 45%, transparent); }
+.cgrid .h { left: 0; right: 0; height: 1px; top: var(--my); }
+.cgrid .v { top: 0; bottom: 0; width: 1px; left: var(--mx); }
+.cgrid .lab { position: absolute; left: calc(var(--mx) + 12px); top: calc(var(--my) + 10px); font-family: var(--mono); font-size: .64rem; letter-spacing: .12em; color: var(--accent-2); opacity: .8; }
+@media (prefers-reduced-motion: reduce) { .cgrid { display: none; } }
+
+/* ---------- ホバー / クリックの強調（ブループリント: 縁が灯って浮く → 押すと沈む） ---------- */
+@media (hover: hover) {
+  .btn:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent), 0 16px 30px -16px var(--accent); }
+  .btn.primary:hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent), 0 16px 34px -12px var(--accent); }
+  .chip:hover, .filterbar .chips button:hover { border-color: var(--accent); color: var(--ink); }
+  .tool-card:hover { box-shadow: 0 30px 70px -26px rgba(0,0,0,.8), 0 0 0 1px var(--accent), 0 0 0 5px color-mix(in srgb, var(--accent) 14%, transparent); }
+  .tool-card h3 a:hover { color: var(--accent); }
+  .theme-toggle:hover { transform: rotate(18deg) scale(1.08); }
+  .nav-toggle:hover { border-color: var(--accent); }
+  .site-footer ul a:hover, .breadcrumb a:hover, .timeline .what a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+  .radio-cards label:hover { border-color: var(--accent); }
+  .faq summary:hover { color: var(--accent); }
+  .totop:hover, .fab:hover { transform: translateY(-2px); }
+}
+.btn:active, .fab:active { transform: translateY(1px) scale(.97) !important; box-shadow: none !important; transition-duration: .05s; }
+.chip:active, .filterbar .chips button:active { transform: scale(.94); }
+.tool-card:active { transform: translateY(-1px) scale(.995); }
+.theme-toggle:active, .nav-toggle:active { transform: scale(.9); }
+.details-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding-top: 16px; }

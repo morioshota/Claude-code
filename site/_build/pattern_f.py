@@ -1,63 +1,90 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>覆工板 最適勾配 検討ツール | GENBA TOOLS</title>
-<meta name="description" content="既設舗装の実測高を入れるだけで、段差が最小になる覆工板の縦断・横断勾配を一回の計算で。3つの最適化モード、ヒートマップ・3D・管理値テーブル。無料・オフライン可。">
-<meta name="theme-color" content="#0a0f1c">
-<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
-<link rel="canonical" href="https://morioshota.github.io/Claude-code/site/tools/fukkoban.html">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="GENBA TOOLS">
-<meta property="og:title" content="覆工板 最適勾配 検討ツール | GENBA TOOLS">
-<meta property="og:description" content="既設舗装の実測高を入れるだけで、段差が最小になる覆工板の縦断・横断勾配を一回の計算で。3つの最適化モード、ヒートマップ・3D・管理値テーブル。無料・オフライン可。">
-<meta property="og:url" content="https://morioshota.github.io/Claude-code/site/tools/fukkoban.html">
-<meta property="og:image" content="https://morioshota.github.io/Claude-code/site/assets/og/fukkoban.png">
-<meta name="twitter:card" content="summary_large_image">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
-<style>
-*{box-sizing:border-box}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}body{margin:0;overflow-x:hidden}
-img,svg{max-width:100%}a{color:inherit;text-decoration:none}h1,h2,h3{margin:0;line-height:1.2}p{margin:0}
-.wrap{max-width:1080px;margin:0 auto;padding:0 clamp(18px,4vw,32px)}
-.reveal{opacity:1;transform:none;transition:transform .7s cubic-bezier(.2,.7,.2,1),opacity .7s}
-.reveal.pre{opacity:0;transform:translateY(18px)}.reveal.d1{transition-delay:.08s}.reveal.d2{transition-delay:.16s}
-.kw-grid{display:grid;gap:18px;margin-top:26px}@media(min-width:760px){.kw-grid{grid-template-columns:repeat(3,1fr)}}
-.kw-ico{width:120px;height:120px;display:block;margin:0 auto 6px}
-.kw-map{stroke-dasharray:80;stroke-dashoffset:80;animation:kwDraw 2.4s ease-in-out infinite}
-.kw-ruler{animation:kwRuler 2.4s ease-in-out infinite;transform-origin:14px 61px}.kw-scale{animation:kwBlink 2.4s ease-in-out infinite}
-.kw-ripple{animation:kwRip 2s ease-out infinite;transform-origin:center;transform-box:fill-box}.kw-ripple.r2{animation-delay:1s}
-.kw-cursor{animation:kwCur 2s ease-in-out infinite}.kw-line{stroke-dasharray:60;stroke-dashoffset:60;animation:kwDraw 2s ease-in-out infinite;animation-delay:1s}
-@keyframes kwDraw{0%{stroke-dashoffset:80}50%{stroke-dashoffset:0}100%{stroke-dashoffset:0}}
-@keyframes kwRuler{0%,100%{transform:scaleX(.6)}50%{transform:scaleX(1)}}@keyframes kwBlink{0%,40%{opacity:0}60%,100%{opacity:1}}
-@keyframes kwRip{0%{transform:scale(.3);opacity:1}100%{transform:scale(1.8);opacity:0}}
-@keyframes kwCur{0%,100%{transform:translate(0,0)}50%{transform:translate(34px,-32px)}}
-.can-scroll{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding:22px clamp(18px,4vw,32px) 10px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.can-scroll::-webkit-scrollbar{display:none}
-@media(min-width:900px){.can-scroll{display:grid;grid-template-columns:repeat(3,1fr);max-width:1080px;margin:0 auto;overflow:visible}}
-.can-card{flex:0 0 78%;max-width:340px;scroll-snap-align:center;display:grid;gap:8px}.can-card p{opacity:.85}
-.can-vis{aspect-ratio:5/3;display:grid;place-items:center;overflow:hidden}.can-vis svg{width:100%;height:100%}.can-m{width:56%}
-.legend-rows .lr{animation:lrIn .5s both}.legend-rows .lr:nth-child(2){animation-delay:.3s}.legend-rows .lr:nth-child(3){animation-delay:.6s}.legend-rows .lr:nth-child(4){animation-delay:.9s}.legend-rows .lr:nth-child(5){animation-delay:1.2s}
-.legend-rows{animation:loop 4s infinite}@keyframes lrIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1}}@keyframes loop{}
-.sheets .sh{animation:shFan 3s ease-in-out infinite;transform-origin:26px 90px}.sheets .s2{animation-delay:.15s}.sheets .s3{animation-delay:.3s}
-@keyframes shFan{0%,100%{transform:rotate(0)}50%{transform:rotate(-4deg) translateX(-4px)}}
-.paper.a4{animation:paperSwap 3s ease-in-out infinite;transform-origin:149px 74px}@keyframes paperSwap{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
-.counter{animation:cnt 2.6s ease-in-out infinite;transform-origin:100px 33px}@keyframes cnt{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
-.usb{animation:usbBob 2.4s ease-in-out infinite}@keyframes usbBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-.fly path{animation:flyArr 1.2s linear infinite}@keyframes flyArr{0%{transform:translateX(-6px);opacity:0}50%{opacity:1}100%{transform:translateX(6px);opacity:0}}
-.try-note{margin-top:12px;font-size:.82rem;opacity:.75}
-.spec-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
-.parade-track{overflow:hidden}.parade-inner{display:flex;width:max-content;animation:parade 22s linear infinite}
-.pm{width:96px;flex:0 0 auto;margin:0 10px}@keyframes parade{to{transform:translateX(-50%)}}
-.parade-cap{display:flex;justify-content:center;padding-top:18px;padding-bottom:110px}
-.sticky{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));transform:translateY(120%);transition:transform .35s cubic-bezier(.2,.7,.2,1)}
-.sticky.on{transform:none}.sticky .btn{flex:1;text-align:center}.sticky .btn.primary{flex:2}
-.totop{position:fixed;right:14px;bottom:86px;z-index:60;width:44px;height:44px;border-radius:50%;border:0;font-weight:800;cursor:pointer;opacity:0;pointer-events:none;transition:.3s}
-.totop.on{opacity:1;pointer-events:auto}
-.gate{position:fixed;inset:0;z-index:100;display:grid;place-items:center;transition:transform .6s cubic-bezier(.7,0,.3,1),opacity .4s}
-.gate.out{transform:translateY(-100%);opacity:.6;pointer-events:none}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.reveal.pre{opacity:1;transform:none}}
+from build import SHARED_CSS, SHARED_JS
+HEAD='''<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">'''
+BODY = r'''
+<div class="gate" id="gate" aria-label="読み込み中"><div class="lv"><div class="lv-line"></div><div class="lv-bubble"></div><div class="lv-txt">LEVELING…</div></div></div>
 
+<header class="top"><div class="wrap top-in"><a class="brand" href="#">GENBA TOOLS <span>/ T-002</span></a><a class="btn primary sm" href="../../fukkoban/" target="_blank" rel="noopener">ツールを開く</a></div></header>
+
+<section class="hero">
+  <div class="wrap hero-in">
+    <div class="hero-text">
+      <p class="kicker">覆工板 最適勾配 検討ツール</p>
+      <h1>段差が最小になる勾配を、<br><em>一回の計算</em>で。</h1>
+      <p class="lead">既設舗装の実測高を入れるだけ。全測点をまとめて評価して、覆工面の縦断・横断勾配と基準高を決めます。「合わせると向こうが浮く」の繰り返しは、もう要りません。</p>
+      <div class="cta"><a class="btn primary lg" href="../../fukkoban/" target="_blank" rel="noopener">ツールを開く</a><a class="btn lg" href="#try">計算を体験する</a></div>
+    </div>
+    <figure class="fitviz" aria-label="既設面（灰）に対して覆工面（橙の平面）が最適な傾きに収束するアニメーション"><div class="fit-legend"><span><i class="lg"></i>既設面（実測）</span><span><i class="lp"></i>覆工面（平面）</span><span class="mono">鉛直誇張表示</span></div>
+      <svg viewBox="0 0 600 400" id="fit-svg"></svg>
+      <div class="hm-wrap"><div class="hm-title">ヒートマップ　Δ = 覆工面 − 既設（mm）</div><div class="hm" id="fit-heat" aria-label="高低差ヒートマップ"></div></div>
+      <figcaption class="readout">
+        <div><span class="lab">縦断勾配 gS</span><b id="ro-gs">0.00</b><i>%</i></div>
+        <div><span class="lab">横断勾配 gT</span><b id="ro-gt">0.00</b><i>%</i></div>
+        <div><span class="lab">RMS</span><b id="ro-rms">0.0</b><i>mm</i></div>
+        <div><span class="lab">最大 |Δ|</span><b id="ro-max">0</b><i>mm</i></div>
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="steps">
+  <div class="wrap">
+    <p class="eyebrow">使い方</p>
+    <h2 class="h2">入れる。押す。見る。</h2>
+    <div class="step-grid">
+      <div class="tile reveal"><svg viewBox="0 0 120 80" class="glyph"><g class="cells">
+        <rect x="10" y="10" width="20" height="14"/><rect x="34" y="10" width="20" height="14"/><rect x="58" y="10" width="20" height="14"/><rect x="82" y="10" width="20" height="14"/>
+        <rect x="10" y="28" width="20" height="14"/><rect x="34" y="28" width="20" height="14"/><rect x="58" y="28" width="20" height="14"/><rect x="82" y="28" width="20" height="14"/>
+        <rect x="10" y="46" width="20" height="14"/><rect x="34" y="46" width="20" height="14"/><rect x="58" y="46" width="20" height="14"/><rect x="82" y="46" width="20" height="14"/></g></svg>
+        <h3>入れる</h3><p>縦断×横断の表に実測高。測れなかった点は空欄のままで。</p></div>
+      <div class="tile reveal d1"><svg viewBox="0 0 120 80" class="glyph"><rect class="btn-g" x="18" y="26" width="84" height="28" rx="4"/><text x="60" y="45" text-anchor="middle" class="btn-t">最適勾配を算出</text></svg>
+        <h3>押す</h3><p>ボタン1つ。モードを変えれば即座に再計算。</p></div>
+      <div class="tile reveal d2"><svg viewBox="0 0 120 80" class="glyph"><g class="tabs"><rect x="8" y="30" width="24" height="20" rx="3"/><rect x="36" y="30" width="24" height="20" rx="3"/><rect x="64" y="30" width="24" height="20" rx="3"/><rect x="92" y="30" width="20" height="20" rx="3"/></g></svg>
+        <h3>見る</h3><p>ヒートマップ・3D・管理値テーブル。そのまま印刷して検討書へ。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="feat">
+  <div class="wrap">
+    <p class="eyebrow">できること</p>
+    <h2 class="h2">現場条件に合わせて、答えを選ぶ。</h2>
+    <div class="feat-grid">
+      <div class="tile reveal"><div class="modes"><span class="on">バランス</span><span>既設以上</span><span>最大差最小</span></div><h3>3つの最適化モード</h3><p>RMS最小／段差ゼロ／最大段差を抑える。1秒で切り替えて見比べる。</p></div>
+      <div class="tile reveal d1"><div class="slider"><i></i><b></b></div><h3>勾配の制限と丸め</h3><p>排水や設計条件の上下限、0.1%単位への丸めに対応。</p></div>
+      <div class="tile reveal d2"><svg viewBox="0 0 120 40" class="glyph small"><line x1="6" y1="20" x2="114" y2="20" class="rl"/><g class="ticks"><line x1="6" y1="12" x2="6" y2="28"/><line x1="30" y1="12" x2="30" y2="28"/><line x1="44" y1="12" x2="44" y2="28"/><line x1="78" y1="12" x2="78" y2="28"/><line x1="90" y1="12" x2="90" y2="28"/><line x1="114" y1="12" x2="114" y2="28"/></g></svg><h3>測点は非等間隔でも</h3><p>区間ごとに距離を指定。累積距離で正しく計算。</p></div>
+      <div class="tile reveal"><div class="delta"><span class="p">+27</span><span class="z">−2</span><span class="n">−34</span></div><h3>Δの意味が色で分かる</h3><p>暖色＝覆工が高い、寒色＝低い、緑＝許容内。</p></div>
+      <div class="tile reveal d1"><svg viewBox="0 0 120 60" class="glyph small"><g class="cube"><path d="M30 20 L60 8 L90 20 L60 32 Z"/><path d="M30 20 L30 44 L60 56 L60 32 Z"/><path d="M90 20 L90 44 L60 56 L60 32 Z"/></g></svg><h3>3Dはオフラインでも</h3><p>表示ライブラリを本体に同梱。回線のない現場PCで全機能。</p></div>
+      <div class="tile reveal d2"><div class="paper"><span>印刷</span><span>CSV</span></div><h3>そのまま検討書へ</h3><p>タブごとに印刷。見出し（勾配・モード・出力日）は自動で付く。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="try" id="try">
+  <div class="wrap">
+    <p class="eyebrow">計算を体験</p>
+    <h2 class="h2">同じ実測値でも、<br>「何を最小にするか」で答えが変わる。</h2>
+    <p class="try-lead">横から見た縦断の断面です。サンプルを選び、「最適勾配を算出」を押し、3つのモードを切り替えると、覆工面（橙）の置き方が変わります。</p>
+    <div class="demo2">
+      <div class="d2-top">
+        <div class="d2-samples" id="d2-samples"><span class="d2-lab">サンプル現場</span><button type="button" class="on" data-s="0">A</button><button type="button" data-s="1">B</button><button type="button" data-s="2">C</button></div>
+        <button type="button" class="d2-calc" id="d2-calc">最適勾配を算出</button>
+      </div>
+      <div class="d2-modes" id="d2-modes" aria-label="最適化モード"><button type="button" class="on" data-m="rms" disabled>バランス（RMS最小）</button><button type="button" data-m="up" disabled>覆工面は既設以上</button><button type="button" data-m="minmax" disabled>最大高低差を最小化</button></div>
+      <figure class="d2-prof"><svg viewBox="0 0 640 270" id="d2-svg" aria-label="縦断断面：既設舗装と覆工面"></svg><figcaption><span><i class="lg"></i>既設舗装（実測）</span><span><i class="lp"></i>覆工面</span><span><i class="lb"></i>上げすり付け</span><span><i class="ln"></i>切削・下げ</span><span class="mono">鉛直誇張</span></figcaption></figure>
+      <div class="d2-ro"><div><span>縦断勾配</span><b id="d2-gs">—</b><i>%</i></div><div><span>最大 +Δ（上げ）</span><b id="d2-up">—</b><i>mm</i></div><div><span>最大 −Δ（切削）</span><b id="d2-dn">—</b><i>mm</i></div><div><span>RMS</span><b id="d2-rms">—</b><i>mm</i></div></div>
+      <p class="d2-note" id="d2-note">「最適勾配を算出」を押すと、覆工面が引かれます。</p>
+    </div>
+  </div>
+</section>
+
+<section class="spec"><div class="wrap spec-row"><span class="stamp">無料</span><span class="stamp">登録不要</span><span class="stamp">PCで動く</span><span class="stamp">完全オフライン</span><span class="stamp">データは端末内</span></div></section>
+
+<section class="close"><div class="wrap close-in"><p>覆工面は1枚の平面として扱います。縦断曲線・排水・受桁の割付は対象外。<br>高さの検討に絞った、検討・比較のための道具です。</p><a class="btn ghost" href="#">このツールへの要望・不具合を送る</a></div></section>
+
+<div class="sticky" id="sticky"><a class="btn primary" href="../../fukkoban/" target="_blank" rel="noopener">ツールを開く</a><a class="btn" href="#">要望</a></div>
+<button class="totop" id="totop" aria-label="上へ">↑</button>
+'''
+CSS = r'''
 :root{--bg:#0B0F19;--sf:#121826;--sf2:#182033;--hair:rgba(200,210,235,.14);--hair2:rgba(200,210,235,.28);--ink:#E9EDF5;--mut:#98A2B8;--dim:#5E6982;--acc:#FF7A1A;--pos:#FF7A1A;--neg:#4F8DFF;--ok:#3DD68C;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}
 body{background:var(--bg);color:var(--ink);font-family:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.8;font-feature-settings:"palt"}
 .wrap{max-width:1040px}
@@ -143,127 +170,8 @@ h1{font-size:clamp(1.9rem,6.6vw,3.2rem);line-height:1.22}h1 em{font-style:normal
 .spec{padding:6px 0 40px}.spec-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}.stamp{font-size:.72rem;letter-spacing:.1em;padding:6px 12px;border:1px solid var(--hair2);border-radius:4px;color:var(--mut)}
 .close{border-top:1px solid var(--hair);padding:40px 0 120px}.close-in{display:grid;gap:18px;justify-items:start}.close p{color:var(--mut);font-size:.9rem}
 .sticky{background:rgba(11,15,25,.92);backdrop-filter:blur(12px);border-top:1px solid var(--hair2)}.totop{background:var(--sf2);color:var(--ink);border:1px solid var(--hair2)}
-
-/* --- くわしくリンク・ホバー/クリックの強調（洗練: 縁が灯る→沈む） --- */
-.brand,.btn.sm{white-space:nowrap}@media(max-width:640px){.top-link{display:none}}
-.top-r{display:flex;gap:14px;align-items:center}.top-link{font-size:.82rem;font-weight:700;color:var(--mut);border-bottom:1px solid transparent;transition:.15s}
-.more-link{display:flex;flex-wrap:wrap;gap:8px 22px;padding:0 clamp(18px,4vw,32px) 26px}.more-link a{font-size:.88rem;font-weight:700;color:var(--mut);border-bottom:1px solid var(--hair2);transition:.15s}
-@media(hover:hover){
-  .btn:hover{transform:translateY(-2px);border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,122,26,.18),0 14px 30px -14px var(--acc)}
-  .top-link:hover,.more-link a:hover{color:var(--acc);border-color:var(--acc)}
-  .d2-modes button:not(:disabled):hover,.d2-samples button:hover{border-color:var(--acc);color:var(--ink)}
-  .d2-calc:hover{box-shadow:0 0 0 3px rgba(255,122,26,.25),0 14px 30px -10px var(--acc);transform:translateY(-1px)}
-  .totop:hover{border-color:var(--acc);color:var(--acc)}
-}
-.btn:active,.d2-calc:active,.d2-modes button:active,.d2-samples button:active,.totop:active{transform:translateY(1px) scale(.97)!important;box-shadow:none!important;transition-duration:.05s}
-
-</style>
-</head>
-<body>
-<div class="gate" id="gate" aria-label="読み込み中"><div class="lv"><div class="lv-line"></div><div class="lv-bubble"></div><div class="lv-txt">LEVELING…</div></div></div>
-
-<header class="top"><div class="wrap top-in"><a class="brand" href="../">GENBA TOOLS <span>/ T-002</span></a><div class="top-r"><a class="top-link" href="../../fukkoban/guide/" target="_blank" rel="noopener">使い方</a><a class="top-link" href="fukkoban-details.html">くわしく</a><a class="btn primary sm" href="../../fukkoban/" target="_blank" rel="noopener">ツールを開く</a></div></div></header>
-
-<section class="hero">
-  <div class="wrap hero-in">
-    <div class="hero-text">
-      <p class="kicker">覆工板 最適勾配 検討ツール</p>
-      <h1>段差が最小になる勾配を、<br><em>一回の計算</em>で。</h1>
-      <p class="lead">既設舗装の実測高を入れるだけ。全測点をまとめて評価して、覆工面の縦断・横断勾配と基準高を決めます。「合わせると向こうが浮く」の繰り返しは、もう要りません。</p>
-      <div class="cta"><a class="btn primary lg" href="../../fukkoban/" target="_blank" rel="noopener">ツールを開く</a><a class="btn lg" href="#try">計算を体験する</a></div>
-    </div>
-    <figure class="fitviz" aria-label="既設面（灰）に対して覆工面（橙の平面）が最適な傾きに収束するアニメーション"><div class="fit-legend"><span><i class="lg"></i>既設面（実測）</span><span><i class="lp"></i>覆工面（平面）</span><span class="mono">鉛直誇張表示</span></div>
-      <svg viewBox="0 0 600 400" id="fit-svg"></svg>
-      <div class="hm-wrap"><div class="hm-title">ヒートマップ　Δ = 覆工面 − 既設（mm）</div><div class="hm" id="fit-heat" aria-label="高低差ヒートマップ"></div></div>
-      <figcaption class="readout">
-        <div><span class="lab">縦断勾配 gS</span><b id="ro-gs">0.00</b><i>%</i></div>
-        <div><span class="lab">横断勾配 gT</span><b id="ro-gt">0.00</b><i>%</i></div>
-        <div><span class="lab">RMS</span><b id="ro-rms">0.0</b><i>mm</i></div>
-        <div><span class="lab">最大 |Δ|</span><b id="ro-max">0</b><i>mm</i></div>
-      </figcaption>
-    </figure>
-  </div>
-</section>
-
-<section class="steps">
-  <div class="wrap">
-    <p class="eyebrow">使い方</p>
-    <h2 class="h2">入れる。押す。見る。</h2>
-    <div class="step-grid">
-      <div class="tile reveal"><svg viewBox="0 0 120 80" class="glyph"><g class="cells">
-        <rect x="10" y="10" width="20" height="14"/><rect x="34" y="10" width="20" height="14"/><rect x="58" y="10" width="20" height="14"/><rect x="82" y="10" width="20" height="14"/>
-        <rect x="10" y="28" width="20" height="14"/><rect x="34" y="28" width="20" height="14"/><rect x="58" y="28" width="20" height="14"/><rect x="82" y="28" width="20" height="14"/>
-        <rect x="10" y="46" width="20" height="14"/><rect x="34" y="46" width="20" height="14"/><rect x="58" y="46" width="20" height="14"/><rect x="82" y="46" width="20" height="14"/></g></svg>
-        <h3>入れる</h3><p>縦断×横断の表に実測高。測れなかった点は空欄のままで。</p></div>
-      <div class="tile reveal d1"><svg viewBox="0 0 120 80" class="glyph"><rect class="btn-g" x="18" y="26" width="84" height="28" rx="4"/><text x="60" y="45" text-anchor="middle" class="btn-t">最適勾配を算出</text></svg>
-        <h3>押す</h3><p>ボタン1つ。モードを変えれば即座に再計算。</p></div>
-      <div class="tile reveal d2"><svg viewBox="0 0 120 80" class="glyph"><g class="tabs"><rect x="8" y="30" width="24" height="20" rx="3"/><rect x="36" y="30" width="24" height="20" rx="3"/><rect x="64" y="30" width="24" height="20" rx="3"/><rect x="92" y="30" width="20" height="20" rx="3"/></g></svg>
-        <h3>見る</h3><p>ヒートマップ・3D・管理値テーブル。そのまま印刷して検討書へ。</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="feat">
-  <div class="wrap">
-    <p class="eyebrow">できること</p>
-    <h2 class="h2">現場条件に合わせて、答えを選ぶ。</h2>
-    <div class="feat-grid">
-      <div class="tile reveal"><div class="modes"><span class="on">バランス</span><span>既設以上</span><span>最大差最小</span></div><h3>3つの最適化モード</h3><p>RMS最小／段差ゼロ／最大段差を抑える。1秒で切り替えて見比べる。</p></div>
-      <div class="tile reveal d1"><div class="slider"><i></i><b></b></div><h3>勾配の制限と丸め</h3><p>排水や設計条件の上下限、0.1%単位への丸めに対応。</p></div>
-      <div class="tile reveal d2"><svg viewBox="0 0 120 40" class="glyph small"><line x1="6" y1="20" x2="114" y2="20" class="rl"/><g class="ticks"><line x1="6" y1="12" x2="6" y2="28"/><line x1="30" y1="12" x2="30" y2="28"/><line x1="44" y1="12" x2="44" y2="28"/><line x1="78" y1="12" x2="78" y2="28"/><line x1="90" y1="12" x2="90" y2="28"/><line x1="114" y1="12" x2="114" y2="28"/></g></svg><h3>測点は非等間隔でも</h3><p>区間ごとに距離を指定。累積距離で正しく計算。</p></div>
-      <div class="tile reveal"><div class="delta"><span class="p">+27</span><span class="z">−2</span><span class="n">−34</span></div><h3>Δの意味が色で分かる</h3><p>暖色＝覆工が高い、寒色＝低い、緑＝許容内。</p></div>
-      <div class="tile reveal d1"><svg viewBox="0 0 120 60" class="glyph small"><g class="cube"><path d="M30 20 L60 8 L90 20 L60 32 Z"/><path d="M30 20 L30 44 L60 56 L60 32 Z"/><path d="M90 20 L90 44 L60 56 L60 32 Z"/></g></svg><h3>3Dはオフラインでも</h3><p>表示ライブラリを本体に同梱。回線のない現場PCで全機能。</p></div>
-      <div class="tile reveal d2"><div class="paper"><span>印刷</span><span>CSV</span></div><h3>そのまま検討書へ</h3><p>タブごとに印刷。見出し（勾配・モード・出力日）は自動で付く。</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="try" id="try">
-  <div class="wrap">
-    <p class="eyebrow">計算を体験</p>
-    <h2 class="h2">同じ実測値でも、<br>「何を最小にするか」で答えが変わる。</h2>
-    <p class="try-lead">横から見た縦断の断面です。サンプルを選び、「最適勾配を算出」を押し、3つのモードを切り替えると、覆工面（橙）の置き方が変わります。</p>
-    <div class="demo2">
-      <div class="d2-top">
-        <div class="d2-samples" id="d2-samples"><span class="d2-lab">サンプル現場</span><button type="button" class="on" data-s="0">A</button><button type="button" data-s="1">B</button><button type="button" data-s="2">C</button></div>
-        <button type="button" class="d2-calc" id="d2-calc">最適勾配を算出</button>
-      </div>
-      <div class="d2-modes" id="d2-modes" aria-label="最適化モード"><button type="button" class="on" data-m="rms" disabled>バランス（RMS最小）</button><button type="button" data-m="up" disabled>覆工面は既設以上</button><button type="button" data-m="minmax" disabled>最大高低差を最小化</button></div>
-      <figure class="d2-prof"><svg viewBox="0 0 640 270" id="d2-svg" aria-label="縦断断面：既設舗装と覆工面"></svg><figcaption><span><i class="lg"></i>既設舗装（実測）</span><span><i class="lp"></i>覆工面</span><span><i class="lb"></i>上げすり付け</span><span><i class="ln"></i>切削・下げ</span><span class="mono">鉛直誇張</span></figcaption></figure>
-      <div class="d2-ro"><div><span>縦断勾配</span><b id="d2-gs">—</b><i>%</i></div><div><span>最大 +Δ（上げ）</span><b id="d2-up">—</b><i>mm</i></div><div><span>最大 −Δ（切削）</span><b id="d2-dn">—</b><i>mm</i></div><div><span>RMS</span><b id="d2-rms">—</b><i>mm</i></div></div>
-      <p class="d2-note" id="d2-note">「最適勾配を算出」を押すと、覆工面が引かれます。</p>
-    </div>
-  </div>
-</section>
-
-<section class="spec"><div class="wrap spec-row"><span class="stamp">無料</span><span class="stamp">登録不要</span><span class="stamp">PCで動く</span><span class="stamp">完全オフライン</span><span class="stamp">データは端末内</span></div></section>
-
-<div class="wrap more-link"><a href="fukkoban-details.html">動作環境・よくある質問・更新履歴は「くわしく」ページへ →</a><a href="../../fukkoban/guide/" target="_blank" rel="noopener">使い方ページ（本体同梱） ↗</a></div>
-<section class="close"><div class="wrap close-in"><p>覆工面は1枚の平面として扱います。縦断曲線・排水・受桁の割付は対象外。<br>高さの検討に絞った、検討・比較のための道具です。</p><a class="btn ghost" href="../feedback.html?tool=fukkoban">このツールへの要望・不具合を送る</a></div></section>
-
-<div class="sticky" id="sticky"><a class="btn primary" href="../../fukkoban/" target="_blank" rel="noopener">ツールを開く</a><a class="btn" href="../feedback.html?tool=fukkoban">要望</a></div>
-<button class="totop" id="totop" aria-label="上へ">↑</button>
-
-<script>window.GATE_MS=1500;</script>
-<script>
-(function(){
-  const gate=document.getElementById('gate');
-  const seen=(()=>{try{return sessionStorage.getItem('gate-seen')}catch(e){return null}})();
-  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function closeGate(){if(!gate||gate.classList.contains('out'))return;gate.classList.add('out');try{sessionStorage.setItem('gate-seen','1')}catch(e){}document.body.classList.add('ready');}
-  if(gate){ if(seen||reduce){gate.remove();document.body.classList.add('ready');} else { gate.addEventListener('click',closeGate); setTimeout(closeGate, window.GATE_MS||2000);} }
-  // 出現（下にあるものだけ）
-  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.remove('pre');io.unobserve(e.target)}}),{threshold:.1});
-  document.querySelectorAll('.reveal').forEach(el=>{if(el.closest('.can-scroll'))return;const r=el.getBoundingClientRect();if(r.top>innerHeight*.9){el.classList.add('pre');io.observe(el)}});
-  // 常駐CTA・上へ
-  const sticky=document.getElementById('sticky'),totop=document.getElementById('totop'),hero=document.querySelector('.hero');
-  function onScroll(){const y=scrollY;const h=hero?hero.offsetHeight:400;sticky.classList.toggle('on',y>h*.6);totop.classList.toggle('on',y>h);
-    if(hero){const p=Math.min(1,Math.max(0,y/(h*1.2)));document.documentElement.style.setProperty('--sp',p.toFixed(3));}}
-  addEventListener('scroll',onScroll,{passive:true});onScroll();
-  totop.addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
-})();
-</script>
-<script>
+'''
+JS = r'''
 (function(){
   // ---- 最小二乗の平面あてはめ  z = a + gS*s + gT*t（s,t:m / z:mm） ----
   function fit(pts){let n=0,Ss=0,St=0,Sz=0,Sss=0,Stt=0,Sst=0,Ssz=0,Stz=0;
@@ -389,6 +297,14 @@ h1{font-size:clamp(1.9rem,6.6vw,3.2rem);line-height:1.22}h1 em{font-style:normal
    const ang=(p*360*1.15)%360, fade=Math.min(1,Math.min(p,1-p)*6);
    e.style.setProperty('--ang',ang.toFixed(1)+'deg');e.style.setProperty('--no',fade.toFixed(2));}}
  addEventListener('scroll',()=>{if(!tick){tick=true;requestAnimationFrame(upd);}},{passive:true});addEventListener('resize',upd);upd();})();
-</script>
-</body>
-</html>
+'''
+html = f'''<title>覆工板 最適勾配 検討ツール 洗練案</title>
+<meta name="description" content="覆工板ツールのLP案：紺×オレンジ、平面が実測点に収束するヒーロー、タップで再計算するミニ体験。マスコットなし。">
+{HEAD}
+<style>{SHARED_CSS}{CSS}</style>
+{BODY}
+<script>window.GATE_MS=1500;</script>
+<script>{SHARED_JS}</script>
+<script>{JS}</script>
+'''
+open(__import__('os').path.dirname(__file__)+'/out/f-fukkoban.html','w').write(html); print('F ok')

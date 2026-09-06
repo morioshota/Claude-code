@@ -7,7 +7,6 @@ window.SITE_CONFIG = {
   siteName: 'GENBA TOOLS',
   siteTagline: '現場で生まれた、ブラウザで動く実務ツール',
   author: 'Shota Onuma',
-  authorTitle: '土木施工管理（1級土木施工管理技士）',
 
   // 公開URL（OGP・共有リンク用。末尾スラッシュあり）
   siteUrl: 'https://morioshota.github.io/Claude-code/site/',

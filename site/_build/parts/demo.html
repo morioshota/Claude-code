@@ -1,0 +1,14 @@
+<div class="demo" id="demo">
+  <svg class="demo-svg" viewBox="0 0 600 320" id="demo-svg" aria-label="ミニ体験：道路を2回タップすると作業帯とコーンが並ぶ">
+    <defs>
+      <pattern id="dz-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="var(--dz-hatch,#e0407a)" stroke-width="1.6"/></pattern>
+    </defs>
+    <rect x="0" y="0" width="600" height="320" fill="var(--d-ground,#dfe6ea)"/>
+    <path d="M0 110 C 150 90, 300 150, 600 120" fill="none" stroke="var(--d-edge,#4b5563)" stroke-width="3"/>
+    <path d="M0 240 C 150 220, 300 280, 600 250" fill="none" stroke="var(--d-edge,#4b5563)" stroke-width="3"/>
+    <path d="M0 175 C 150 155, 300 215, 600 185" fill="none" stroke="var(--d-center,#9aa4ae)" stroke-width="2.5" stroke-dasharray="18 14"/>
+    <g id="demo-layer"></g>
+    <g id="demo-hint" class="demo-hint"><rect x="150" y="270" width="300" height="34" rx="17" fill="var(--d-hint-bg,#1C1A17)"/><text x="300" y="292" text-anchor="middle" fill="var(--d-hint-fg,#fff)" font-size="15" font-weight="700">道路を2回タップしてみて 👆</text></g>
+  </svg>
+  <div class="demo-bar"><span class="demo-msg" id="demo-msg">サンプル表示中。自分でも置けます</span><button type="button" class="demo-reset" id="demo-reset">リセット</button></div>
+</div>

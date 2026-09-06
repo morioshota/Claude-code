@@ -1,0 +1,12 @@
+.demo{border-radius:18px;overflow:hidden;background:var(--d-ground,#dfe6ea);box-shadow:var(--d-shadow,0 20px 50px -20px rgba(0,0,0,.35))}
+.demo-svg{display:block;width:100%;height:auto;touch-action:none;cursor:crosshair;user-select:none}
+.demo-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:var(--d-bar,#1C1A17);color:var(--d-bar-fg,#fff);font-size:.85rem}
+.demo-reset{border:1.5px solid currentColor;background:transparent;color:inherit;border-radius:999px;padding:6px 14px;font:inherit;font-weight:700;cursor:pointer}
+.demo-hint{animation:dHint 1.6s ease-in-out infinite}
+.d-cone{animation:dPop .35s cubic-bezier(.3,1.6,.5,1) both;animation-delay:var(--d,0ms)}
+.d-zone{animation:dFade .5s ease both}
+.d-dim{animation:dFade .5s ease both;animation-delay:var(--d,0ms)}
+@keyframes dPop{from{transform:scale(0)}to{transform:scale(1)}}
+@keyframes dFade{from{opacity:0}to{opacity:1}}
+@keyframes dHint{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.d-cone{transform-box:fill-box;transform-origin:center}
