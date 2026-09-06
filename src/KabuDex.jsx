@@ -27,6 +27,7 @@ import { STORAGE_KEY, noteKey, TYPES, STATUSES, ACHIEVEMENTS, SEED, BACKUP_FORMA
 import { evoPoolFor, rollEvoFx } from "./data/evolution.js";
 import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/activity.js";
 import { sfx, soundEnabled, setSoundEnabled } from "./lib/sound.js";
+import { enableTilt, disableTilt, restoreTilt, tiltOn, tiltSupported, onTiltChange } from "./lib/cardfx.js";
 import { fetchHeldQuotes, stopLossStateOf, stopLossPctOf } from "./lib/holdings.js";
 import { calcLevel, stageOf, freshInfo, evalAchievements } from "./lib/stock.js";
 import { today, uid, daysSince } from "./lib/util.js";
@@ -50,6 +51,7 @@ export default function KabuDex() {
   const [activity, setActivity] = useState(null); // 草カレンダー用 {days, seeded}
   const [soundOn, setSoundOn] = useState(soundEnabled());
   const [quotes, setQuotes] = useState({}); // 保有銘柄の参考株価(カード・警告・牧場で共有)
+  const [tilt, setTilt] = useState(false); // カードを端末の傾きで動かすか(iOSは許可が必要)
   const [checkNagDismissed, setCheckNagDismissed] = useState(() => {
     try { return localStorage.getItem("kabu-checknag") === today(); } catch (e) { return false; }
   });
@@ -97,6 +99,13 @@ export default function KabuDex() {
       });
       setActivity(act);
     })();
+  }, []);
+
+  /* カードの傾き演出: 前回オンなら復帰(iOSは許可が要るのでボタン待ち)。状態はボタン表示に反映 */
+  useEffect(() => {
+    restoreTilt();
+    setTilt(tiltOn());
+    return onTiltChange(setTilt);
   }, []);
 
   /* 保有情報のある銘柄の参考株価をまとめて取得。失敗しても本体には影響しない */
@@ -446,6 +455,45 @@ export default function KabuDex() {
         @keyframes kzSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes kzShake { 0%,100%{transform:translate(0,0)} 20%{transform:translate(-7px,3px)} 40%{transform:translate(6px,-4px)} 60%{transform:translate(-5px,-2px)} 80%{transform:translate(4px,3px)} }
         @keyframes kzHazard { from{background-position:0 0} to{background-position:31px 31px} }
+
+        /* ---- ポケポケ風のカード演出 ----
+           傾き(--tx/--ty)とホロの位置(--hp)、光沢の中心(--gx/--gy)は lib/cardfx.js が書き込む。
+           ⚠ kzCard3d に overflow/filter/opacity を付けると立体が潰れる(仕様上フラット化される) */
+        .kzCard3d { transform-style: preserve-3d;
+          transform: rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg));
+          transition: transform .28s cubic-bezier(.22,.68,.32,1); will-change: transform; }
+        .kzCardFg { transform: translateZ(14px); }
+        .kzCardHero { transform: translateZ(16px); }
+        /* 虹の反射。スクロール・傾きで位置が動く */
+        .kzHoloSheet { background: repeating-linear-gradient(112deg,
+            #ff4d6d 0%, #ffb03a 9%, #ffe66d 18%, #4ade80 27%, #38bdf8 36%, #a78bfa 45%, #ff4d6d 54%);
+          background-size: 320% 320%; background-position: var(--hp,50%) 50%;
+          mix-blend-mode: color-dodge; filter: blur(3px);
+          /* 本物の箔のように「光の当たっている所」だけ虹が出るようマスクする。
+             全面に出すとカードの黒基調が飛んで別物になってしまう */
+          -webkit-mask-image: radial-gradient(circle at var(--gx,50%) var(--gy,50%), #000 0%, rgba(0,0,0,.5) 34%, transparent 68%);
+          mask-image: radial-gradient(circle at var(--gx,50%) var(--gy,50%), #000 0%, rgba(0,0,0,.5) 34%, transparent 68%); }
+        /* 細かい干渉縞。ゆっくり流れて、止まっていてもカードが生きて見える */
+        .kzHoloFine { background: repeating-linear-gradient(68deg,
+            rgba(255,255,255,.10) 0 2px, rgba(255,255,255,0) 2px 7px);
+          background-size: 220% 220%; mix-blend-mode: overlay; opacity: .32;
+          animation: kzHoloDrift 9s linear infinite; }
+        @keyframes kzHoloDrift { from{background-position:0% 0%} to{background-position:220% 220%} }
+        /* UR/ステージ4だけの走査光 */
+        .kzHoloBeam { background: linear-gradient(105deg,
+            rgba(255,255,255,0) 40%, rgba(255,255,255,.42) 50%, rgba(255,255,255,0) 60%);
+          background-size: 260% 100%; mix-blend-mode: overlay;
+          animation: kzBeam 5.5s ease-in-out infinite; }
+        @keyframes kzBeam { 0%{background-position:180% 0; opacity:0} 14%{opacity:.6} 55%{background-position:-60% 0; opacity:0} 100%{background-position:-60% 0; opacity:0} }
+        .kzGlare { background: radial-gradient(circle at var(--gx,50%) var(--gy,50%),
+            rgba(255,255,255,.42) 0%, rgba(255,255,255,.10) 24%, rgba(255,255,255,0) 55%);
+          mix-blend-mode: overlay; transform: translateZ(24px); }
+        /* ✦のまたたき(オーラ進化・色違い)。sprites.jsが返した座標に重ねる */
+        .kzGlint, .kzGlintGlow { transform-origin: 0px 0px; animation-name: kzGlint;
+          animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+        .kzGlintGlow { opacity: .55; filter: blur(1.1px); animation-name: kzGlintGlow; }
+        @keyframes kzGlint { 0%,100%{ transform: scale(.28) rotate(0deg); opacity:.35 } 50%{ transform: scale(1) rotate(45deg); opacity:1 } }
+        @keyframes kzGlintGlow { 0%,100%{ transform: scale(.5) rotate(0deg); opacity:.18 } 50%{ transform: scale(1.55) rotate(45deg); opacity:.65 } }
         body.kz-shake { animation: kzShake .55s ease; }
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
         ::placeholder { color: #4a5170; }
@@ -582,10 +630,18 @@ export default function KabuDex() {
               color: view === k ? "#ffd166" : "#5b6284",
             }}>{label}</button>
           ))}
+          {tiltSupported() && (
+            <button
+              onClick={async () => { if (tilt) disableTilt(); else { const ok = await enableTilt(); if (!ok) setTilt(false); } }}
+              title={tilt ? "端末の傾きでカードが動きます" : "端末を傾けるとカードが動くようにする"}
+              style={{ all: "unset", cursor: "pointer", marginLeft: "auto", fontSize: 17, padding: "6px 10px", borderRadius: 10, border: `1.5px solid ${tilt ? "#c084fc" : "#252b48"}`, opacity: tilt ? 1 : 0.45 }}>
+              📱
+            </button>
+          )}
           <button
             onClick={() => { const next = !soundOn; setSoundOn(next); setSoundEnabled(next); if (next) sfx("sparkle"); }}
             title={soundOn ? "効果音オン" : "効果音オフ"}
-            style={{ all: "unset", cursor: "pointer", marginLeft: "auto", fontSize: 17, padding: "6px 10px", borderRadius: 10, border: "1.5px solid #252b48", opacity: soundOn ? 1 : 0.45 }}>
+            style={{ all: "unset", cursor: "pointer", marginLeft: tiltSupported() ? 0 : "auto", fontSize: 17, padding: "6px 10px", borderRadius: 10, border: "1.5px solid #252b48", opacity: soundOn ? 1 : 0.45 }}>
             {soundOn ? "🔊" : "🔇"}
           </button>
         </div>

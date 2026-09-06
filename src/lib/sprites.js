@@ -97,15 +97,18 @@ const padGrid = (grid, top, side) => {
   const padded = grid.map((row) => [...new Array(side).fill(null), ...row, ...new Array(side).fill(null)]);
   return [...Array.from({ length: top }, empty), ...padded, empty()];
 };
-const trimGrid = (grid) => {
-  let g = grid;
-  while (g.length > 1 && !g[0].some(Boolean)) g = g.slice(1);
+/* トリミングして、ついでに「左と上を何マス削ったか」も返す。
+   きらめき(✦)の座標をトリミング後のグリッドに合わせ続けるために使う */
+const trimGridInfo = (grid) => {
+  let g = grid, dy = 0;
+  while (g.length > 1 && !g[0].some(Boolean)) { g = g.slice(1); dy++; }
   while (g.length > 1 && !g[g.length - 1].some(Boolean)) g = g.slice(0, -1);
   const used = g[0].map((_, x) => g.some((row) => row[x]));
   let l = used.indexOf(true), r = used.lastIndexOf(true);
   if (l < 0) { l = 0; r = g[0].length - 1; }
-  return g.map((row) => row.slice(l, r + 1));
+  return { grid: g.map((row) => row.slice(l, r + 1)), dx: l, dy };
 };
+const trimGrid = (grid) => trimGridInfo(grid).grid;
 const topRow = (g) => g.findIndex((r) => r.some(Boolean));
 const bottomRow = (g) => g.length - 1 - [...g].reverse().findIndex((r) => r.some(Boolean));
 const rowBounds = (row) => {
@@ -266,12 +269,16 @@ function buildPixels(stock, sleeping) {
 
   // ---- 光の粒(オーラ・色違い)は仕上げの後に✦(ダイヤ型)で描く:
   //      輪郭処理を通さないことで「浮いた四角」ではなく「光」に見える ----
+  // ✦を打った位置を覚えておく。UI側(Creature)がここに動く光を重ねて「模様」ではなく
+  // 「きらめき」に見せる。padGrid/trimGridでずれるので、その都度まとめて補正する
+  const marks = [];
+  const shiftMarks = (dx, dy) => marks.forEach((m) => { m.x += dx; m.y += dy; });
   const sparkle = (g, y, x, core, arm) => {
     put(g, y, x, core);
     [[y - 1, x], [y + 1, x], [y, x - 1], [y, x + 1]].forEach(([yy, xx]) => put(g, yy, xx, arm));
   };
   if (evoKind === "aura") {
-    grid = padGrid(grid, 4, 4);
+    grid = padGrid(grid, 4, 4); shiftMarks(4, 4);
     const t = topRow(grid), b2 = bottomRow(grid);
     const tb = rowBounds(grid[t]) || [0, grid[0].length - 1];
     const bb = rowBounds(grid[b2]) || tb;
@@ -284,20 +291,24 @@ function buildPixels(stock, sleeping) {
       [midY + 2, bb[0] - 4], [t, tb[0] - 3], [b2 - 3, bb[1] + 3],
     ];
     const n = level === 1 ? 4 : level === 2 ? 7 : 10;
-    spots.slice(0, n).forEach(([y, x], i) =>
-      sparkle(grid, y, x, i % 2 ? WHITE : GOLD, i % 2 ? "#e9d5ff" : "#fde68a"));
-    grid = trimGrid(grid);
+    spots.slice(0, n).forEach(([y, x], i) => {
+      sparkle(grid, y, x, i % 2 ? WHITE : GOLD, i % 2 ? "#e9d5ff" : "#fde68a");
+      marks.push({ x, y, kind: "aura" });
+    });
+    const ta = trimGridInfo(grid); grid = ta.grid; shiftMarks(-ta.dx, -ta.dy);
   }
   if (shiny) {
-    grid = padGrid(grid, 2, 2);
+    grid = padGrid(grid, 2, 2); shiftMarks(2, 2);
     const t = topRow(grid), b2 = bottomRow(grid);
     const tb = rowBounds(grid[t]) || [0, grid[0].length - 1];
     const bb = rowBounds(grid[b2]) || tb;
     sparkle(grid, t + 1, tb[1] + 2, WHITE, "#e9d5ff");
+    marks.push({ x: tb[1] + 2, y: t + 1, kind: "shiny" });
     sparkle(grid, b2 - 2, bb[0] - 1, WHITE, "#e9d5ff");
-    grid = trimGrid(grid);
+    marks.push({ x: bb[0] - 1, y: b2 - 2, kind: "shiny" });
+    const ts = trimGridInfo(grid); grid = ts.grid; shiftMarks(-ts.dx, -ts.dy);
   }
-  return { grid, w: grid[0].length, h: grid.length, speciesName: species.name };
+  return { grid, w: grid[0].length, h: grid.length, speciesName: species.name, sparkles: marks };
 }
 
 /* 図鑑・詳細用: SVGでドットを描く(カクカク保持) */
