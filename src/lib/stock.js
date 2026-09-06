@@ -2,7 +2,7 @@
    いずれも「研究の蓄積量」の遊び指標であり売買推奨ではない */
 
 import { STAGES } from "../data/constants.js";
-import { daysSince } from "./util.js";
+import { daysSince, hashStr, mulberry32 } from "./util.js";
 
 const calcLevel = (s) => 1 + (s.logs?.length || 0) + (s.noteCount || 0) * 3;
 
@@ -19,6 +19,13 @@ const stageOf = (lv) => {
    自分で選ぶ設定は廃止した——「研究の蓄積量の指標」という位置づけと合わせるため。
    旧データの s.rarity は参照しない */
 const rarityOf = (s) => stageOf(calcLevel(s)).no;
+
+/* デンセツ(ST5)のカードに付く特別演出。5種のうち1つ。
+   ⚠ 抽選は「ランダムに見える」が、シードは証券コードなので**永久に変わらない**
+   （不変条件1「姿の決定論」/6「抽選結果は永久保存」と同じ考え方。
+     内部IDやDate.now()をシードにすると開くたびに変わってしまう）*/
+const UR_FX = ["spangle", "ember", "aurora", "prism", "rays"];
+const urFxOf = (s) => UR_FX[Math.floor(mulberry32(hashStr(String(s.code || s.id || "") + ":urfx"))() * UR_FX.length) % UR_FX.length];
 
 /* ---- 鮮度(最終調査日からの経過) ---- */
 
@@ -66,4 +73,4 @@ const moveTierOf = (stock) => {
 
 // 実時間→時間帯(端末の時計を使用)
 
-export { calcLevel, calcCP, stageOf, rarityOf, freshInfo, evalAchievements, moveTierOf };
+export { calcLevel, calcCP, stageOf, rarityOf, urFxOf, UR_FX, freshInfo, evalAchievements, moveTierOf };

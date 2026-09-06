@@ -11,8 +11,9 @@
 import { useEffect, useRef } from "react";
 import { Creature, RarityBadge, TypeChip, StatusBadge } from "./ui.jsx";
 import { TYPES, RARITIES } from "../data/constants.js";
-import { calcLevel, stageOf, rarityOf, freshInfo } from "../lib/stock.js";
+import { calcLevel, stageOf, rarityOf, urFxOf, freshInfo } from "../lib/stock.js";
 import { registerCard, setPointer, clearPointer } from "../lib/cardfx.js";
+import { hashStr } from "../lib/util.js";
 
 /* 損切りライン超過の警告柄(虎柄=工事現場のハザードテープ)。
    これはオーナー自身が決めたラインへの到達を知らせる目印で、売買の指示ではない */
@@ -22,16 +23,21 @@ const RADIUS = 13;
 
 /* 演出の段階は研究ステージそのもの(1〜5)。レアリティも同じ数字。
    1 ハッケン … 演出なし
-   2 カンサツ … 光沢だけ(虹は出さない)
-   3 カイメイ … 光沢＋内枠
-   4 マスター … ここから虹の反射が出る
-   5 デンセツ … 虹＋走査光＋金の内枠＋四隅の装飾(ひときわ豪華) */
+   2 カンサツ … 斜めに流れる光沢だけ(虹は出さない)
+   3 カイメイ … ここから虹の反射が出る＋内枠
+   4 マスター … ＋細かい干渉縞＋外周の虹枠＋王冠
+   5 デンセツ … ＋走査光＋四隅の装飾＋特別演出(5種から1つ・ひときわ豪華) */
 const holoTierOf = (stock) => (stock.status === "sold" ? 0 : rarityOf(stock));
 
-// 虹は4以降だけ。強すぎるとカードの黒基調が飛ぶのでマスク(kzHoloSheet)と合わせて控えめに
-const HOLO_OPACITY = [0, 0, 0, 0, 0.30, 0.42];
-const GLARE_OPACITY = [0, 0, 0.16, 0.24, 0.32, 0.42];
-const FINE_OPACITY = [0, 0, 0, 0.22, 0.34, 0.46];
+// 虹は3(SR)以降。強すぎるとカードの黒基調が飛ぶのでマスク(kzHoloSheet)と合わせて控えめに
+const HOLO_OPACITY = [0, 0, 0, 0.26, 0.36, 0.30];
+const GLARE_OPACITY = [0, 0, 0.30, 0.36, 0.42, 0.46];
+const FINE_OPACITY = [0, 0, 0, 0, 0.30, 0.38];
+// デンセツは特別演出のぶん虹を控えめにしてある(重ねすぎるとカードが白飛びする)
+const UR_OPACITY = { spangle: 1, ember: 0.5, aurora: 0.34, prism: 0.9, rays: 0.5 };
+/* 走査光。ステージ2から出す——手を止めていても光が斜めに流れるので、
+   N(演出なし)とR(光沢だけ)の差がひと目で分かる */
+const BEAM_OPACITY = [0, 0, 0.55, 0.7, 0.85, 1];
 
 function DexCard({ stock, onClick, stopLossState }) {
   const t = TYPES[stock.type] || TYPES.metal;
@@ -44,6 +50,7 @@ function DexCard({ stock, onClick, stopLossState }) {
   const over = stopLossState === "over";
   const near = stopLossState === "near";
   const tier = holoTierOf(stock);
+  const urFx = urFxOf(stock);
   const rootRef = useRef(null);
 
   useEffect(() => registerCard(rootRef.current), []);
@@ -89,18 +96,28 @@ function DexCard({ stock, onClick, stopLossState }) {
         {over && (
           <div style={{ ...layer, background: HAZARD_STRIPES, backgroundSize: "31px 31px", animation: "kzHazard 1.6s linear infinite" }} />
         )}
-        {/* 虹の反射はステージ4から。位置(--hp)はスクロール・傾きに連動する */}
-        {tier >= 4 && !sold && <div className="kzHoloSheet" style={{ ...layer, opacity: HOLO_OPACITY[tier] }} />}
-        {tier >= 3 && !sold && <div className="kzHoloFine" style={{ ...layer, opacity: FINE_OPACITY[tier] }} />}
-        {/* 枠内の豪華強調(ステージ3から。5は金＋四隅の装飾) */}
-        {tier >= 3 && !sold && (
+        {/* 虹の反射はステージ3(SR)から。位置(--hp)はスクロール・傾きに連動する */}
+        {tier >= 3 && !sold && <div className="kzHoloSheet" style={{ ...layer, opacity: HOLO_OPACITY[tier] }} />}
+        {tier >= 4 && !sold && <div className="kzHoloFine" style={{ ...layer, opacity: FINE_OPACITY[tier] }} />}
+        {/* 枠内の内枠。ステージ5は代わりに特別演出(下)が入るので出さない */}
+        {tier >= 3 && tier < 5 && !sold && (
           <div style={{
             ...layer, inset: 4, borderRadius: RADIUS - 4,
-            border: `1px solid ${tier >= 5 ? "rgba(255,231,168,.55)" : tier >= 4 ? "rgba(255,231,168,.34)" : "rgba(255,255,255,.16)"}`,
-            boxShadow: `inset 0 0 ${tier >= 5 ? 22 : 16}px ${tier >= 5 ? "rgba(255,209,102,.26)" : tier >= 4 ? "rgba(255,209,102,.14)" : "rgba(255,255,255,.07)"}`,
+            border: `1px solid ${tier >= 4 ? "rgba(255,231,168,.34)" : "rgba(255,255,255,.16)"}`,
+            boxShadow: `inset 0 0 16px ${tier >= 4 ? "rgba(255,209,102,.14)" : "rgba(255,255,255,.07)"}`,
           }} />
         )}
-        {tier >= 5 && !sold && <div className="kzHoloBeam" style={layer} />}
+        {/* デンセツの特別演出。5種のうち1つが証券コードから決まる(永久に変わらない) */}
+        {tier >= 5 && !sold && (
+          <div className={`kzUr kzUr-${urFx}`} style={{ ...layer, opacity: UR_OPACITY[urFx] }} />
+        )}
+        {/* 出だしを銘柄ごとにずらす。揃っていると全カードが一斉に光って安っぽく見える */}
+        {tier >= 2 && !sold && (
+          <div className="kzHoloBeam" style={{
+            ...layer, opacity: BEAM_OPACITY[tier],
+            animationDelay: `${((hashStr(String(stock.code || stock.id)) % 55) / 10).toFixed(1)}s`,
+          }} />
+        )}
         {/* デンセツだけの四隅の飾り */}
         {tier >= 5 && !sold && (
           <div className="kzCornerFx" style={layer}>
