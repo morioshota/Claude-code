@@ -479,15 +479,82 @@ export default function KabuDex() {
           background-size: 220% 220%; mix-blend-mode: overlay; opacity: .32;
           animation: kzHoloDrift 9s linear infinite; }
         @keyframes kzHoloDrift { from{background-position:0% 0%} to{background-position:220% 220%} }
-        /* UR/ステージ4だけの走査光 */
+        /* 走査光。ステージ2から出す。出だしは銘柄ごとにずらす(DexCard側のanimationDelay) */
         .kzHoloBeam { background: linear-gradient(105deg,
             rgba(255,255,255,0) 40%, rgba(255,255,255,.42) 50%, rgba(255,255,255,0) 60%);
           background-size: 260% 100%; mix-blend-mode: overlay;
           animation: kzBeam 5.5s ease-in-out infinite; }
         @keyframes kzBeam { 0%{background-position:180% 0; opacity:0} 14%{opacity:.6} 55%{background-position:-60% 0; opacity:0} 100%{background-position:-60% 0; opacity:0} }
-        .kzGlare { background: radial-gradient(circle at var(--gx,50%) var(--gy,50%),
-            rgba(255,255,255,.42) 0%, rgba(255,255,255,.10) 24%, rgba(255,255,255,0) 55%);
+        /* 光沢。斜めの光の帯が --hp に沿って流れる(スクロール・指・傾きで動く)＋
+           光の当たっている一点の照り返し(--gx/--gy)。ステージ2はこれだけで、虹は出ない */
+        .kzGlare { background:
+            linear-gradient(107deg, rgba(255,255,255,0) 30%, rgba(255,255,255,.14) 41%,
+              rgba(255,255,255,.62) 50%, rgba(255,255,255,.14) 59%, rgba(255,255,255,0) 70%),
+            radial-gradient(circle at var(--gx,50%) var(--gy,50%),
+              rgba(255,255,255,.34) 0%, rgba(255,255,255,.08) 24%, rgba(255,255,255,0) 55%);
+          background-size: 260% 100%, 100% 100%;
+          background-position: var(--hp,50%) 0, 0 0;
+          background-repeat: no-repeat;
           mix-blend-mode: overlay; transform: translateZ(24px); }
+
+        /* ---- デンセツ(UR)だけの特別演出 ----
+           5種のうち1つが証券コードから決まる(=見るたびに変わらない。不変条件1/6)。
+           どれも「枠の中」で光るので、カードの外形や文字は邪魔しない */
+        /* 角丸で切り抜くのはこの層の中だけ。⚠ 親の .kzCard3d には絶対に overflow を付けないこと */
+        .kzUr { mix-blend-mode: screen; overflow: hidden; }
+        /* ① きらめき: 光の粒が散ってまたたく。2組を別々の間隔で明滅させると
+           「一斉に点滅」ではなく「あちこちが順にきらめく」ように見える */
+        .kzUr-spangle, .kzUr-spangle::before {
+          animation: kzUrSpangle 2.4s ease-in-out infinite; }
+        .kzUr-spangle { background:
+            radial-gradient(circle at 18% 22%, #fff 0 1.4px, rgba(255,255,255,.35) 2.6px, transparent 4.5px),
+            radial-gradient(circle at 74% 15%, #ffe9b0 0 1.6px, rgba(255,233,176,.3) 3px, transparent 5px),
+            radial-gradient(circle at 42% 57%, #fff 0 1.2px, rgba(255,255,255,.3) 2.4px, transparent 4px),
+            radial-gradient(circle at 88% 64%, #cfe6ff 0 1.5px, rgba(207,230,255,.3) 2.8px, transparent 4.6px),
+            radial-gradient(circle at 27% 86%, #fff 0 1.4px, rgba(255,255,255,.3) 2.6px, transparent 4.4px);
+          background-repeat: no-repeat; }
+        .kzUr-spangle::before { content:""; position:absolute; inset:0; animation-delay: 1.2s; background:
+            radial-gradient(circle at 61% 36%, #ffe0a0 0 1.5px, rgba(255,224,160,.3) 2.8px, transparent 4.6px),
+            radial-gradient(circle at 8% 61%, #fff 0 1.3px, rgba(255,255,255,.3) 2.5px, transparent 4.2px),
+            radial-gradient(circle at 54% 91%, #dff0ff 0 1.4px, rgba(223,240,255,.3) 2.6px, transparent 4.4px),
+            radial-gradient(circle at 92% 33%, #fff 0 1.2px, rgba(255,255,255,.3) 2.4px, transparent 4px),
+            radial-gradient(circle at 34% 12%, #ffe9b0 0 1.3px, rgba(255,233,176,.3) 2.5px, transparent 4.2px);
+          background-repeat: no-repeat; }
+        @keyframes kzUrSpangle { 0%,100%{ opacity:.15 } 50%{ opacity:1 } }
+        /* ② おき火: ふちから熱がにじんで、ゆっくり息をする。
+           まん中は暗いままにしておく(全面を染めるとクリーチャーが見えなくなる) */
+        .kzUr-ember { background:
+            radial-gradient(130% 46% at 50% 104%, rgba(255,138,60,.7) 0%, rgba(255,80,40,.2) 42%, transparent 72%),
+            radial-gradient(130% 34% at 50% -4%, rgba(255,190,90,.4) 0%, transparent 70%);
+          animation: kzUrEmber 3.4s ease-in-out infinite; }
+        @keyframes kzUrEmber { 0%,100%{ opacity:.42 } 50%{ opacity:1 } }
+        /* ③ オーロラ: 色のもやが奥でゆっくり渦を巻く。
+           回すのは ::before 側。層そのものを回すとカードの外へはみ出す */
+        .kzUr-aurora::before { content:""; position:absolute; inset:-45%;
+          background: conic-gradient(from 0deg,
+            rgba(96,165,250,.6), rgba(167,139,250,.55), rgba(240,171,252,.5),
+            rgba(45,212,191,.55), rgba(96,165,250,.6));
+          filter: blur(14px); animation: kzUrAurora 15s linear infinite; }
+        @keyframes kzUrAurora { from{ transform: rotate(0deg) } to{ transform: rotate(360deg) } }
+        /* ④ 虹のふち: 縁だけを虹が一周する(枠だけを光らせるのは mask-composite) */
+        .kzUr-prism::before { content:""; position:absolute; inset:0; border-radius:inherit; padding:3px;
+          background: conic-gradient(from 0deg,
+            #ff4d6d, #ffb03a, #ffe66d, #4ade80, #38bdf8, #a78bfa, #ff4d6d);
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask-composite: exclude; animation: kzUrPrism 4.5s linear infinite; }
+        /* ⚠ にじみ(drop-shadow)もキーフレーム側に書くこと。
+           静的な filter を別に置くとアニメの filter に上書きされて消える */
+        @keyframes kzUrPrism {
+          from{ filter: hue-rotate(0deg) drop-shadow(0 0 4px rgba(255,255,255,.45)) }
+          to{ filter: hue-rotate(360deg) drop-shadow(0 0 4px rgba(255,255,255,.45)) } }
+        /* ⑤ 光条: 細い光の筋が何本か斜めに流れる */
+        .kzUr-rays { background: repeating-linear-gradient(58deg,
+            rgba(255,255,255,0) 0 34px, rgba(255,255,255,.5) 34px 36px,
+            rgba(255,255,255,0) 36px 52px, rgba(255,255,255,.28) 52px 53px, rgba(255,255,255,0) 53px 96px);
+          background-size: 300% 100%; filter: blur(.6px);
+          animation: kzUrRays 6s linear infinite; }
+        @keyframes kzUrRays { from{ background-position: 140% 0; opacity:.25 } 45%{ opacity:.85 } to{ background-position: -60% 0; opacity:.25 } }
         /* ✦のまたたき(オーラ進化・色違い)。sprites.jsが返した座標に重ねる */
         .kzGlint, .kzGlintGlow { transform-origin: 0px 0px; animation-name: kzGlint;
           animation-iteration-count: infinite; animation-timing-function: ease-in-out; }

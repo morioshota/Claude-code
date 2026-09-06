@@ -5,7 +5,7 @@ import { AnalysisPanel } from "./Analysis.jsx";
 import { NoteItem } from "./notes.jsx";
 import { Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay } from "./ui.jsx";
 import { TYPES, RARITIES, STAGES } from "../data/constants.js";
-import { calcLevel, calcCP, stageOf, rarityOf, freshInfo } from "../lib/stock.js";
+import { calcLevel, calcCP, stageOf, rarityOf, urFxOf, freshInfo } from "../lib/stock.js";
 import { registerCard } from "../lib/cardfx.js";
 import { fetchQuote } from "../lib/quotes.js";
 import {
@@ -139,8 +139,13 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
       }}>
         {/* ヘッダー */}
         <div style={{ background: `linear-gradient(135deg, ${t.dark}, #0e1122 80%)`, padding: "18px 18px 14px", position: "relative" }}>
-          <button onClick={onClose} style={{ position: "absolute", top: 10, right: 12, all: "unset", cursor: "pointer", color: "#8b93b8", fontSize: 20, lineHeight: 1, padding: 6 }}>✕</button>
-          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          {/* デンセツはカードと同じ特別演出をヘッダーにも敷く(図鑑と詳細で見た目が揃うように) */}
+          {rank >= 5 && (
+            <div className={`kzUr kzUr-${urFxOf(stock)}`}
+              style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.5 }} />
+          )}
+          <button onClick={onClose} style={{ position: "absolute", top: 10, right: 12, all: "unset", cursor: "pointer", color: "#8b93b8", fontSize: 20, lineHeight: 1, padding: 6, zIndex: 2 }}>✕</button>
+          <div style={{ display: "flex", gap: 14, alignItems: "center", position: "relative", zIndex: 1 }}>
             <div style={{
               filter: `drop-shadow(0 0 ${8 + stage.no * 4}px ${t.color}99)`,
               animation: flash ? "kzBounce .6s ease" : stage.no >= 4 ? "kzAura 2.4s ease-in-out infinite" : "none",
