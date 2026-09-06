@@ -63,14 +63,28 @@ function MdView({ text }) {
   return <div>{out}</div>;
 }
 
+/* きらめき(✦)1つぶんの光。ドット絵の✦の上にこれを重ねると
+   「置いてある模様」ではなく「またたく光」に見える */
+const GLINT_PATH = "M0,-2.7 L0.7,-0.7 L2.7,0 L0.7,0.7 L0,2.7 L-0.7,0.7 L-2.7,0 L-0.7,-0.7 Z";
+
 function Creature({ stock, size = 64, sleeping = false, shadow = true }) {
-  const { grid, w, h } = buildPixels(stock, sleeping);
+  const { grid, w, h, sparkles } = buildPixels(stock, sleeping);
+  const glints = sleeping ? [] : (sparkles || []);
   const svg = (
     <svg width={size} height={Math.round(size * (h / w))} viewBox={`0 0 ${w} ${h}`}
-      shapeRendering="crispEdges" style={{ display: "block", imageRendering: "pixelated", position: "relative", zIndex: 1 }}>
+      shapeRendering="crispEdges" style={{ display: "block", imageRendering: "pixelated", position: "relative", zIndex: 1, overflow: "visible" }}>
       {grid.map((row, y) => row.map((c, x) => (
         c ? <rect key={`${x}-${y}`} x={x} y={y} width="1.02" height="1.02" fill={c} /> : null
       )))}
+      {/* ✦の位置でまたたく光(オーラ進化・色違い)。位置はsprites.jsが返す */}
+      {glints.map((s, i) => (
+        <g key={`gl${i}`} transform={`translate(${s.x + 0.5} ${s.y + 0.5})`}>
+          <path className="kzGlintGlow" d={GLINT_PATH} fill={s.kind === "shiny" ? "#f0abfc" : "#ffd166"}
+            style={{ animationDelay: `${(i * 0.31).toFixed(2)}s`, animationDuration: `${(2.0 + (i % 3) * 0.4).toFixed(2)}s` }} />
+          <path className="kzGlint" d={GLINT_PATH} fill="#ffffff"
+            style={{ animationDelay: `${(i * 0.31).toFixed(2)}s`, animationDuration: `${(2.0 + (i % 3) * 0.4).toFixed(2)}s` }} />
+        </g>
+      ))}
     </svg>
   );
   // HD-2D風の足元の落とし影(柔らかい楕円)。地面に立っている立体感を出す
