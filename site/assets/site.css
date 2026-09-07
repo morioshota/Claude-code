@@ -53,7 +53,7 @@
 html { scroll-behavior: smooth; scroll-padding-top: 84px; -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; font-family: var(--sans); color: var(--ink); background: var(--bg);
-  line-height: 1.75; font-size: 16px; font-feature-settings: "palt";
+  line-height: 1.75; font-size: 16px;
   background-image:
     linear-gradient(var(--grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid) 1px, transparent 1px);
@@ -63,7 +63,9 @@ body {
 img, svg { max-width: 100%; display: block; }
 a { color: inherit; text-decoration: none; }
 p { margin: 0 0 1em; }
-h1, h2, h3, h4 { margin: 0; line-height: 1.25; letter-spacing: -.01em; font-weight: 750; }
+/* 見出しは日本語のかぎ括弧・句読点を含むため、約物を詰める palt と負のトラッキングは使わない。
+   （両者が重なると Yu Gothic UI / Meiryo 等で「」が隣の字に食い込む） */
+h1, h2, h3, h4 { margin: 0; line-height: 1.25; letter-spacing: 0; font-weight: 750; font-feature-settings: normal; }
 button { font-family: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -199,8 +201,9 @@ button { font-family: inherit; }
 @media (max-width: 900px) { .hero .wrap { grid-template-columns: 1fr; } }
 .hero .kicker { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: .76rem; letter-spacing: .2em; color: var(--accent); margin-bottom: 18px; }
 .hero .kicker::before { content: ""; width: 28px; height: 2px; background: var(--accent); }
-.hero h1 { font-size: clamp(1.9rem, 4.2vw, 3rem); line-height: 1.16; letter-spacing: -.02em; word-break: keep-all; }
-.hero h1 .l1 { white-space: nowrap; }
+/* 約物が全角に戻ったぶん1行が長くなるので、最長行「ブラウザひとつで片づける。」(13字)が
+   PC時のテキスト段（約552px）に収まる上限にしてある */
+.hero h1 { font-size: clamp(1.6rem, 4.1vw, 2.6rem); line-height: 1.22; letter-spacing: 0; }
 .hero h1 .thin { font-weight: 400; color: var(--ink-2); }
 .hero h1 .hl { background: linear-gradient(120deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .hero .lead { font-size: clamp(1rem, 1.5vw, 1.18rem); color: var(--ink-2); max-width: 54ch; margin: 22px 0 30px; }
