@@ -1,0 +1,7 @@
+{
+  "name": "dodome-retaining-planner",
+  "private": true,
+  "type": "commonjs",
+  "description": "土留め検討ツール（単一HTML・ビルド不要）。このpackage.jsonは親リポジトリが type:module のため、test/core.test.js を CommonJS として実行させるためだけに置いている。依存パッケージは無い。",
+  "scripts": { "test": "node test/core.test.js" }
+}

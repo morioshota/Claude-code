@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>土留め検討ツール — 使い方</title>
+<style>
+  :root{
+    --paper:#FAF9F6; --panel:#F1F1EC; --ink:#1F2933; --ink2:#5A6472;
+    --line:#D9D5C8; --line2:#C7C2B2; --accent:#0F8B8D; --accent-d:#0A6B6D;
+    --ok:#2F7D53; --ng:#C0392B; --warn:#B8860B;
+    --mono: ui-monospace, "SFMono-Regular", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:var(--sans); color:var(--ink); background:var(--paper); line-height:1.85;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:24px 24px; background-position:-1px -1px;
+  }
+  header{background:var(--ink);color:#fff;padding:18px 22px;border-bottom:3px solid var(--accent);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header h1{margin:0;font-size:17px;letter-spacing:.04em}
+  header h1 small{display:block;font-weight:400;font-size:10.5px;color:#A9B2BD;letter-spacing:.12em;margin-top:3px}
+  header .sp{flex:1}
+  header a{color:#fff;background:var(--accent);text-decoration:none;font-size:12.5px;font-weight:650;padding:8px 14px;border-radius:5px}
+  main{max-width:900px;margin:0 auto;padding:26px 20px 80px}
+  h2{font-size:16px;margin:38px 0 12px;padding-bottom:7px;border-bottom:2px solid var(--accent);letter-spacing:.03em}
+  h3{font-size:13.5px;margin:24px 0 8px;color:var(--accent-d)}
+  p,li{font-size:13.5px}
+  ol,ul{padding-left:1.4em}
+  .box{background:#fff;border:1px solid var(--line2);border-radius:8px;padding:14px 18px;margin:14px 0}
+  .warn{border-left:4px solid var(--warn);background:#FDFBF3;color:#5A5240;font-size:13px}
+  .warn b{color:#7A6A2E}
+  .info{border-left:4px solid var(--accent);background:#F1FAFA;color:#3D5B5C;font-size:13px}
+  .info b{color:var(--accent-d)}
+  .bad{border-left:4px solid var(--ng);background:#FDF3F2;color:#6B3A34;font-size:13px}
+  .bad b{color:var(--ng)}
+  table{width:100%;border-collapse:collapse;background:#fff;font-size:12.5px;margin:12px 0}
+  th,td{border:1px solid var(--line2);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel);font-weight:650;color:var(--ink2);font-size:11.5px;white-space:nowrap}
+  code{font-family:var(--mono);font-size:12px;background:#F1F1EC;padding:1px 5px;border-radius:3px}
+  pre{font-family:var(--mono);font-size:12px;background:#F6F6F0;border:1px solid var(--line);border-radius:6px;padding:12px 14px;overflow-x:auto;line-height:1.75}
+  .step{counter-reset:s}
+  .step > li{margin-bottom:14px}
+  footer{border-top:1px solid var(--line2);margin-top:50px;padding-top:16px;font-size:11.5px;color:#8A94A2}
+  kbd{font-family:var(--mono);font-size:11px;background:#fff;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;padding:1px 6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>土留め検討ツール — 使い方<small>EARTH RETAINING WORK PLANNER / GUIDE</small></h1>
+  <div class="sp"></div>
+  <a href="../index.html">ツールを開く</a>
+</header>
+<main>
+
+<div class="box bad">
+  <b>はじめに読んでください。</b>このツールが出す数値は<b>すべて「検討用の参考値」</b>です。
+  正式な設計計算書の代わりにはなりません。土質定数・地下水位・上載荷重の取り方で結果は何割も変わりますし、
+  ボイリング・ヒービング・盤ぶくれ・たわみ量・支持力・多層地盤は扱っていません。
+  <b>実際の施工には、土質調査結果に基づいて設計者の照査を受けた計算書を用いてください。</b>
+  このツールは「発注前・打合せ前に、自分で当たりをつける」ための道具です。
+</div>
+
+<h2>まず3分で使う</h2>
+<ol class="step">
+  <li><b>① 掘削の形</b>で「線状トレンチ」か「矩形立坑」を選び、寸法と深さを入れる。</li>
+  <li><b>② 土留め工法</b>を選ぶ。工法によって、入力欄の出し入れと3Dの見え方が変わる。</li>
+  <li><b>③ 地盤・荷重</b>で土質を選ぶ。γ・φ・c・密度・変化率が目安値で入るので、
+      <b>現場の土質調査結果があれば必ず上書きする。</b></li>
+  <li><b>④⑤ 土留め部材・切梁</b>で部材を選ぶ。規格値が空の部材は、カタログの値を入れると断面照査まで出る。</li>
+  <li><b>⑦ 運搬</b>で車種と、手配できる台数・走行時間を入れる。</li>
+  <li>タブを切り替えて結果を見る。<b>① 数量・土量</b>／<b>② 構造検討</b>／<b>③ 3Dビュー</b>／<b>④ 集計・印刷</b>。</li>
+</ol>
+<p>入力はこの端末に自動保存されます。次に開いたときは前回の続きから始まります。</p>
+
+<h2>① 数量・土量タブ</h2>
+<p>掘削土量から、埋戻し・残土・購入土・基礎材、そしてダンプの延べ台数と運搬日数までを一続きで出します。</p>
+
+<h3>地山・ほぐし・締固めの3つが並ぶ理由</h3>
+<p>掘った土は現場を出るときに膨らみ（ほぐし）、埋め戻すと締まります（締固め）。
+数量はどの状態で言っているかで値が変わるので、<b>表では3つを並べて出しています。</b></p>
+<pre>ほぐし = 地山 × L        締固め = 地山 × C        （逆は割り算）</pre>
+<p>重量は状態によらず変わらないので、<code>地山 m³ × 湿潤密度</code> で1回だけ出しています。</p>
+
+<h3>埋戻し・残土・購入土の決まり方</h3>
+<pre>埋戻し(締固め)     = 掘削 − 構造物 − 基礎材
+埋戻しに要る地山量 = 埋戻し(締固め) ÷ C
+流用できる量       = min( 埋戻しに要る地山量 , 掘削地山量 × 流用率 )
+購入土             = 埋戻しに要る地山量 − 流用量      （負なら 0）
+残土               = 掘削地山量 − 流用量              （負なら 0）</pre>
+<div class="box info">
+  <b>「掘削土を埋戻しに流用する」を外すと</b>、掘削土は全量が場外搬出、埋戻しは全量が購入土になります。
+  流用できる土質でない現場や、良質土に入れ替える現場はこちらです。
+</div>
+
+<h3>ダンプの台数</h3>
+<p>1台に積める量は、<b>荷台の容積と、積載重量から決まる体積の、小さいほう</b>で決まります。</p>
+<pre>ほぐし密度      = 湿潤密度 ÷ L
+1台の積載(m³)   = min( 荷台容積 , 積載重量 ÷ ほぐし密度 )
+延べ台数        = 切上げ( 運搬ほぐし量 ÷ 1台の積載 )
+1サイクル       = 片道 ×2 ＋ 積込荷卸
+1日の回転数     = 切捨て( 運搬可能時間×60 ÷ 1サイクル )
+運搬日数        = 切上げ( 延べ台数 ÷ (回転数 × 手配台数) )</pre>
+<p>画面には「どちらで頭打ちになったか（容積 / 重量）」も出ます。
+軽い土なら容積で、重い土なら重量で先に一杯になります。</p>
+<div class="box warn">
+  <b>荷台容積は目安値です。</b>実車によって違うので、<b>④集計タブの車種ライブラリ</b>で実際の値に直してください。
+  直すとこの端末に保存されます。
+</div>
+
+<h2>② 構造検討タブ</h2>
+<p>ランキンの土圧を使った<b>慣用法の略算</b>です。壁面摩擦は見込まず（安全側）、土質は単層として扱います。</p>
+
+<table>
+  <tr><th>出るもの</th><th>意味</th></tr>
+  <tr><td>採用する根入れ長 D</td><td>受働モーメント÷Fs ≧ 主働モーメント を満たす最小の根入れ。<b>「施工上の最小根入れ長」との大きいほう</b></td></tr>
+  <tr><td>最大曲げモーメント</td><td>切梁式は支間ごとの単純梁として、自立式は片持ちとして算出</td></tr>
+  <tr><td>発生曲げ応力度 σ</td><td><code>σ = M × 1000 ÷ Z</code>。許容値と比べて OK / NG を出す</td></tr>
+  <tr><td>切梁の反力・軸力</td><td><code>N = 反力 R × 切梁の水平間隔</code></td></tr>
+  <tr><td>側圧分布図・曲げモーメント図</td><td>どこで効いているかを目で確認するため</td></tr>
+</table>
+
+<h3>「最小根入れ長」がある理由</h3>
+<div class="box warn">
+  <b>ここで計算しているのは「モーメント釣合い上の必要根入れ」だけです。</b>
+  実際の根入れは、これに加えてボイリング・ヒービング・盤ぶくれ・支持力からも決まりますが、
+  <b>それらはこのツールでは扱っていません。</b>
+  そのぶんの余裕として<b>ご自身で決める下限値</b>（既定 1.5m）を噛ませており、画面には
+  「最小根入れ長で決まっています／釣合い上の計算値は◯m」と<b>どちらで決まったかを明記</b>しています。
+  下限を 0 にすると計算値をそのまま使います。
+</div>
+
+<h3>断面の判定が「—」になるとき</h3>
+<p>選んだ部材の<b>断面係数 Z が未入力</b>だと、断面照査は行いません。
+員数と重量は有効幅だけで拾えるので数量は出ます。
+<b>④集計タブの部材ライブラリ</b>でカタログの Z を入れると、判定まで出るようになります。</p>
+
+<h2>③ 3Dビュー</h2>
+<table>
+  <tr><th>操作</th><th>効果</th></tr>
+  <tr><td>ドラッグ</td><td>回転</td></tr>
+  <tr><td>右ドラッグ / <kbd>Shift</kbd>＋ドラッグ / 2本指</td><td>移動（パン）</td></tr>
+  <tr><td>ホイール / ピンチ</td><td>拡大・縮小</td></tr>
+  <tr><td>「視点を戻す」</td><td>現場の大きさに合わせた初期視点へ</td></tr>
+</table>
+<p><b>施工段階のスライダー</b>を動かすと、現況 → 土留めの打設 → 1次掘削 → 1段目切梁 → …… → 床付け完了、
+と順に進みます。切梁を入れる前にどこまで掘るのかを、打合せの場で見せるのに使えます。</p>
+<ul>
+  <li><b>土留め材の薄い部分が根入れ</b>です（地中なので半透明で描いています）。</li>
+  <li><b>既設埋設管は透視表示</b>です。地中にあるものを見せるための表現で、
+      掘削との離れを目で見るためのものです。<b>防護の要否を判定するものではありません。</b></li>
+  <li><b>残土の山は、算出したほぐし土量と同じ体積</b>で描いています（安息角35°の円錐として）。
+      ダンプは延べ台数を表しますが、絵は6台までです。</li>
+  <li>掘削の角に立っている細い線は<b>寸法スタッフ</b>で、地中の注記をそこに揃えています。</li>
+</ul>
+
+<h2>④ 集計・印刷タブ</h2>
+<p>条件と数量総括が1枚にまとまります。<b>🖨 印刷</b>は「そのとき表示しているタブ」を印刷します。
+①や②を印刷したいときは、そのタブを開いてから押してください。</p>
+
+<h3>部材ライブラリ・車種ライブラリ</h3>
+<p>表の値を直接書き換えられます。書き換えると<b>出典が「自分で入力」に変わり、この端末に保存</b>されます。</p>
+<table>
+  <tr><th>出典</th><th>意味</th></tr>
+  <tr><td>一般値</td><td>広く使われている値。それでも手元のカタログで確認してください</td></tr>
+  <tr><td>要確認</td><td>このツールの推定値。<b>必ずカタログで確認して上書きしてください</b></td></tr>
+  <tr><td>要入力</td><td>規格値を入れていません。入れるまで断面照査を行いません</td></tr>
+  <tr><td>自分で入力</td><td>ご自身が入れた値</td></tr>
+</table>
+<div class="box info">
+  <b>軽量鋼矢板・アルミ矢板・ハット形鋼矢板が「要入力」なのは意図的です。</b>
+  制作時にメーカーのカタログを確認できなかったため、推定値で埋めるより空にしておくほうを選びました。
+  <b>間違った断面係数でOK判定が出るほうが危険だからです。</b>お手元のカタログの値を入れてお使いください。
+</div>
+
+<h3>書き出し</h3>
+<ul>
+  <li><b>📄 CSV</b> … 数量総括と条件。Excelでそのまま開けます（BOM付き）。</li>
+  <li><b>📦 JSON</b> … 入力と結果の全体。後で見返す、別のツールに渡す、といった用途に。</li>
+</ul>
+
+<h2>よくあるつまずき</h2>
+<table>
+  <tr><th>症状</th><th>見るところ</th></tr>
+  <tr><td>断面の判定が「—」のまま</td><td>部材の断面係数 Z が未入力です。④集計タブのライブラリで入れてください</td></tr>
+  <tr><td>根入れが「—」になる</td><td>受働抵抗が足りていません。φ・c を確認し、地下水位・上載荷重の設定も見直してください</td></tr>
+  <tr><td>根入れが「最小根入れ長で決まっています」と出る</td><td>釣合い上の計算値より、ご自身で設定した下限値のほうが大きい状態です。カードに計算値も併記しています</td></tr>
+  <tr><td>切梁の段が立たない</td><td>掘削が浅いと段が立ちません（最下段は床付けから1m以上上に置く決まりです）。自立として検討されます</td></tr>
+  <tr><td>3Dが真っ白／動かない</td><td>WebGL が使えない環境の可能性があります。他のタブは問題なく使えます</td></tr>
+  <tr><td>ダンプ台数が思ったより多い</td><td>「容積で頭打ち」か「重量で頭打ち」かを①タブの注記で確認し、荷台容積を実車の値に直してください</td></tr>
+</table>
+
+<h2>動作環境</h2>
+<ul>
+  <li>PC（Chrome / Edge）。<b>インターネット接続は不要</b>です（3Dも含めて完全にオフラインで動きます）。</li>
+  <li>ファイル1つで動くので、USBで現場PCに持って行ってダブルクリックでも開けます。</li>
+  <li>入力内容はブラウザの localStorage に保存されます。別のPC・別のブラウザには引き継がれません。</li>
+</ul>
+
+<footer>
+  土留め検討ツール v1.0.0　/　Created by Shota Onuma<br>
+  出力は検討用の参考値です。正式な設計計算書の代替ではありません。
+</footer>
+</main>
+</body>
+</html>
