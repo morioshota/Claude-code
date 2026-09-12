@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja" data-root="../" data-tool="koteihyo">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>工程表作成ツール — 図面つきの1ヶ月・3ヶ月工程表を、A3横1枚で | GENBA TOOLS</title>
+<meta name="description" content="現場の工程表を、図面つきでA3横1枚に。1ヶ月と3ヶ月を切替、雨休を入れれば以降の予定が自動でずれる。図面に施工箇所の番号を打って、そのまま印刷できる無料の単一HTMLツール。">
+<meta name="theme-color" content="#0a0f1c">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://morioshota.github.io/Claude-code/site/tools/koteihyo.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GENBA TOOLS">
+<meta property="og:title" content="工程表作成ツール — 図面つきの1ヶ月・3ヶ月工程表を、A3横1枚で">
+<meta property="og:description" content="雨で流れたら、以降の予定は自動でずれる。図面に施工箇所の番号を打って、A3横1枚に印刷できる現場の工程表ツール。">
+<meta property="og:url" content="https://morioshota.github.io/Claude-code/site/tools/koteihyo.html">
+<meta property="og:image" content="https://morioshota.github.io/Claude-code/site/assets/og/koteihyo.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/config.js"></script>
+<script src="../assets/tools.js"></script>
+<script src="../assets/site.js" defer></script>
+</head>
+<body>
+<div class="hazard" aria-hidden="true"></div>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../" aria-label="ホーム"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline"></small></span></a>
+    <button class="nav-toggle" aria-label="メニュー" aria-expanded="false">☰</button>
+    <nav class="nav" aria-label="ページ内">
+      <a href="../#tools">ツール一覧</a>
+      <a href="#features">できること</a>
+      <a href="#howto">使い方</a>
+      <a href="#faq">FAQ</a>
+      <a class="cta" data-tool-open href="#" target="_blank" rel="noopener">ツールを開く ↗</a>
+      <button class="theme-toggle" type="button" aria-label="テーマ切替">☀️</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="lp-hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="wrap">
+      <nav class="breadcrumb" aria-label="現在位置"><a href="../">ホーム</a><span>/</span><a href="../#tools">ツール一覧</a><span>/</span><span>工程表作成ツール</span></nav>
+      <div class="top">
+        <div>
+          <div class="no"><span class="badge" data-tool-field="no">T-0XX</span><span class="stamp released">公開中</span><span class="badge" data-tool-field="version">v1.0</span></div>
+          <h1>工程表作成ツール<small>CONSTRUCTION SCHEDULE BUILDER</small></h1>
+          <p class="lead">明細表・図面・日ごとの作業予定を、A3横1枚に収めた現場の工程表。1ヶ月と3ヶ月をワンタッチで切り替え、雨で流れた日を入れれば以降の予定が自動でずれます。図面には施工箇所の番号を打てるので、「どこを・いつ」が1枚で伝わります。</p>
+          <div class="cta-row" style="display:flex;gap:12px;flex-wrap:wrap">
+            <a class="btn primary lg" data-tool-open href="#" target="_blank" rel="noopener">ツールを開く（無料・登録不要）↗</a>
+            <a class="btn lg ghost" href="#howto">使い方を見る</a>
+          </div>
+          <div class="badges"><span class="chip">📄 単一HTML</span><span class="chip">📵 オフライン可</span><span class="chip">🖥 PC推奨</span><span class="chip">🔒 データは端末内</span></div>
+        </div>
+        <div class="browser reveal">
+          <div class="bar"><i></i><i></i><i></i><span>工程表作成ツール — 画面キャプチャ</span></div>
+          <img src="../assets/img/koteihyo.webp" alt="A3横1枚に、明細表・図面・作業予定表を収めた工程表の画面" width="1800" height="1273" style="height:auto;aspect-ratio:1800/1273;object-fit:contain;background:#fff">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:20px">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">PAIN / こんな作業、毎回やっていませんか</div><h2>雨が1日降るたび、Excelを全部ずらし直していませんか</h2></div>
+      <div class="grid cols-3">
+        <div class="card feature reveal"><div class="icon">🌧</div><h3>雨休のたびに手で組み直し</h3><p>1日中止になると、以降の予定を全部1日ずつ動かすことに。セルを切り取って貼って…を何十行分も。日曜や別現場をまたぐと数え間違いも起きます。</p></div>
+        <div class="card feature reveal d1"><div class="icon">🗺</div><h3>図面と工程が別の紙</h3><p>「箇所No.12」がどこなのか、工程表を見ても分からない。図面を別で開いて突き合わせることになり、協議の場で手が止まります。</p></div>
+        <div class="card feature reveal d2"><div class="icon">🖨</div><h3>印刷すると崩れる</h3><p>画面では整っていたのに、A3で出すと列が切れる・2枚に分かれる。倍率を触っては出し直す時間がもったいない。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" style="background:var(--bg-2)">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">FEATURES / できること</div><h2>現場が動いても、1枚が崩れない</h2><p>工程・図面・印刷を、同じ1枚の中で完結させます。</p></div>
+      <div class="grid cols-3">
+        <div class="card feature reveal"><div class="icon">🔁</div><h3>1ヶ月 ⇄ 3ヶ月</h3><p>同じデータのまま表示だけを切替。月ごとの細かい調整は1ヶ月、全体の見通しは3ヶ月で。◀▶で月を送れます。</p></div>
+        <div class="card feature reveal d1"><div class="icon">📅</div><h3>日別セル ⇄ バーチャート</h3><p>「昼夜区分・作業エリア・箇所No・作業内容・備考」を日ごとに書く見慣れた様式と、期間を横棒で見る線表。どちらも同じ予定から作られます。</p></div>
+        <div class="card feature reveal d2"><div class="icon">🌧</div><h3>休工を入れると自動でずれる</h3><p>日付をクリックして雨天中止・強風中止・休工・別現場を選ぶだけ。その日は施工日から外れ、以降の作業がまとめて後ろへ動きます。</p></div>
+        <div class="card feature reveal"><div class="icon">📌</div><h3>動かしたくない日は固定</h3><p>夜間規制を取得済み・協議済みの作業は📌で日付を固定。雨が入っても、そこだけは動きません。完了にした作業は自動で固定されます。</p></div>
+        <div class="card feature reveal d1"><div class="icon">🖱</div><h3>棒をドラッグして組み替え</h3><p>線表の棒を左右にドラッグすれば開始日、右端を引けば日数が変わります。以降の作業はその場で詰め直されます。</p></div>
+        <div class="card feature reveal d2"><div class="icon">🗺</div><h3>図面に施工箇所の番号</h3><p>上中央にPDF/画像の図面を差し込み、①②③の番号・引き出し線・管路の色分け・50m毎の区切りを書き込み。工程の行を選ぶと、図面の丸が光ります。</p></div>
+        <div class="card feature reveal"><div class="icon">🎨</div><h3>状態の色が表と図面で揃う</h3><p>予定・施工中・完了・未承諾・取消。明細表の行、線表の棒、図面の丸が同じ色になるので、進み具合がひと目で分かります。</p></div>
+        <div class="card feature reveal d1"><div class="icon">🧮</div><h3>施工日数を自動集計</h3><p>実日数 − 完了 ＝ 残日数、表ごとの日数計まで自動。日数を直せばその場で変わります。</p></div>
+        <div class="card feature reveal d2"><div class="icon">🖨</div><h3>A3横1枚でそのまま印刷</h3><p>画面の用紙がそのまま出ます。A4横にも1枚で収まり、「工程表だけ（図面を隠す）」も選べます。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="howto">
+    <div class="wrap two-col">
+      <div>
+        <div class="section-head"><div class="kicker">HOW TO / 使い方</div><h2>基本のステップ</h2></div>
+        <div class="steps">
+          <div class="step reveal"><div class="num"></div><div><h3>工事と作業を並べる</h3><p>ひな型（電線類地中化／汎用）を選び、工事名と開始日を入れます。「＋作業」で行を足して日数を入れれば、前の行の続きから日程が自動で決まります。</p></div></div>
+          <div class="step reveal d1"><div class="num"></div><div><h3>図面を入れて番号を打つ</h3><p>「図面 → 読込」でPDFや画像を上中央へ。「①番号」で施工箇所に番号を打つと、選んでいた作業の箇所Noにも自動で入ります。</p></div></div>
+          <div class="step reveal d2"><div class="num"></div><div><h3>現場が動いたら直す</h3><p>雨なら日付をクリックして「雨天中止」。動かしたくない作業は📌で固定。線表なら棒をドラッグするだけです。</p></div></div>
+          <div class="step reveal d3"><div class="num"></div><div><h3>A3で出す</h3><p>「印刷」からA3横（またはA4横）。プリンタ側は「余白なし・用紙に合わせる」。保管は「保存」でJSONに書き出します。</p></div></div>
+        </div>
+      </div>
+      <div class="gallery">
+        <figure class="reveal"><img src="../assets/img/koteihyo.webp" alt="工程表の画面" loading="lazy" style="height:auto;aspect-ratio:1800/1273;object-fit:contain;background:#fff"><figcaption>左右に明細表、上中央に図面、下に作業予定表。現場で使われている様式のまま、A3横1枚に収まります。</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="background:var(--bg-2)">
+    <div class="wrap two-col">
+      <div>
+        <div class="section-head"><div class="kicker">SPEC / 動作環境</div><h2>使う前に知っておくこと</h2></div>
+        <div class="table-wrap"><table class="spec">
+          <tr><th>対応ブラウザ</th><td>Chrome / Edge（PC）。用紙はA3横で固定</td></tr>
+          <tr><th>通信</th><td>不要。図面に<b>PDF</b>を読み込むときだけ、表示ライブラリの取得に接続が必要（画像なら完全オフライン）</td></tr>
+          <tr><th>保存先</th><td>お使いの端末の中だけ（自動保存）。受け渡し・保管はJSONファイルの書き出し／読み込み</td></tr>
+        </table></div>
+      </div>
+      <div style="display:grid;gap:16px">
+        <div class="notice reveal"><b>このツールがしないこと。</b> 工程の良し悪しを判定したり、「間に合う／間に合わない」を言ったりはしません。天気予報から雨休を自動で入れることもしません。<b>休工にするか、どの順で施工するかを決めるのは現場</b>で、ツールはその決定を1枚に反映するだけです。</div>
+        <div class="card reveal d1"><p style="margin:0 0 6px"><b>更新履歴</b> <span class="muted small">最新 <span data-tool-field="updated">—</span></span></p><ul class="timeline" id="tool-changelog" style="margin-top:12px"></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <div class="wrap" style="max-width:860px">
+      <div class="section-head"><div class="kicker">FAQ / よくある質問</div><h2>質問と答え</h2></div>
+      <div class="faq">
+        <details><summary>無料ですか。登録は要りますか。</summary><div class="a">無料で、登録も不要です。リンクを開けばすぐ使えます。</div></details>
+        <details><summary>入力したデータはどこへ行きますか。</summary><div class="a">どこへも送られません。お使いのブラウザの中に保存されるだけです。別のPCへ渡すときは「保存」でJSONを書き出してください。</div></details>
+        <details><summary>Excelの工程表から取り込めますか。</summary><div class="a">取り込み機能はありません。作業名と日数を入れ直す形になりますが、日数さえ入れれば日程は自動で決まるので、日付を打ち込む手間はありません。</div></details>
+        <details><summary>3ヶ月表示は文字が小さくなりませんか。</summary><div class="a">3ヶ月は1列が約15pxになるため、線表（バーチャート）向きです。日別セルでも出せますが、細かい文字は1ヶ月表示でご覧ください。</div></details>
+        <details><summary>スマホやタブレットでも使えますか。</summary><div class="a">A3横の用紙を扱うため、作成はPCを想定しています。</div></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap"><div class="band reveal"><div class="inner">
+      <div><h2>雨で流れた日の組み直しを、1クリックに。</h2><p>インストール不要。開いてすぐ使えます。</p></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary lg" data-tool-open href="#" target="_blank" rel="noopener">ツールを開く ↗</a><a class="btn lg" data-tool-feedback href="../feedback.html">要望・不具合を送る</a></div>
+    </div></div></div>
+  </section>
+</main>
+
+<a class="btn primary fab" data-tool-feedback href="../feedback.html">💬 <span>このツールへの要望</span></a>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="../"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline"></small></span></a>
+      <p class="copy" style="margin-top:14px">本ツールは工程表の作成補助です。施工順序・工期・休工の判断は、現場の状況と関係者協議に基づいて人が行ってください。<br>© <span data-year>2026</span> <span data-cfg="author"></span></p>
+    </div>
+    <div><h4>LINKS</h4><ul><li><a href="../#tools">ツール一覧</a></li><li><a data-tool-feedback href="../feedback.html">要望・不具合を送る</a></li><li><a data-cfg-href="repoUrl" href="#" target="_blank" rel="noopener">ソースコード（GitHub）↗</a></li></ul></div>
+    <div class="titleblock" aria-label="表題欄">
+      <div>TOOL</div><div><span data-tool-field="no"></span> <span data-tool-field="name"></span></div>
+      <div>VERSION</div><div data-tool-field="version">—</div>
+      <div>UPDATED</div><div data-tool-field="updated">—</div>
+      <div>AUTHOR</div><div data-cfg="author"></div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

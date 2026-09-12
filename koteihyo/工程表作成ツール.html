@@ -1,0 +1,1809 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工程表作成ツール｜現場の1ヶ月・3ヶ月工程表</title>
+<!-- ==========================================================
+     工程表作成ツール / Construction Schedule Builder
+     Version : 1.0.0
+     単一HTMLファイル・ビルド不要・外部依存なし
+     （PDFの図面を読み込むときだけ PDF.js を CDN から遅延ロードする）
+     仕様は README.md / コードの地図は CODE_STRUCTURE.md を参照
+     ========================================================== -->
+<style>
+:root{
+  --ink:#16222e; --ink2:#2c3e50; --panel:#f4f5f7; --line:#d4d9de; --line2:#aab3bb;
+  --accent:#12a150; --accent-d:#0b7c3c; --amber:#f7b500; --red:#d63031; --blue:#1f5f8b;
+  --sheetW:1587px; --sheetH:1122px;
+  --cDone:#cfe4f5; --cPend:#ffff66; --cCancel:#ffd3d3; --cDoing:#dcf6e3;
+  --cSun:#fde8ea; --cSat:#e9f0fb; --cOff:#e6e9ec;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%; overflow:hidden;}
+body{
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
+  font-size:13px; color:var(--ink); background:#e8ebee; display:flex; flex-direction:column;
+}
+button{font-family:inherit; cursor:pointer;}
+input,select,textarea{font-family:inherit; color:inherit;}
+
+/* ── ヘッダー（ツールバー） ── */
+header{
+  background:var(--ink); color:#fff; display:flex; align-items:center; gap:6px;
+  padding:6px 10px; flex-wrap:wrap; border-bottom:3px solid var(--accent); flex:none;
+}
+header .brand{display:flex; align-items:center; gap:8px; margin-right:6px;}
+header .brand .mark{
+  width:22px; height:22px; border:1.5px solid #fff; border-radius:3px;
+  background:
+    linear-gradient(#fff 0 0) 2px 3px/14px 2.4px no-repeat,
+    linear-gradient(var(--accent) 0 0) 2px 8px/10px 2.4px no-repeat,
+    linear-gradient(var(--amber) 0 0) 6px 13px/12px 2.4px no-repeat,
+    var(--ink);
+}
+header .brand b{font-size:14px; letter-spacing:.06em;}
+header .brand small{opacity:.65; font-size:10.5px; display:block;}
+.hbtn{background:#243342; color:#fff; border:1px solid #3a4c5e; border-radius:5px;
+  padding:5px 9px; font-size:12px; line-height:1; white-space:nowrap;}
+.hbtn:hover{background:#2f4356;}
+.hbtn.primary{background:var(--accent); border-color:var(--accent-d); color:#fff; font-weight:700;}
+.hbtn.primary:hover{background:#17b95c;}
+.hbtn.on{background:var(--amber); border-color:#c99300; color:var(--ink); font-weight:700;}
+.hbtn:disabled{opacity:.4; cursor:default;}
+.hsep{width:1px; height:22px; background:#3a4c5e; margin:0 3px;}
+.hgroup{display:flex; align-items:center; gap:4px;}
+.seg{display:flex; border:1px solid #3a4c5e; border-radius:6px; overflow:hidden;}
+.seg button{background:#243342; color:#cdd8e2; border:0; border-right:1px solid #3a4c5e;
+  padding:5px 10px; font-size:12px; line-height:1;}
+.seg button:last-child{border-right:0;}
+.seg button.on{background:var(--accent); color:#fff; font-weight:700;}
+header .lbl{font-size:10.5px; letter-spacing:.1em; color:#7d8ea0;}
+
+/* ── レイアウト ── */
+main{flex:1; display:flex; min-height:0;}
+#stageWrap{flex:1; min-width:0; position:relative; overflow:auto; background:
+  linear-gradient(#dfe3e7 1px,transparent 1px),linear-gradient(90deg,#dfe3e7 1px,transparent 1px);
+  background-size:24px 24px; background-color:#e8ebee;}
+#stage{padding:18px; width:max-content; min-width:100%;}
+#side{width:288px; flex:none; background:var(--panel); border-left:1px solid var(--line);
+  overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:10px;}
+#side.hide{display:none;}
+#side h3{font-size:11.5px; color:#5a6a78; letter-spacing:.1em; margin-bottom:7px;
+  border-bottom:2px solid var(--accent); padding-bottom:4px;}
+.pbox{background:#fff; border:1px solid var(--line); border-radius:8px; padding:9px;}
+.prow{display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:7px;}
+.prow:last-child{margin-bottom:0;}
+.prow label{font-size:11.5px; color:var(--ink2); flex:none;}
+.prow input[type=text],.prow input[type=number],.prow input[type=date],.prow select{
+  flex:1; min-width:0; border:1px solid var(--line); border-radius:4px; padding:4px 6px; font-size:12px; background:#fff;}
+.prow textarea{flex:1; min-width:0; border:1px solid var(--line); border-radius:4px; padding:4px 6px;
+  font-size:12px; resize:vertical; min-height:44px;}
+.pbtn{background:#fff; border:1px solid var(--line2); border-radius:5px; padding:5px 8px; font-size:11.5px;}
+.pbtn:hover{background:#eef4f8; border-color:var(--blue);}
+.pbtn.on{background:var(--accent); border-color:var(--accent-d); color:#fff; font-weight:700;}
+.pbtn.danger{color:var(--red); border-color:#e9b3b3;}
+.pbtn.danger:hover{background:#fdecec;}
+.pgrid{display:grid; grid-template-columns:1fr 1fr; gap:5px;}
+.pgrid.c3{grid-template-columns:1fr 1fr 1fr;}
+.phint{font-size:10.5px; color:#6b7a88; line-height:1.5; margin-top:6px;}
+.swatch{width:16px;height:16px;border:1px solid var(--line2);border-radius:3px;display:inline-block;vertical-align:-3px;}
+
+/* ── フッター ── */
+footer{background:#1b2a38; color:#9fb0c0; font-size:11px; padding:4px 10px; display:flex;
+  gap:14px; align-items:center; flex:none;}
+footer b{color:#dbe6ef; font-weight:600;}
+
+/* ── トースト / ヒント ── */
+#toast{position:fixed; left:50%; bottom:44px; transform:translateX(-50%);
+  background:rgba(22,34,46,.96); color:#fff; padding:10px 16px; border-radius:8px;
+  font-size:12.5px; line-height:1.5; max-width:80%; text-align:center; z-index:60;
+  box-shadow:0 4px 16px rgba(0,0,0,.3); border:1px solid var(--accent);
+  opacity:0; pointer-events:none; transition:opacity .25s;}
+#toast.show{opacity:1;}
+#toast.warn{border-color:var(--red);}
+#hint{position:fixed; left:50%; transform:translateX(-50%); top:58px;
+  background:rgba(22,34,46,.94); color:#fff; padding:7px 14px; border-radius:20px;
+  font-size:12.5px; pointer-events:none; display:none; z-index:55;
+  box-shadow:0 2px 10px rgba(0,0,0,.25); border:1px solid var(--accent);}
+#hint.show{display:block;}
+
+/* ── モーダル ── */
+.modal{position:fixed; inset:0; background:rgba(12,20,28,.55); display:none;
+  align-items:center; justify-content:center; z-index:80; padding:20px;}
+.modal.show{display:flex;}
+.mbox{background:#fff; border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,.3);
+  width:min(560px,94vw); max-height:88vh; overflow:auto; padding:18px 20px;}
+.mbox h2{font-size:16px; margin-bottom:4px;}
+.mbox p.sub{font-size:12px; color:#5a6a78; line-height:1.6; margin-bottom:12px;}
+.mbox .mrow{display:flex; align-items:center; gap:8px; margin-bottom:9px;}
+.mbox .mrow label{width:96px; flex:none; font-size:12.5px; color:var(--ink2);}
+.mbox .mrow input,.mbox .mrow select{flex:1; border:1px solid var(--line); border-radius:5px; padding:6px 8px; font-size:13px;}
+.mbox .mfoot{display:flex; justify-content:flex-end; gap:8px; margin-top:14px;}
+.mbtn{border:1px solid var(--line2); background:#fff; border-radius:6px; padding:7px 14px; font-size:13px;}
+.mbtn.primary{background:var(--accent); border-color:var(--accent-d); color:#fff; font-weight:700;}
+.mbtn:hover{filter:brightness(1.05);}
+.merr{color:var(--red); font-size:12px; min-height:16px;}
+.tplPick{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:10px 0;}
+.tplCard{border:2px solid var(--line); border-radius:8px; padding:10px; text-align:left; background:#fff;}
+.tplCard.on{border-color:var(--accent); background:#f1fbf5;}
+.tplCard b{display:block; font-size:13px; margin-bottom:4px;}
+.tplCard span{font-size:11px; color:#5a6a78; line-height:1.5;}
+
+/* ══════════════════════════════════════════════════════════
+   用紙（A3横 1587×1122px＝420×297mm相当）— 画面に出ているものが
+   そのまま印刷される。以下は「紙の中身」のスタイル
+   ══════════════════════════════════════════════════════════ */
+#sheet{
+  width:var(--sheetW); height:var(--sheetH); background:#fff; position:relative;
+  box-shadow:0 6px 30px rgba(22,34,46,.22); transform-origin:0 0;
+  padding:20px 22px; display:flex; flex-direction:column; gap:6px; color:#111;
+}
+#sheet input,#sheet textarea,#sheet select{
+  border:0; background:transparent; font-size:inherit; color:inherit; padding:0 2px;
+  width:100%; min-width:0; font-family:inherit; line-height:inherit;
+}
+#sheet input:hover,#sheet textarea:hover,#sheet select:hover{background:#eef7ff; border-radius:2px;}
+#sheet input:focus,#sheet textarea:focus,#sheet select:focus{outline:2px solid var(--accent); background:#fff; border-radius:2px;}
+#sheet textarea{resize:none; overflow:hidden;}
+.ta-c{text-align:center;} .ta-r{text-align:right;}
+
+/* ── 表題欄 ── */
+.shHead{flex:none; border-bottom:2px solid #111; padding-bottom:5px; position:relative;}
+.shTitle{text-align:center; font-size:21px; font-weight:700; letter-spacing:.06em; margin-bottom:2px;}
+.shTitle input{text-align:center; font-weight:700;}
+.shMetaRow{display:flex; align-items:flex-end; gap:10px; font-size:11.5px;}
+.shMetaL{flex:1; display:flex; gap:6px; align-items:center;}
+.shMetaL .k{flex:none; color:#111;}
+.shMetaR{flex:none; width:330px; text-align:right; line-height:1.55;}
+.shMetaR div{display:flex; justify-content:flex-end; gap:4px;}
+.shMetaR .k{flex:none;}
+.shMetaR input{width:200px; text-align:right;}
+.shAsOf{position:absolute; right:0; top:-2px; font-size:11.5px;}
+.shAsOf input{width:150px; text-align:right;}
+
+/* ── 中段（明細表 ／ 図面 ／ 明細表） ── */
+.shMid{flex:1; min-height:0; display:flex; gap:6px;}
+.shSide{width:var(--sideW,300px); flex:none; display:flex; flex-direction:column; gap:6px; overflow:hidden;}
+.shSide.hidden{display:none;}
+.shDwg{flex:1; min-width:0; position:relative; display:flex; flex-direction:column;}
+
+/* 明細表 */
+.blk{border:1px solid #111;}
+.blk > .blkTitle{background:#eef1f4; border-bottom:1px solid #111; font-size:11px; font-weight:700;
+  padding:1px 4px; display:flex; align-items:center; gap:4px;}
+.blk > .blkTitle input{font-weight:700;}
+.dt{width:100%; border-collapse:collapse; font-size:8.6px; line-height:1.25; table-layout:fixed;}
+.dt th,.dt td{border:1px solid #6b7680; padding:0 1px; height:13px; overflow:hidden; vertical-align:middle;}
+.dt th{background:#f2f4f6; font-weight:600; font-size:8px; text-align:center; color:#222;}
+.dt td.area{background:#fdf3e6; text-align:center; font-weight:700; font-size:10px;}
+.dt td.ctr{text-align:center;}
+.dt tr.st-done > td:not(.area){background:var(--cDone);}
+.dt tr.st-pending > td:not(.area){background:var(--cPend);}
+.dt tr.st-cancel > td:not(.area){background:var(--cCancel);}
+.dt tr.st-doing > td:not(.area){background:var(--cDoing);}
+.dt tr.sel > td{box-shadow:inset 0 0 0 2px var(--accent);}
+.dt tr:hover > td{filter:brightness(.97);}
+.blkFoot{display:flex; justify-content:flex-end; gap:10px; font-size:9px; padding:1px 4px; background:#fafbfc;
+  border-top:1px solid #6b7680;}
+.blkFoot b{font-weight:700;}
+.sumBox{border:1px solid #111; padding:4px 6px; font-size:11px; text-align:center; background:#fff;}
+.sumBox .lbls{display:flex; justify-content:center; gap:18px; font-size:8.5px; color:#444; margin-bottom:1px;}
+.sumBox .nums{display:flex; justify-content:center; align-items:baseline; gap:8px; font-size:13px; font-weight:700;}
+.sumBox .nums .n1{color:#111;} .sumBox .nums .n2{color:var(--red);} .sumBox .nums .n3{color:var(--blue);}
+.sumBox .cap{font-size:10px; font-weight:700; color:var(--blue); margin-right:4px;}
+
+/* ── 図面枠 ── */
+.dwgBox{flex:1; min-height:0; border:1px solid #111; position:relative; overflow:hidden; background:#fff;}
+.dwgBox.empty{display:flex; align-items:center; justify-content:center; background:
+  repeating-linear-gradient(45deg,#f7f9fa 0 10px,#f1f4f6 10px 20px);}
+.dwgEmptyMsg{text-align:center; color:#8b98a4; font-size:13px; line-height:1.8;}
+.dwgEmptyMsg b{display:block; font-size:15px; color:#5a6a78; margin-bottom:4px;}
+#dwgImg{position:absolute; left:0; top:0; transform-origin:0 0; image-rendering:auto; user-select:none; -webkit-user-drag:none;}
+#dwgSvg{position:absolute; inset:0; width:100%; height:100%;}
+#dwgSvg .mk{cursor:move;}
+#dwgSvg .mk.sel circle,#dwgSvg .mk.sel rect,#dwgSvg .mk.sel .box{stroke:#12a150; stroke-width:2.4;}
+#dwgSvg .hl{animation:mkPulse 1.1s ease-in-out infinite;}
+@keyframes mkPulse{0%,100%{opacity:1} 50%{opacity:.35}}
+#dwgSvg text{user-select:none;}
+.dwgLegend{position:absolute; right:5px; bottom:5px; background:rgba(255,255,255,.94); border:1px solid #111;
+  padding:3px 6px; font-size:9px; line-height:1.5; min-width:118px;}
+.dwgLegend .lgTitle{text-align:center; font-weight:700; letter-spacing:.3em; border-bottom:1px solid #999; margin-bottom:2px;}
+.dwgLegend .lgRow{display:flex; align-items:center; gap:4px;}
+.dwgLegend .lgRow .sw{width:26px; height:9px; flex:none; border:0;}
+.dwgLegend .lgRow .swl{width:26px; height:0; flex:none; border-top-width:2px; border-top-style:solid;}
+.dwgLegend .lgRow input{font-size:9px;}
+.dwgStat{position:absolute; right:5px; top:5px; background:rgba(255,255,255,.94); border:1px solid #111;
+  padding:3px 6px; font-size:9px; line-height:1.6;}
+.dwgStat .lgRow{display:flex; align-items:center; gap:5px;}
+.dwgStat .sw{width:30px; height:10px; border:1px solid #444; flex:none;}
+.dwgTools{position:absolute; left:5px; top:5px; display:flex; gap:3px; flex-wrap:wrap; width:150px;}
+.dwgTools button{background:rgba(255,255,255,.95); border:1px solid var(--line2); border-radius:4px;
+  font-size:10.5px; padding:3px 6px; line-height:1;}
+.dwgTools button.on{background:var(--accent); color:#fff; border-color:var(--accent-d); font-weight:700;}
+.dwgZoom{position:absolute; left:5px; bottom:5px; display:flex; gap:3px;}
+.dwgZoom button{background:rgba(255,255,255,.95); border:1px solid var(--line2); border-radius:4px;
+  font-size:11px; padding:2px 7px; line-height:1.3;}
+
+/* ── 下段：工程表 ── */
+.shBot{flex:none; height:var(--botH,326px); display:flex; flex-direction:column; min-height:0;}
+.botCap{font-size:11px; font-weight:700; margin-bottom:2px; display:flex; align-items:center; gap:8px;}
+.botCap .tag{font-size:9px; font-weight:400; color:#555; border:1px solid #bbb; border-radius:3px; padding:0 4px;}
+.sch{flex:1; min-height:0; border:1px solid #111; overflow:hidden; display:flex; flex-direction:column;
+  --colW:44px; --labW:150px;}
+.schScroll{flex:1; min-height:0; overflow:hidden; position:relative;}
+.schScroll.scroll{overflow-y:auto;}
+.schOv{position:absolute; left:var(--labW); right:0; bottom:0; pointer-events:none;}
+.schOv i{position:absolute; top:0; bottom:0; display:block;}
+.schOv i.wk{background:rgba(22,34,46,.055);}
+.schOv i.off{background:rgba(31,95,139,.13);}
+.schOv i.now{background:var(--amber); width:2px; opacity:.85;}
+.capWarn{color:#d63031; font-weight:700;}
+.srow{display:grid; grid-template-columns:var(--labW) repeat(var(--nCol),var(--colW)); align-items:stretch;}
+.srow > div{border-right:1px solid #6b7680; border-bottom:1px solid #6b7680; min-width:0; overflow:hidden;
+  font-size:9.5px; line-height:1.2; display:flex; align-items:center; justify-content:center; text-align:center;
+  padding:0 1px;}
+.srow > div.lab{justify-content:center; background:#f2f4f6; font-weight:600; font-size:10px;
+  border-right:1px solid #111;}
+.srow.hdM > div{height:16px; font-weight:700; background:#e9edf1; font-size:10.5px;}
+.srow.hdD > div{height:15px; font-weight:700; background:#fff;}
+.srow.hdW > div{height:14px; color:#333;}
+.srow.body > div{height:var(--rowH,20px);}
+.srow .sun{background:var(--cSun);} .srow .sat{background:var(--cSat);}
+.srow .offd{background:var(--cOff);}
+.srow .today{box-shadow:inset 0 0 0 2px var(--amber);}
+.dowSun{color:#c0392b;} .dowSat{color:#1f5f8b;}
+.cellSpan{justify-content:center; font-size:9.5px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+.cellSpan.fill{background:#eef7f1;}
+.cellNote{align-items:flex-start !important; justify-content:flex-start !important; text-align:left; padding:1px 2px !important;}
+.cellNote textarea{font-size:8.4px; line-height:1.25; color:#c0392b; height:100%;}
+.offTag{font-size:8.5px; color:#555; writing-mode:vertical-rl; letter-spacing:.04em;}
+.offTag.rain{color:#1f5f8b;}
+/* バーチャート */
+.barRow{position:relative;}
+.barLane{position:relative; grid-column:2 / -1; height:100%;}
+.bar{position:absolute; top:2px; bottom:2px; border-radius:3px; background:var(--accent);
+  color:#fff; font-size:9px; line-height:1; display:flex; align-items:center; padding:0 3px;
+  box-shadow:0 1px 2px rgba(0,0,0,.22); cursor:grab; white-space:nowrap; overflow:hidden;}
+.bar.sel{outline:2px solid #111; outline-offset:1px;}
+.bar .rz{position:absolute; right:-3px; top:0; bottom:0; width:8px; cursor:ew-resize;}
+.bar .pin{margin-right:2px;}
+.bar .prog{position:absolute; left:0; top:0; bottom:0; background:rgba(255,255,255,.42); border-radius:3px 0 0 3px;}
+.bar .txt{position:relative; z-index:1; overflow:hidden; text-overflow:ellipsis;}
+.bar.st-done{background:#2f6f9e;} .bar.st-pending{background:#c99300;}
+.bar.st-cancel{background:#9aa4ad; text-decoration:line-through;}
+.bar.st-doing{background:#12a150;}
+.barLab{display:grid; grid-template-columns:22px 1fr 26px; gap:0; align-items:center; width:100%; height:100%;}
+.barLab .a{font-size:9.5px; font-weight:700; text-align:center; background:#fdf3e6; height:100%; display:flex; align-items:center; justify-content:center;}
+.barLab .n{font-size:9px; text-align:left; padding-left:3px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+.barLab .d{font-size:9px; text-align:center;}
+.grpRow{grid-column:1 / -1; background:#e9edf1; font-size:9.5px; font-weight:700; height:14px;
+  display:flex; align-items:center; padding-left:4px; border-bottom:1px solid #6b7680;}
+.schEmpty{padding:18px; text-align:center; color:#8b98a4; font-size:12px;}
+
+/* ── 印刷 ── */
+@media print{
+  html,body{overflow:visible; background:#fff;}
+  header,footer,#side,#hint,#toast,.modal,.dwgTools,.dwgZoom{display:none !important;}
+  main{display:block;}
+  #stageWrap{overflow:visible; background:#fff;}
+  #stage{padding:0; width:auto;}
+  #sheet{box-shadow:none; margin:0;}
+  #sheet input:hover,#sheet textarea:hover{background:transparent;}
+  .bar{box-shadow:none;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ ヘッダー（ツールバー） ══════════ -->
+<header>
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <span><b>工程表作成ツール</b><small>1ヶ月／3ヶ月・図面つき・現場対応</small></span>
+  </div>
+  <div class="hsep"></div>
+  <div class="hgroup">
+    <button class="hbtn" id="btnNew">新規</button>
+    <button class="hbtn" id="btnOpen">開く</button>
+    <button class="hbtn" id="btnSave">保存</button>
+  </div>
+  <div class="hsep"></div>
+  <div class="hgroup">
+    <span class="lbl">図面</span>
+    <button class="hbtn" id="btnDwg">読込</button>
+    <button class="hbtn" id="btnDwgClear">消去</button>
+  </div>
+  <div class="hsep"></div>
+  <div class="hgroup">
+    <div class="seg" id="segRange">
+      <button data-range="1" class="on">1ヶ月</button>
+      <button data-range="3">3ヶ月</button>
+    </div>
+    <div class="seg" id="segMode">
+      <button data-mode="cell" class="on">日別セル</button>
+      <button data-mode="bar">バーチャート</button>
+    </div>
+    <button class="hbtn" id="btnPrev">◀</button>
+    <span id="rangeLabel" style="font-size:12px;min-width:118px;text-align:center"></span>
+    <button class="hbtn" id="btnNext">▶</button>
+  </div>
+  <div class="hsep"></div>
+  <div class="hgroup">
+    <button class="hbtn primary" id="btnAddTask">＋作業</button>
+    <button class="hbtn" id="btnUndo" title="Ctrl+Z">↶</button>
+    <button class="hbtn" id="btnRedo" title="Ctrl+Y">↷</button>
+  </div>
+  <div class="hsep"></div>
+  <div class="hgroup">
+    <button class="hbtn" id="btnZoomOut">−</button>
+    <span id="zoomLabel" style="font-size:11.5px;min-width:38px;text-align:center">—</span>
+    <button class="hbtn" id="btnZoomIn">＋</button>
+    <button class="hbtn" id="btnZoomFit">幅に合わせる</button>
+  </div>
+  <div class="hsep"></div>
+  <div class="hgroup">
+    <button class="hbtn primary" id="btnPrint">印刷</button>
+    <button class="hbtn" id="btnHelp">使い方</button>
+    <button class="hbtn" id="btnSide">パネル</button>
+  </div>
+</header>
+
+<!-- ══════════ 本体 ══════════ -->
+<main>
+  <div id="stageWrap">
+    <div id="stage">
+      <div id="sheet">
+
+        <!-- 表題欄 -->
+        <div class="shHead">
+          <div class="shAsOf"><input data-meta="asOfText" placeholder="令和7年11月4日 現在"></div>
+          <div class="shTitle"><input data-meta="title" placeholder="工事名を入力"></div>
+          <div class="shMetaRow">
+            <div class="shMetaL">
+              <span class="k">施工箇所 ：</span><input data-meta="site" placeholder="〇〇区〇〇一丁目地内 ～ 〇〇二丁目地内">
+            </div>
+            <div class="shMetaR">
+              <div><span class="k">施工会社：</span><input data-meta="company" placeholder="〇〇建設株式会社"></div>
+              <div><span class="k">現場代理人：</span><input data-meta="agent" placeholder="〇〇 〇〇"></div>
+              <div><span class="k">連絡先：</span><input data-meta="tel" placeholder="00-0000-0000"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 中段：明細表｜図面｜明細表 -->
+        <div class="shMid">
+          <div class="shSide" id="sideL"></div>
+          <div class="shDwg">
+            <div class="dwgBox empty" id="dwgBox">
+              <img id="dwgImg" alt="" hidden>
+              <svg id="dwgSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+              <div class="dwgEmptyMsg" id="dwgEmpty">
+                <b>図面をここに</b>
+                ヘッダーの「図面 → 読込」から<br>平面図（PDF / PNG / JPG）を読み込むと<br>この枠に入り、番号マークを打てます。
+              </div>
+              <div class="dwgTools" id="dwgTools"></div>
+              <div class="dwgZoom" id="dwgZoom"></div>
+              <div class="dwgStat" id="dwgStat"></div>
+              <div class="dwgLegend" id="dwgLegend"></div>
+            </div>
+          </div>
+          <div class="shSide" id="sideR"></div>
+        </div>
+
+        <!-- 下段：工程表 -->
+        <div class="shBot">
+          <div class="botCap"><span id="botCapTitle">作業予定表</span><span class="tag" id="botCapTag"></span><span class="capWarn" id="botCapWarn"></span></div>
+          <div class="sch" id="sch"><div class="schScroll" id="schScroll"></div></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 右パネル -->
+  <aside id="side">
+    <div class="pbox" id="pSel"></div>
+    <div class="pbox" id="pOff"></div>
+    <div class="pbox" id="pView"></div>
+    <div class="pbox" id="pLegend"></div>
+  </aside>
+</main>
+
+<footer>
+  <span>工期: <b id="ftTerm">—</b></span>
+  <span>実日数 <b id="ftDays">0</b> − 完了 <b id="ftDone">0</b> ＝ 残 <b id="ftLeft">0</b></span>
+  <span id="ftSel">—</span>
+  <span style="margin-left:auto" id="ftSave">自動保存: —</span>
+</footer>
+
+<div id="hint"></div>
+<div id="toast"></div>
+
+<!-- ══════════ モーダル ══════════ -->
+<div class="modal" id="newModal"><div class="mbox">
+  <h2>新しい工程表をつくる</h2>
+  <p class="sub">ひな型を選ぶと、明細表の見出し・区分の候補・凡例がその工種向けに入ります。あとから自由に書き換えられます。</p>
+  <div class="tplPick" id="tplPick"></div>
+  <div class="mrow"><label>工事名</label><input id="nwTitle" placeholder="〇〇工事"></div>
+  <div class="mrow"><label>開始日</label><input id="nwStart" type="date"></div>
+  <div class="mrow"><label>定休日</label><select id="nwOff">
+    <option value="0">日曜が休み</option><option value="0,6">土日が休み</option><option value="">定休日なし（毎日施工）</option>
+  </select></div>
+  <div class="merr" id="nwErr"></div>
+  <div class="mfoot"><button class="mbtn" id="nwCancel">キャンセル</button><button class="mbtn primary" id="nwGo">作成</button></div>
+</div></div>
+
+<div class="modal" id="printModal"><div class="mbox">
+  <h2>印刷</h2>
+  <p class="sub">画面の用紙がそのまま1枚に出ます。プリンタの設定では「余白：なし」「倍率：用紙に合わせる」を選んでください。</p>
+  <div class="mrow"><label>用紙</label><select id="prSize"><option value="A3">A3 横</option><option value="A4">A4 横</option></select></div>
+  <div class="mrow"><label>図面</label><select id="prDwg"><option value="1">図面を含める（通常）</option><option value="0">工程表だけ（図面を隠す）</option></select></div>
+  <div class="mfoot"><button class="mbtn" id="prCancel">キャンセル</button><button class="mbtn primary" id="prGo">印刷する</button></div>
+</div></div>
+
+<div class="modal" id="inputModal"><div class="mbox" style="width:min(430px,94vw)">
+  <h2 id="imTitle">入力</h2>
+  <p class="sub" id="imMsg"></p>
+  <input id="imField" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:7px 9px;font-size:14px">
+  <div class="merr" id="imErr"></div>
+  <div class="mfoot"><button class="mbtn" id="imCancel">キャンセル</button><button class="mbtn primary" id="imOk">OK</button></div>
+</div></div>
+
+<div class="modal" id="helpModal"><div class="mbox" style="width:min(720px,94vw)">
+  <h2>使い方</h2>
+  <div id="helpBody" style="font-size:12.5px;line-height:1.75;color:#26323d"></div>
+  <div class="mfoot"><button class="mbtn primary" id="hpClose">閉じる</button></div>
+</div></div>
+
+<input type="file" id="fileDwg" accept="image/*,application/pdf" hidden>
+<input type="file" id="fileJson" accept=".json,application/json" hidden>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════════
+   工程表作成ツール — 本体
+   セクション: 定数/ひな型 → 状態 → 日付ユーティリティ → 工程エンジン
+             → 描画(表題/明細/図面/工程表) → 操作 → 右パネル → 入出力/印刷 → 初期化
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ---------- 定数・ひな型 ---------- */
+const LS_KEY = 'koteihyo-v1';
+const DOW = ['日','月','火','水','木','金','土'];
+const STATUS = {
+  plan:    { label:'予定',   fill:'#ffffff', line:'#333333' },
+  doing:   { label:'施工中', fill:'#dcf6e3', line:'#12a150' },
+  done:    { label:'完了',   fill:'#cfe4f5', line:'#1f5f8b' },
+  pending: { label:'未承諾', fill:'#ffff66', line:'#b08900' },
+  cancel:  { label:'取消',   fill:'#ff4d4d', line:'#b32020' },
+};
+const OFFTYPE = {
+  rain:  { label:'雨天中止', short:'雨', color:'#dbe8f5' },
+  wind:  { label:'強風中止', short:'風', color:'#dbe8f5' },
+  off:   { label:'休工',     short:'休', color:'#e6e9ec' },
+  other: { label:'別現場',   short:'他', color:'#f1e7d8' },
+};
+const TEMPLATES = {
+  chichuka: {
+    label:'電線類地中化', desc:'引上／連系／撤去、図面番号・箇所No・官地民地まで入った現場向けのひな型。',
+    colLabels:{ area:'', kind:'区分', name:'路線名・箇所', days:'日数', dwgno:'図面番号', spots:'箇所No', prog:'進捗率', n1:'官地', n2:'民地' },
+    cols:{ area:1, kind:1, name:1, days:1, dwgno:1, spots:1, prog:1, n1:1, n2:1 },
+    blocks:[ {title:'新設西側',side:'L'}, {title:'撤去',side:'L'}, {title:'新設東側',side:'R'} ],
+    kinds:['引上','連系','撤去','試掘'],
+    contents:['引込','連系','カッター','掘削','管路布設','埋戻','仮復旧','本復旧','別現場'],
+    legend:[ {k:'line',c:'#e03131',t:'加入者引上管路'}, {k:'line',c:'#2f9e44',t:'連系管路'},
+             {k:'line',c:'#7048e8',t:'管路撤去'}, {k:'line',c:'#22b8cf',t:'施工完了箇所'} ],
+  },
+  general: {
+    label:'汎用（土木一般）', desc:'工区・工種・作業名の素直な構成。掘削〜舗装など一般的な土木工事に。',
+    colLabels:{ area:'', kind:'工種', name:'作業名', days:'日数', dwgno:'図面番号', spots:'箇所No', prog:'進捗率', n1:'班', n2:'備考' },
+    cols:{ area:1, kind:1, name:1, days:1, dwgno:1, spots:1, prog:1, n1:0, n2:0 },
+    blocks:[ {title:'工程明細',side:'L'}, {title:'付帯工',side:'R'} ],
+    kinds:['準備工','土工','躯体工','舗装工','付帯工','撤去工'],
+    contents:['準備','掘削','床付','型枠','配筋','打設','養生','埋戻','締固め','舗装','片付け','別現場'],
+    legend:[ {k:'line',c:'#e03131',t:'施工範囲'}, {k:'line',c:'#2f9e44',t:'既設構造物'}, {k:'line',c:'#7048e8',t:'撤去範囲'} ],
+  },
+};
+
+/* ---------- 状態 ---------- */
+let state = null;                 // 下の newState() で作る
+let sel = { type:null, id:null };  // 選択中（task / mark）
+let ui = { zoom:1, tool:'select', drag:null, dwgDrag:null, tplPick:'chichuka', dirtyTimer:null };
+let undoStack = [], redoStack = [];
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+function newState(tplKey, title, start, weeklyOff){
+  const tpl = TEMPLATES[tplKey] || TEMPLATES.general;
+  const blocks = tpl.blocks.map(b => ({ id:uid(), title:b.title, side:b.side }));
+  return {
+    ver:1, tpl:tplKey,
+    meta:{ title:title||'', site:'', company:'', agent:'', tel:'', asOfText:waText(start), start:start },
+    opt:{
+      weeklyOff: weeklyOff.slice(), sideW:300, botH:326, markSize:1,
+      showSideL:true, showSideR:true, showDwg:true, showLegend:true, showStat:true,
+      cols:Object.assign({},tpl.cols), colLabels:Object.assign({},tpl.colLabels),
+      kinds:tpl.kinds.slice(), contents:tpl.contents.slice(),
+    },
+    blocks,
+    tasks:[],
+    marks:[],
+    legend: tpl.legend.map(l => ({ id:uid(), kind:l.k, color:l.c, text:l.t })),
+    dwg:null,
+    off:{}, dayNotes:{},
+    view:{ mode:'cell', range:1, anchor: start.slice(0,7) },
+  };
+}
+function newTask(blockId){
+  const b = state.blocks.find(x=>x.id===blockId) || state.blocks[0];
+  return { id:uid(), blockId:b.id, area:'', kind:'', name:'', days:1, dwgno:'', spots:'',
+           prog:0, n1:'', n2:'', shift:'昼', content:'', status:'plan', pin:null };
+}
+
+/* ---------- 日付ユーティリティ ---------- */
+// 文字列 'YYYY-MM-DD' を正として扱う。Date は正午固定で作り、夏時間・時差でずれないようにする
+function pd(s){ const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d, 12, 0, 0); }
+function fd(dt){ const p=n=>String(n).padStart(2,'0'); return dt.getFullYear()+'-'+p(dt.getMonth()+1)+'-'+p(dt.getDate()); }
+function addD(s,n){ const d=pd(s); d.setDate(d.getDate()+n); return fd(d); }
+function dowOf(s){ return pd(s).getDay(); }
+function diffD(a,b){ return Math.round((pd(b)-pd(a))/86400000); }
+function todayStr(){ return fd(new Date()); }
+function monthAdd(ym,n){ const [y,m]=ym.split('-').map(Number); const d=new Date(y,m-1+n,1,12); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function daysInMonth(ym){ const [y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate(); }
+function waText(s){ // 令和表記（令和=西暦-2018年）。基準日欄の初期値に使うだけで、以後は自由入力
+  const d = pd(s), y = d.getFullYear()-2018;
+  return (y>=1 ? '令和'+(y===1?'元':y)+'年' : d.getFullYear()+'年') + (d.getMonth()+1) + '月' + d.getDate() + '日 現在';
+}
+function isWeeklyOff(s){ return state.opt.weeklyOff.includes(dowOf(s)); }
+function offInfo(s){ return state.off[s] || null; }
+function isOffDay(s){ return !!state.off[s] || isWeeklyOff(s); }
+/** start から数えて days 日ぶんの「施工する日」を返す（休工日・定休日は飛ばす） */
+function workDates(start, days){
+  const out = []; let d = start, guard = 0;
+  while (out.length < days && guard++ < 2000){ if (!isOffDay(d)) out.push(d); d = addD(d,1); }
+  return out;
+}
+function nextWork(s){ let d=s, g=0; while (isOffDay(d) && g++<2000) d = addD(d,1); return d; }
+
+/* ---------- 工程エンジン ----------
+   ・作業は明細表の並び順に、前の作業の翌施工日から詰めて始まる（チェーン）
+   ・📌ピン（pin）が付いた作業はその日から動かない。以降の作業はそこから詰め直す
+   ・休工日を入れると施工日が減るので、以降が自動で後ろへずれる
+   ・状態=取消 の作業は日数を食わない（線表にも出さない） */
+function compute(){
+  let cursor = state.meta.start;
+  let overlapped = false;
+  for (const t of state.tasks){
+    t._dates = []; t._start = null; t._end = null; t._overlap = false;
+    if (t.status === 'cancel'){ continue; }
+    const days = Math.max(1, Number(t.days)||1);
+    let s;
+    if (t.pin){
+      s = nextWork(t.pin);
+      if (diffD(cursor, s) < 0){ t._overlap = true; overlapped = true; }
+    } else {
+      s = nextWork(cursor);
+    }
+    const ds = workDates(s, days);
+    t._dates = ds; t._start = ds[0]; t._end = ds[ds.length-1];
+    const nxt = addD(t._end, 1);
+    if (diffD(cursor, nxt) > 0) cursor = nxt;
+  }
+  state._overlap = overlapped;
+  state._end = state.tasks.reduce((a,t)=> (t._end && (!a || diffD(a,t._end)>0)) ? t._end : a, null);
+}
+function totals(){
+  let plan=0, done=0;
+  for (const t of state.tasks){
+    if (t.status === 'cancel') continue;
+    const d = Math.max(1, Number(t.days)||1);
+    plan += d; if (t.status === 'done') done += d;
+  }
+  return { plan, done, left: plan-done };
+}
+function blockTotals(blockId){
+  let plan=0, done=0;
+  for (const t of state.tasks){
+    if (t.blockId !== blockId || t.status === 'cancel') continue;
+    const d = Math.max(1, Number(t.days)||1);
+    plan += d; if (t.status === 'done') done += d;
+  }
+  return { plan, done };
+}
+/** 表示中の期間（1ヶ月＝当月／3ヶ月＝当月＋2ヶ月）の日付配列 */
+function rangeDates(){
+  const out = [];
+  for (let i=0; i<state.view.range; i++){
+    const ym = monthAdd(state.view.anchor, i), n = daysInMonth(ym);
+    for (let d=1; d<=n; d++) out.push(ym+'-'+String(d).padStart(2,'0'));
+  }
+  return out;
+}
+function tasksOn(date){ return state.tasks.filter(t => t._dates && t._dates.includes(date)); }
+
+/* ---------- Undo / 自動保存 ---------- */
+// 図面の画像データ(dataURL)は重いので履歴には積まない。取り消しても図面はそのまま残る
+function snap(){ const c = Object.assign({}, state, { dwg: state.dwg ? Object.assign({},state.dwg,{dataURL:null}) : null }); return JSON.stringify(c); }
+function pushUndo(){ undoStack.push(snap()); if (undoStack.length>60) undoStack.shift(); redoStack.length=0; updateUndoBtns(); }
+function applySnap(js){
+  const keepImg = state.dwg && state.dwg.dataURL;
+  const o = JSON.parse(js);
+  if (o.dwg && !o.dwg.dataURL) o.dwg.dataURL = keepImg || null;
+  state = o; sel = { type:null, id:null };
+  renderAll(); autosave();
+}
+function undo(){ if (!undoStack.length) return; redoStack.push(snap()); applySnap(undoStack.pop()); updateUndoBtns(); }
+function redo(){ if (!redoStack.length) return; undoStack.push(snap()); applySnap(redoStack.pop()); updateUndoBtns(); }
+function updateUndoBtns(){
+  document.getElementById('btnUndo').disabled = !undoStack.length;
+  document.getElementById('btnRedo').disabled = !redoStack.length;
+}
+/** 入力欄の編集: 入る前の状態を控えて(beginEdit)、変わっていたら履歴に積む(commitEdit)。
+    値が変わったあとに pushUndo() すると「取り消しても戻らない」ため、この2段構えにしている */
+function beginEdit(){ if (!ui.editSnap) ui.editSnap = snap(); }
+function commitEdit(){
+  if (!ui.editSnap) return;
+  const before = ui.editSnap; ui.editSnap = null;
+  if (before === snap()) return;
+  undoStack.push(before); if (undoStack.length>60) undoStack.shift();
+  redoStack.length = 0; updateUndoBtns();
+}
+/** 明細表は行の結合(エリア)や色が変わるので作り直すが、打っていた欄へ必ず戻す */
+function scheduleSidesRefresh(){
+  clearTimeout(ui.sidesTimer);
+  ui.sidesTimer = setTimeout(() => {
+    const a = document.activeElement;
+    const k = (a && a.dataset && a.dataset.t) ? { t:a.dataset.t, f:a.dataset.f, p:a.selectionStart } : null;
+    renderSides(); renderFooter();
+    if (k){
+      const el = document.querySelector('#sideL [data-t="'+k.t+'"][data-f="'+k.f+'"],#sideR [data-t="'+k.t+'"][data-f="'+k.f+'"]');
+      if (el){ el.focus(); try { el.setSelectionRange(k.p, k.p); } catch(e){} }
+    }
+  }, 0);
+}
+let asTimer = null, saveWarned = false;
+function autosave(){
+  clearTimeout(asTimer);
+  asTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      saveWarned = false; setSaveLabel('自動保存: ' + new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}));
+      return;
+    } catch(e){ /* 多くは容量超過。図面を外して最低限だけ残す */ }
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(Object.assign({}, state, { dwg: state.dwg ? Object.assign({},state.dwg,{dataURL:null}) : null })));
+      setSaveLabel('自動保存: 図面を除いて保存');
+    } catch(e2){ setSaveLabel('自動保存: 失敗'); }
+    if (!saveWarned){
+      saveWarned = true;
+      showToast('自動保存の容量制限に達しました（図面の画像が大きい可能性があります）。確実な保管には「保存」からJSONを書き出してください。', true);
+    }
+  }, 500);
+}
+function setSaveLabel(t){ document.getElementById('ftSave').textContent = t; }
+/** 変更を1か所に集約: 履歴に積む → 再計算 → 描画 → 自動保存 */
+function edit(fn, opt){
+  pushUndo(); fn();
+  if (opt && opt.light){ compute(); renderSchedule(); renderSides(); renderFooter(); renderPanel(); }
+  else renderAll();
+  autosave();
+}
+
+/* ---------- 小物 ---------- */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let toastTimer = null;
+function showToast(msg, warn){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.toggle('warn', !!warn); el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>el.classList.remove('show'), 6000);
+}
+function setHint(t){ const el=document.getElementById('hint'); el.textContent=t||''; el.classList.toggle('show', !!t); }
+function askInput({ title='入力', message='', value='', validate=null }){
+  return new Promise(resolve => {
+    const bg=document.getElementById('inputModal'), f=document.getElementById('imField'), er=document.getElementById('imErr');
+    document.getElementById('imTitle').textContent=title; document.getElementById('imMsg').textContent=message;
+    er.textContent=''; f.value=value; bg.classList.add('show');
+    setTimeout(()=>{ f.focus(); f.select(); }, 30);
+    const ok=document.getElementById('imOk'), ng=document.getElementById('imCancel');
+    const cleanup=()=>{ bg.classList.remove('show'); ok.removeEventListener('click',onOk); ng.removeEventListener('click',onNg);
+      f.removeEventListener('keydown',onKey); bg.removeEventListener('mousedown',onBg); };
+    const onOk=()=>{ const v=f.value.trim(); if (validate){ const m=validate(v); if (m){ er.textContent=m; return; } } cleanup(); resolve(v); };
+    const onNg=()=>{ cleanup(); resolve(null); };
+    const onKey=e=>{ if (e.key==='Enter'){ e.preventDefault(); onOk(); } if (e.key==='Escape') onNg(); };
+    const onBg=e=>{ if (e.target===bg) onNg(); };
+    ok.addEventListener('click',onOk); ng.addEventListener('click',onNg);
+    f.addEventListener('keydown',onKey); bg.addEventListener('mousedown',onBg);
+  });
+}
+
+/* ══════════ 描画 ══════════ */
+const COLS = [
+  { k:'area',  w:17, cls:'area' },
+  { k:'kind',  w:30, cls:'ctr' },
+  { k:'name',  w:0 },
+  { k:'days',  w:17, cls:'ctr' },
+  { k:'dwgno', w:32, cls:'ctr' },
+  { k:'spots', w:26, cls:'ctr' },
+  { k:'prog',  w:24, cls:'ctr' },
+  { k:'n1',    w:17, cls:'ctr' },
+  { k:'n2',    w:17, cls:'ctr' },
+];
+function activeCols(){ return COLS.filter(c => state.opt.cols[c.k]); }
+
+function renderAll(){
+  compute();
+  applySheetVars();   // ← 先に高さ・幅を確定させる（renderSchedule が実寸を測って行の高さを決めるため）
+  renderMeta(); renderSides(); renderDwg(); renderSchedule(); renderLegend(); renderFooter(); renderPanel();
+}
+function applySheetVars(){
+  const sh = document.getElementById('sheet');
+  sh.style.setProperty('--sideW', state.opt.sideW + 'px');
+  sh.style.setProperty('--botH', state.opt.botH + 'px');
+  document.getElementById('sideL').classList.toggle('hidden', !state.opt.showSideL);
+  document.getElementById('sideR').classList.toggle('hidden', !state.opt.showSideR);
+  document.querySelector('.shDwg').style.display = state.opt.showDwg ? '' : 'none';
+  document.getElementById('dwgLegend').style.display = state.opt.showLegend ? '' : 'none';
+  document.getElementById('dwgStat').style.display = state.opt.showStat ? '' : 'none';
+  if (state.dwg && state.dwg.fitted) fitDwg();   // 枠が伸び縮みしても全体表示のままにする
+}
+function renderMeta(){
+  document.querySelectorAll('#sheet [data-meta]').forEach(el => {
+    if (el === document.activeElement) return;
+    el.value = state.meta[el.dataset.meta] || '';
+  });
+}
+function renderFooter(){
+  const t = totals();
+  document.getElementById('ftDays').textContent = t.plan;
+  document.getElementById('ftDone').textContent = t.done;
+  document.getElementById('ftLeft').textContent = t.left;
+  document.getElementById('ftTerm').textContent = state.meta.start + (state._end ? ' 〜 ' + state._end : '');
+  const s = selObj();
+  document.getElementById('ftSel').textContent = !s ? '—'
+    : (sel.type==='task' ? '選択中: ' + (s.name || s.kind || '作業') + '（' + (s._start||'未定') + ' から ' + s.days + '日）'
+                         : '選択中: マーク ' + (s.no || s.type));
+  document.getElementById('rangeLabel').textContent = rangeLabelText();
+  document.getElementById('zoomLabel').textContent = Math.round(ui.zoom*100) + '%';
+  const tag = document.getElementById('botCapTag');
+  tag.textContent = (state.view.range===1 ? '1ヶ月' : '3ヶ月') + '／' + (state.view.mode==='cell' ? '日別セル' : 'バーチャート') +
+    (state._overlap ? '　⚠ 日付が重なっている作業があります' : '');
+  const warn = document.getElementById('botCapWarn');
+  warn.textContent = state._schOver ? '⚠ あと' + state._schOver + '行が用紙に収まっていません（右パネル「工程表の高さ」を上げてください）' : '';
+}
+function rangeLabelText(){
+  const a = state.view.anchor;
+  if (state.view.range === 1) return a.replace('-','年') + '月';
+  const b = monthAdd(a, 2);
+  return a.replace('-','年') + '月 〜 ' + b.replace('-','年') + '月';
+}
+function selObj(){
+  if (sel.type === 'task') return state.tasks.find(t=>t.id===sel.id) || null;
+  if (sel.type === 'mark') return state.marks.find(m=>m.id===sel.id) || null;
+  return null;
+}
+function selectIt(type, id){ sel = { type, id }; renderSides(); renderDwg(); renderSchedule(); renderPanel(); renderFooter(); }
+
+/* ---------- 明細表（左右） ---------- */
+function renderSides(){
+  for (const side of ['L','R']){
+    const host = document.getElementById('side'+side);
+    const blocks = state.blocks.filter(b => b.side === side);
+    let html = blocks.map(b => blockHtml(b)).join('');
+    if (side === 'L') html += sumBoxHtml();
+    host.innerHTML = html;
+  }
+  bindSideEvents();
+}
+function blockHtml(b){
+  const cols = activeCols(), tasks = state.tasks.filter(t => t.blockId === b.id);
+  const L = state.opt.colLabels;
+  const cg = cols.map(c => '<col' + (c.w ? ' style="width:'+c.w+'px"' : '') + '>').join('');
+  const th = cols.map(c => '<th>' + esc(L[c.k]||'') + '</th>').join('');
+  // エリア列は同じ値が続く間だけ縦につなぐ
+  const spans = {};
+  for (let i=0;i<tasks.length;i++){
+    if (i>0 && tasks[i].area === tasks[i-1].area && tasks[i].area !== ''){ spans[i] = 0; continue; }
+    let n = 1; while (i+n < tasks.length && tasks[i+n].area === tasks[i].area && tasks[i].area !== '') n++;
+    spans[i] = n;
+  }
+  const rows = tasks.map((t,i) => {
+    const tds = cols.map(c => {
+      if (c.k === 'area'){
+        if (spans[i] === 0) return '';
+        return '<td class="area"' + (spans[i]>1 ? ' rowspan="'+spans[i]+'"' : '') +
+               '><input class="ta-c" data-t="'+t.id+'" data-f="area" value="'+esc(t.area)+'"></td>';
+      }
+      const v = t[c.k] == null ? '' : t[c.k];
+      const cls = c.cls ? ' class="'+c.cls+'"' : '';
+      const ic = c.cls === 'ctr' ? ' class="ta-c"' : '';
+      return '<td'+cls+'><input'+ic+' data-t="'+t.id+'" data-f="'+c.k+'" value="'+esc(v)+'"></td>';
+    }).join('');
+    const selCls = (sel.type==='task' && sel.id===t.id) ? ' sel' : '';
+    return '<tr class="st-'+t.status+selCls+'" data-row="'+t.id+'">'+tds+'</tr>';
+  }).join('');
+  const bt = blockTotals(b.id);
+  return '<div class="blk" data-block="'+b.id+'">' +
+    '<div class="blkTitle"><input data-bt="'+b.id+'" value="'+esc(b.title)+'"></div>' +
+    '<table class="dt"><colgroup>'+cg+'</colgroup><thead><tr>'+th+'</tr></thead><tbody>'+rows+'</tbody></table>' +
+    '<div class="blkFoot"><span>日数計 <b>'+bt.plan+'</b></span><span>完了 <b>'+bt.done+'</b></span></div></div>';
+}
+function sumBoxHtml(){
+  const t = totals();
+  return '<div class="sumBox"><div class="lbls"><span>実日数</span><span>完了</span><span>残日数</span></div>' +
+    '<div class="nums"><span class="cap">施工日数合計：</span><span class="n1">'+t.plan+'</span><span>−</span>' +
+    '<span class="n2">'+t.done+'</span><span>＝</span><span class="n3">'+t.left+'</span></div></div>';
+}
+function bindSideEvents(){
+  document.querySelectorAll('#sideL [data-t],#sideR [data-t]').forEach(inp => {
+    inp.addEventListener('focus', () => { beginEdit(); selectIt('task', inp.dataset.t); });
+    inp.addEventListener('input', () => {
+      const t = state.tasks.find(x=>x.id===inp.dataset.t); if (!t) return;
+      const f = inp.dataset.f;
+      if (f === 'days'){ t.days = Math.max(1, parseInt(inp.value,10)||1); compute(); renderSchedule(); renderFooter(); }
+      else if (f === 'prog'){ t.prog = Math.min(100, Math.max(0, parseInt(inp.value,10)||0)); renderSchedule(); }
+      else { t[f] = inp.value; if (f==='spots'||f==='area') { renderDwg(); renderSchedule(); } }
+      autosave();
+    });
+    inp.addEventListener('change', () => { commitEdit(); scheduleSidesRefresh(); });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter'){ e.preventDefault(); moveFocusRow(inp, 1); }
+      if (e.key === 'ArrowDown' && e.ctrlKey){ e.preventDefault(); moveFocusRow(inp, 1); }
+      if (e.key === 'ArrowUp' && e.ctrlKey){ e.preventDefault(); moveFocusRow(inp, -1); }
+    });
+  });
+  document.querySelectorAll('#sideL [data-bt],#sideR [data-bt]').forEach(inp => {
+    inp.addEventListener('focus', beginEdit);
+    inp.addEventListener('input', () => { const b = state.blocks.find(x=>x.id===inp.dataset.bt); if (b){ b.title = inp.value; autosave(); } });
+    inp.addEventListener('change', commitEdit);
+  });
+  document.querySelectorAll('#sideL tr[data-row],#sideR tr[data-row]').forEach(tr => {
+    tr.addEventListener('mousedown', e => { if (e.target.tagName !== 'INPUT') selectIt('task', tr.dataset.row); });
+  });
+}
+function moveFocusRow(inp, dir){
+  const f = inp.dataset.f;
+  const list = Array.from(document.querySelectorAll('[data-f="'+f+'"]'));
+  const i = list.indexOf(inp);
+  const nx = list[i+dir]; if (nx){ nx.focus(); nx.select && nx.select(); }
+}
+
+/* ---------- 図面 ---------- */
+function renderDwg(){
+  const box = document.getElementById('dwgBox'), img = document.getElementById('dwgImg'),
+        svg = document.getElementById('dwgSvg'), empty = document.getElementById('dwgEmpty');
+  const d = state.dwg;
+  box.classList.toggle('empty', !d);
+  empty.style.display = d ? 'none' : '';
+  if (!d){ img.hidden = true; svg.innerHTML = ''; renderDwgTools(); return; }
+  img.hidden = false;
+  if (img.getAttribute('src') !== d.dataURL) img.src = d.dataURL;
+  img.style.width = (d.nw * d.z) + 'px';
+  img.style.height = (d.nh * d.z) + 'px';
+  img.style.transform = 'translate(' + d.x + 'px,' + d.y + 'px)';
+  drawMarks();
+  renderDwgTools();
+}
+function toView(nx, ny){ const d = state.dwg; return [ d.x + nx*d.nw*d.z, d.y + ny*d.nh*d.z ]; }
+function toNorm(vx, vy){ const d = state.dwg; return [ (vx-d.x)/(d.nw*d.z), (vy-d.y)/(d.nh*d.z) ]; }
+function hlNos(){ // 選択中の作業に紐づく箇所No（「1・2」「3,4」どちらの区切りでも拾う）
+  const t = sel.type==='task' ? state.tasks.find(x=>x.id===sel.id) : null;
+  if (!t || !t.spots) return [];
+  return String(t.spots).split(/[・,、\/\s]+/).map(s=>s.trim()).filter(Boolean);
+}
+function drawMarks(){
+  const svg = document.getElementById('dwgSvg');
+  const ms = state.opt.markSize, hl = hlNos();
+  let out = '';
+  for (const m of state.marks){
+    const isSel = (sel.type==='mark' && sel.id===m.id);
+    const g = ' class="mk' + (isSel?' sel':'') + '" data-mk="' + m.id + '"';
+    if (m.type === 'no'){
+      const [cx,cy] = toView(m.nx, m.ny), [ax,ay] = toView(m.ax, m.ay);
+      const r = 11*ms, st = STATUS[m.st] || STATUS.plan;
+      const isHl = hl.includes(String(m.no));
+      out += '<g'+g+(isHl?' ':'')+'>' +
+        '<line x1="'+cx+'" y1="'+cy+'" x2="'+ax+'" y2="'+ay+'" stroke="#111" stroke-width="'+(1.1*ms)+'"/>' +
+        '<circle cx="'+ax+'" cy="'+ay+'" r="'+(2.2*ms)+'" fill="#111" data-mkh="a"/>' +
+        '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+st.fill+'" stroke="'+(isHl?'#12a150':'#111')+'" stroke-width="'+((isHl?2.4:1.2)*ms)+'"'+(isHl?' class="hl"':'')+'/>' +
+        '<text x="'+cx+'" y="'+(cy+r*0.36)+'" text-anchor="middle" font-size="'+(13*ms)+'" font-weight="700" fill="#111">'+esc(m.no)+'</text>' +
+        '</g>';
+    } else if (m.type === 'text'){
+      const [x,y] = toView(m.nx, m.ny);
+      out += '<g'+g+'><text x="'+x+'" y="'+y+'" font-size="'+((m.size||13)*ms)+'" font-weight="700" fill="'+(m.color||'#111')+'">'+esc(m.text)+'</text></g>';
+    } else if (m.type === 'line'){
+      const pts = m.pts.map(p => toView(p[0],p[1]).join(',')).join(' ');
+      out += '<g'+g+'><polyline points="'+pts+'" fill="none" stroke="'+(m.color||'#e03131')+'" stroke-width="'+((m.w||2.2)*ms)+'"'+
+             (m.dash?' stroke-dasharray="6 4"':'')+' stroke-linejoin="round" stroke-linecap="round"/>' +
+             m.pts.map((p,i)=>{ const [x,y]=toView(p[0],p[1]); return '<circle cx="'+x+'" cy="'+y+'" r="'+(3*ms)+'" fill="#fff" stroke="'+(m.color||'#e03131')+'" stroke-width="1.4" data-mkv="'+i+'"/>'; }).join('') +
+             '</g>';
+    } else if (m.type === 'rect'){
+      const [x1,y1] = toView(m.nx, m.ny), [x2,y2] = toView(m.nx2, m.ny2);
+      out += '<g'+g+'><rect x="'+Math.min(x1,x2)+'" y="'+Math.min(y1,y2)+'" width="'+Math.abs(x2-x1)+'" height="'+Math.abs(y2-y1)+
+             '" fill="'+(m.color||'#ffb3b3')+'33" stroke="'+(m.color||'#e03131')+'" stroke-width="'+(1.6*ms)+'"/>' +
+             '<circle cx="'+x2+'" cy="'+y2+'" r="'+(3.2*ms)+'" fill="#fff" stroke="'+(m.color||'#e03131')+'" stroke-width="1.4" data-mkv="1"/></g>';
+    } else if (m.type === 'span'){
+      const [x] = toView(m.nx, 0), h = document.getElementById('dwgBox').clientHeight;
+      const bw = 17*ms;
+      out += '<g'+g+'><line x1="'+x+'" y1="'+(bw+2)+'" x2="'+x+'" y2="'+(h-bw-2)+'" stroke="#3b5bdb" stroke-width="'+(1.3*ms)+'"/>' +
+        '<rect class="box" x="'+(x-bw/2)+'" y="2" width="'+bw+'" height="'+bw+'" fill="#fff" stroke="#3b5bdb" stroke-width="1.1"/>' +
+        '<text x="'+x+'" y="'+(bw*0.78)+'" text-anchor="middle" font-size="'+(11*ms)+'" font-weight="700" fill="#3b5bdb">'+esc(m.top||'')+'</text>' +
+        '<rect class="box" x="'+(x-bw/2)+'" y="'+(h-bw-2)+'" width="'+bw+'" height="'+bw+'" fill="#fff" stroke="#3b5bdb" stroke-width="1.1"/>' +
+        '<text x="'+x+'" y="'+(h-bw*0.32-2)+'" text-anchor="middle" font-size="'+(11*ms)+'" font-weight="700" fill="#3b5bdb">'+esc(m.bot||'')+'</text></g>';
+    }
+  }
+  svg.innerHTML = out;
+}
+const DWG_TOOLS = [
+  { t:'select', n:'選択' }, { t:'no', n:'①番号' }, { t:'text', n:'文字' },
+  { t:'line', n:'線' }, { t:'rect', n:'範囲' }, { t:'span', n:'区切り' },
+];
+function renderDwgTools(){
+  document.getElementById('dwgTools').innerHTML = state.dwg
+    ? DWG_TOOLS.map(x => '<button data-tool="'+x.t+'"'+(ui.tool===x.t?' class="on"':'')+'>'+x.n+'</button>').join('') : '';
+  document.getElementById('dwgZoom').innerHTML = state.dwg
+    ? '<button data-dz="-1">−</button><button data-dz="1">＋</button><button data-dz="fit">全体</button>' : '';
+}
+function renderLegend(){
+  const st = ['done','pending','cancel'].map(k =>
+    '<div class="lgRow"><span class="sw" style="background:'+STATUS[k].fill+'"></span><span>： '+STATUS[k].label+'</span></div>').join('');
+  document.getElementById('dwgStat').innerHTML = st;
+  const rows = state.legend.map(l =>
+    '<div class="lgRow"><span class="'+(l.kind==='line'?'swl':'sw')+'" style="'+
+      (l.kind==='line' ? 'border-top-color:'+l.color : 'background:'+l.color+';border:1px solid #666')+'"></span>' +
+    '<span>：</span><input data-lg="'+l.id+'" value="'+esc(l.text)+'" style="width:74px"></div>').join('');
+  document.getElementById('dwgLegend').innerHTML = '<div class="lgTitle">凡 例</div>' + rows;
+  document.querySelectorAll('#dwgLegend [data-lg]').forEach(inp => {
+    inp.addEventListener('focus', beginEdit);
+    inp.addEventListener('input', () => { const l = state.legend.find(x=>x.id===inp.dataset.lg); if (l){ l.text = inp.value; autosave(); } });
+    inp.addEventListener('change', commitEdit);
+  });
+}
+
+/* ---------- 工程表（日別セル ／ バーチャート） ---------- */
+const CELL_ROWS = [
+  { k:'shift',   lab:'昼夜区分', h:26 },
+  { k:'area',    lab:'作業エリア', h:26 },
+  { k:'spots',   lab:'作業箇所No', h:26 },
+  { k:'content', lab:'作業内容', h:26 },
+];
+function renderSchedule(){
+  const dates = rangeDates();
+  const sch = document.getElementById('sch'), host = document.getElementById('schScroll');
+  const labW = state.view.mode === 'bar' ? 200 : 128;
+  const inner = sch.clientWidth - 2 || 1520;
+  const colW = Math.max(6, (inner - labW) / dates.length);
+  sch.style.setProperty('--colW', colW + 'px');
+  sch.style.setProperty('--labW', labW + 'px');
+  sch.style.setProperty('--nCol', dates.length);
+  const avail = sch.clientHeight - 2;
+  state._schOver = 0;
+  host.innerHTML = headHtml(dates) + (state.view.mode === 'cell' ? cellHtml(dates, avail) : barHtml(dates, colW, avail));
+  host.classList.toggle('scroll', !!state._schOver);
+  bindScheduleEvents(dates, colW);
+  renderFooter();
+}
+function dayCls(d){
+  const w = dowOf(d), o = offInfo(d);
+  let c = '';
+  if (o) c = ' offd'; else if (w === 0) c = ' sun'; else if (w === 6) c = ' sat';
+  else if (isWeeklyOff(d)) c = ' offd';
+  if (d === todayStr()) c += ' today';
+  return c;
+}
+function headHtml(dates){
+  let h = '';
+  if (state.view.range === 3){
+    let bands = '', i = 0;
+    while (i < dates.length){
+      const ym = dates[i].slice(0,7); let n = 0;
+      while (i+n < dates.length && dates[i+n].slice(0,7) === ym) n++;
+      bands += '<div style="grid-column:span '+n+'">'+Number(ym.slice(5))+'月</div>'; i += n;
+    }
+    h += '<div class="srow hdM"><div class="lab">月</div>'+bands+'</div>';
+  }
+  h += '<div class="srow hdD"><div class="lab">' +
+       (state.view.range === 1 ? '<span style="font-size:15px">'+Number(state.view.anchor.slice(5))+'月</span>' : '日付') +
+       '</div>' + dates.map(d => '<div class="day'+dayCls(d)+'" data-day="'+d+'" title="クリックで休工日の設定">'+Number(d.slice(8))+'</div>').join('') + '</div>';
+  h += '<div class="srow hdW"><div class="lab">曜日</div>' +
+       dates.map(d => { const w = dowOf(d);
+         return '<div class="'+(w===0?'dowSun':w===6?'dowSat':'')+dayCls(d)+'" data-day="'+d+'">'+DOW[w]+'</div>'; }).join('') + '</div>';
+  return h;
+}
+/** その日の「表示すべき値」。休工日は休工の名前、施工日はその日に動く作業から作る */
+function cellVal(d, key){
+  const o = offInfo(d);
+  if (o) return { key:'OFF:'+o.t, text:(key==='content' ? (o.label || OFFTYPE[o.t].label) : ''), off:true, ids:'' };
+  if (isWeeklyOff(d)) return { key:'', text:'', off:true, ids:'' };
+  const ts = tasksOn(d);
+  if (!ts.length) return { key:'', text:'', off:false, ids:'' };
+  const ids = ts.map(t=>t.id).join('|');
+  const uniq = a => Array.from(new Set(a.filter(Boolean)));
+  let text = '';
+  if (key === 'shift')   text = uniq(ts.map(t=>t.shift)).join('／');
+  if (key === 'area')    text = uniq(ts.map(t=>t.area)).join('・');
+  if (key === 'spots')   text = uniq(ts.map(t=>t.spots)).join('・');
+  if (key === 'content') text = uniq(ts.map(t=>t.content || t.kind)).join('・');
+  return { key: ids+'#'+text, text, off:false, ids };
+}
+function cellHtml(dates, avail){
+  const headH = (state.view.range === 3 ? 16 : 0) + 15 + 14;
+  const fixed = CELL_ROWS.reduce((a,r)=>a+r.h, 0);
+  const noteH = Math.max(40, avail - headH - fixed - 2);
+  let h = '';
+  for (const row of CELL_ROWS){
+    h += '<div class="srow body" style="--rowH:'+row.h+'px"><div class="lab">'+row.lab+'</div>';
+    let i = 0;
+    while (i < dates.length){
+      const v = cellVal(dates[i], row.k);
+      let n = 1;
+      if (v.key) while (i+n < dates.length && cellVal(dates[i+n], row.k).key === v.key) n++;
+      const cls = 'cellSpan' + dayCls(dates[i]) + (v.text && !v.off ? ' fill' : '');
+      h += '<div class="'+cls+'" style="grid-column:span '+n+'"'+(v.ids?' data-tsel="'+v.ids.split('|')[0]+'"':'')+
+           ' title="'+esc(v.text)+'">'+esc(v.text)+'</div>';
+      i += n;
+    }
+    h += '</div>';
+  }
+  h += '<div class="srow body" style="--rowH:'+noteH+'px"><div class="lab">備　考</div>' +
+    dates.map(d => '<div class="cellNote'+dayCls(d)+'"><textarea data-note="'+d+'" spellcheck="false">'+esc(state.dayNotes[d]||'')+'</textarea></div>').join('') +
+    '</div>';
+  return h;
+}
+function barHtml(dates, colW, avail){
+  const headH = (state.view.range === 3 ? 16 : 0) + 15 + 14;
+  const blocks = state.blocks.filter(b => state.tasks.some(t=>t.blockId===b.id));
+  const nRows = state.tasks.length, nGrp = blocks.length;
+  if (!nRows) return '<div class="schEmpty">「＋作業」で作業を足すと、ここに線表が出ます。</div>';
+  const rowH = Math.max(9, Math.min(22, Math.floor((avail - headH - nGrp*14 - 2) / nRows)));
+  const needed = headH + nGrp*14 + nRows*rowH + 2;
+  state._schOver = needed > avail ? Math.ceil((needed-avail)/rowH) : 0;
+  let h = offOverlayHtml(dates, colW, headH);
+  for (const b of blocks){
+    h += '<div class="srow"><div class="grpRow">'+esc(b.title)+'</div></div>';
+    for (const t of state.tasks.filter(x=>x.blockId===b.id)){
+      const selCls = (sel.type==='task' && sel.id===t.id) ? ' sel' : '';
+      let bars = '';
+      if (t._dates && t._dates.length){
+        // 休工日で切れた区間ごとに棒を分けて描く（雨の日は空く）
+        let seg = [];
+        const flush = () => {
+          if (!seg.length) return;
+          const i0 = diffD(dates[0], seg[0]), i1 = diffD(dates[0], seg[seg.length-1]);
+          seg = [];
+          if (i1 < 0 || i0 > dates.length-1) return;     // 表示中の期間から外れている区間
+          const a = Math.max(0, i0), z = Math.min(dates.length-1, i1);
+          if (z < a) return;
+          const w = (z-a+1)*colW;
+          const label = (t.content || t.kind || t.name || '');
+          bars += '<div class="bar st-'+t.status+selCls+'" data-bar="'+t.id+'" style="left:'+(a*colW)+'px;width:'+w+'px" title="'+esc((t.name||'')+' / '+t.days+'日')+'">' +
+            (t.prog>0 && t.prog<100 ? '<div class="prog" style="width:'+t.prog+'%"></div>' : '') +
+            '<span class="txt">'+(t.pin?'<span class="pin">📌</span>':'')+esc(label)+'</span><div class="rz"></div></div>';
+        };
+        for (const d of t._dates){
+          if (!seg.length){ seg.push(d); continue; }
+          if (diffD(seg[seg.length-1], d) === 1) seg.push(d); else { flush(); seg = [d]; }
+        }
+        flush();
+      }
+      h += '<div class="srow body barRow" style="--rowH:'+rowH+'px" data-brow="'+t.id+'">' +
+        '<div class="lab"><span class="barLab"><span class="a">'+esc(t.area)+'</span>' +
+        '<span class="n" title="'+esc(t.name)+'">'+esc(t.name || t.kind || '（名称未入力）')+'</span>' +
+        '<span class="d">'+t.days+'</span></span></div>' +
+        '<div class="barLane">'+bars+'</div></div>';
+    }
+  }
+  return h;
+}
+function offOverlayHtml(dates, colW, headH){
+  let bars = '';
+  dates.forEach((d,i) => {
+    const o = offInfo(d);
+    if (o) bars += '<i class="off" style="left:'+(i*colW)+'px;width:'+colW+'px" title="'+esc(o.label)+'"></i>';
+    else if (isWeeklyOff(d)) bars += '<i class="wk" style="left:'+(i*colW)+'px;width:'+colW+'px"></i>';
+    if (d === todayStr()) bars += '<i class="now" style="left:'+(i*colW)+'px"></i>';
+  });
+  return '<div class="schOv" style="top:'+headH+'px">' + bars + '</div>';
+}
+function bindScheduleEvents(dates, colW){
+  document.querySelectorAll('#schScroll [data-day]').forEach(el => {
+    el.addEventListener('click', e => openOffMenu(el.dataset.day, e.clientX, e.clientY));
+  });
+  document.querySelectorAll('#schScroll [data-note]').forEach(ta => {
+    ta.addEventListener('focus', beginEdit);
+    ta.addEventListener('input', () => { state.dayNotes[ta.dataset.note] = ta.value; autosave(); });
+    ta.addEventListener('change', commitEdit);
+  });
+  document.querySelectorAll('#schScroll [data-tsel]').forEach(el => {
+    el.addEventListener('click', () => selectIt('task', el.dataset.tsel));
+  });
+  document.querySelectorAll('#schScroll [data-brow] .lab').forEach(el => {
+    el.addEventListener('click', () => selectIt('task', el.parentElement.dataset.brow));
+  });
+  document.querySelectorAll('#schScroll .bar').forEach(bar => {
+    bar.addEventListener('pointerdown', e => startBarDrag(e, bar, dates, colW));
+  });
+}
+/** 棒のドラッグ: 横移動＝開始日を📌で決め打ち、右端＝日数の伸縮 */
+function startBarDrag(e, bar, dates, colW){
+  e.preventDefault(); e.stopPropagation();
+  const id = bar.dataset.bar, t = state.tasks.find(x=>x.id===id);
+  if (!t) return;
+  // ⚠ ここで再描画すると掴んでいる棒のDOMが作り直されてドラッグが切れる。
+  //    選択は state だけ書き換え、イベントは window に付ける（棒は毎フレーム作り直される）
+  sel = { type:'task', id };
+  const resize = e.target.classList.contains('rz');
+  const x0 = e.clientX / ui.zoom, days0 = t.days, start0 = t._start, pin0 = t.pin;
+  let moved = 0;
+  const onMove = ev => {
+    const dx = ev.clientX/ui.zoom - x0;
+    const dd = Math.round(dx / colW);
+    if (dd === moved) return;
+    moved = dd;
+    if (resize){ t.days = Math.max(1, days0 + dd); }
+    else { t.pin = addD(start0, dd); }
+    compute(); renderSchedule(); renderSides(); renderFooter();
+    setHint(resize ? (t.name||'作業') + '：' + t.days + '日' : (t.name||'作業') + '：' + (t._start||'') + ' から');
+  };
+  const onUp = () => {
+    window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp);
+    setHint('');
+    if (moved !== 0){
+      // ドラッグ前の状態を履歴に積みたいので、いったん戻してから edit() で積み直す
+      const after = { days:t.days, pin:t.pin };
+      t.days = days0; t.pin = pin0;
+      edit(() => { t.days = after.days; t.pin = after.pin; });
+      showToast(resize ? '日数を ' + t.days + '日 にしました。以降の作業は自動で詰め直しました。'
+                       : '開始日を ' + t._start + ' に固定（📌）しました。固定を外すと前の作業から自動で詰まります。');
+    } else { renderSides(); renderSchedule(); renderPanel(); renderFooter(); }
+  };
+  window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+}
+
+/* ---------- 休工日メニュー ---------- */
+let offMenuEl = null;
+function openOffMenu(date, cx, cy){
+  closeOffMenu();
+  const cur = offInfo(date);
+  const el = document.createElement('div');
+  el.id = 'offMenu';
+  el.style.cssText = 'position:fixed;z-index:90;background:#fff;border:1px solid #aab3bb;border-radius:8px;' +
+    'box-shadow:0 8px 24px rgba(0,0,0,.22);padding:8px;width:216px;font-size:12.5px';
+  const w = dowOf(date);
+  el.innerHTML = '<div style="font-weight:700;margin-bottom:6px">' + date.replace(/-/g,'/') + '（' + DOW[w] + '）' +
+    (isWeeklyOff(date) && !cur ? '<span style="color:#6b7a88;font-weight:400"> 定休日</span>' : '') + '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">' +
+    Object.keys(OFFTYPE).map(k => '<button class="pbtn' + (cur && cur.t===k ? ' on':'') + '" data-off="'+k+'">' + OFFTYPE[k].label + '</button>').join('') +
+    '</div>' +
+    '<button class="pbtn" data-off="" style="width:100%;margin-top:5px">' + (cur ? '休工を取り消す（作業日に戻す）' : '作業日のまま') + '</button>' +
+    '<div style="font-size:10.5px;color:#6b7a88;line-height:1.5;margin-top:6px">休工にすると、その日以降の作業が自動で1日ずつ後ろにずれます（📌で固定した作業は動きません）。</div>';
+  document.body.appendChild(el); offMenuEl = el;
+  const r = el.getBoundingClientRect();
+  el.style.left = Math.min(cx - 20, window.innerWidth - r.width - 10) + 'px';
+  el.style.top = Math.min(cy + 12, window.innerHeight - r.height - 10) + 'px';
+  el.querySelectorAll('[data-off]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.off;
+    edit(() => { if (!k) delete state.off[date]; else state.off[date] = { t:k, label:OFFTYPE[k].label }; });
+    closeOffMenu();
+    if (k) showToast(date.replace(/-/g,'/') + ' を「' + OFFTYPE[k].label + '」にしました。以降の予定を詰め直しました。');
+  }));
+  setTimeout(() => document.addEventListener('mousedown', offMenuOutside), 0);
+}
+function offMenuOutside(e){ if (offMenuEl && !offMenuEl.contains(e.target)) closeOffMenu(); }
+function closeOffMenu(){
+  if (offMenuEl){ offMenuEl.remove(); offMenuEl = null; document.removeEventListener('mousedown', offMenuOutside); }
+}
+
+/* ══════════ 右パネル ══════════ */
+function renderPanel(){
+  renderPanelSel(); renderPanelOff(); renderPanelView(); renderPanelLegend();
+}
+function opt(list, v){ return list.map(x => '<option value="'+esc(x)+'"'+(x===v?' selected':'')+'>'+esc(x)+'</option>').join(''); }
+function renderPanelSel(){
+  const host = document.getElementById('pSel');
+  const o = selObj();
+  if (!o){
+    host.innerHTML = '<h3>選択中</h3><div class="phint">明細表の行、線表の棒、図面のマークをクリックすると、ここで細かく直せます。<br><br>' +
+      '「＋作業」で行を足し、日数を入れると線表と日別セルに反映されます。</div>' +
+      '<div class="pgrid" style="margin-top:8px"><button class="pbtn" id="spAdd">＋作業を追加</button><button class="pbtn" id="spBlock">＋表を追加</button></div>';
+    document.getElementById('spAdd').onclick = addTask;
+    document.getElementById('spBlock').onclick = addBlock;
+    return;
+  }
+  if (sel.type === 'task') return renderTaskPanel(host, o);
+  return renderMarkPanel(host, o);
+}
+function renderTaskPanel(host, t){
+  const L = state.opt.colLabels;
+  const blocks = state.blocks.map(b => '<option value="'+b.id+'"'+(b.id===t.blockId?' selected':'')+'>'+esc(b.title)+'</option>').join('');
+  host.innerHTML = '<h3>選択中の作業</h3>' +
+    '<div class="prow"><label>表</label><select id="tpBlk">'+blocks+'</select></div>' +
+    '<div class="prow"><label>エリア</label><input id="tpArea" type="text" value="'+esc(t.area)+'"></div>' +
+    '<div class="prow"><label>'+esc(L.kind)+'</label><input id="tpKind" type="text" list="dlKinds" value="'+esc(t.kind)+'"></div>' +
+    '<div class="prow"><label>'+esc(L.name)+'</label><input id="tpName" type="text" value="'+esc(t.name)+'"></div>' +
+    '<div class="prow"><label>日数</label><input id="tpDays" type="number" min="1" value="'+t.days+'">' +
+      '<button class="pbtn" id="tpD1">−</button><button class="pbtn" id="tpD2">＋</button></div>' +
+    '<div class="prow"><label>'+esc(L.dwgno)+'</label><input id="tpDwgno" type="text" value="'+esc(t.dwgno)+'"></div>' +
+    '<div class="prow"><label>箇所No</label><input id="tpSpots" type="text" value="'+esc(t.spots)+'" placeholder="例) 3・4"></div>' +
+    '<div class="prow"><label>昼夜</label><select id="tpShift">'+opt(['昼','夜','昼夜',''], t.shift)+'</select>' +
+      '<label>内容</label><input id="tpContent" type="text" list="dlContents" value="'+esc(t.content)+'" style="flex:1"></div>' +
+    '<div class="prow"><label>進捗率</label><input id="tpProg" type="number" min="0" max="100" value="'+t.prog+'"><span style="font-size:11px">%</span></div>' +
+    '<div style="font-size:11.5px;color:#5a6a78;margin:8px 0 4px">状態</div>' +
+    '<div class="pgrid c3">' + Object.keys(STATUS).map(k =>
+      '<button class="pbtn'+(t.status===k?' on':'')+'" data-st="'+k+'">'+STATUS[k].label+'</button>').join('') + '</div>' +
+    '<div style="font-size:11.5px;color:#5a6a78;margin:10px 0 4px">日程</div>' +
+    '<div class="prow"><label>開始</label><input id="tpPin" type="date" value="'+(t.pin||t._start||'')+'">' +
+      '<button class="pbtn'+(t.pin?' on':'')+'" id="tpPinBtn" title="この日から動かさない">📌</button></div>' +
+    '<div class="phint">' + (t.pin
+      ? '📌で <b>'+t.pin+'</b> に固定中。休工が入っても動きません。'
+      : '前の作業から自動で詰まります（' + (t._start||'—') + ' 〜 ' + (t._end||'—') + '）。') +
+      (t._overlap ? '<br><b style="color:#d63031">⚠ 前の作業と日程が重なっています。</b>' : '') + '</div>' +
+    '<div class="pgrid" style="margin-top:9px"><button class="pbtn" id="tpUp">↑ 上へ</button><button class="pbtn" id="tpDn">↓ 下へ</button>' +
+      '<button class="pbtn" id="tpDup">複製</button><button class="pbtn danger" id="tpDel">削除</button></div>' +
+    '<div class="pgrid" style="margin-top:5px"><button class="pbtn" id="tpAdd">＋この下に追加</button><button class="pbtn" id="tpMark">図面に番号を打つ</button></div>' +
+    '<datalist id="dlKinds">'+state.opt.kinds.map(k=>'<option value="'+esc(k)+'">').join('')+'</datalist>' +
+    '<datalist id="dlContents">'+state.opt.contents.map(k=>'<option value="'+esc(k)+'">').join('')+'</datalist>';
+  const $ = id => document.getElementById(id);
+  const live = (id, fn) => { const el = $(id);
+    el.addEventListener('focus', beginEdit);
+    el.addEventListener('input', () => { fn(el.value); compute(); renderSides(); renderSchedule(); renderFooter(); autosave(); });
+    el.addEventListener('change', commitEdit); };
+  live('tpArea', v => t.area = v); live('tpKind', v => t.kind = v); live('tpName', v => t.name = v);
+  live('tpDwgno', v => t.dwgno = v); live('tpContent', v => t.content = v);
+  live('tpSpots', v => { t.spots = v; renderDwg(); });
+  live('tpDays', v => t.days = Math.max(1, parseInt(v,10)||1));
+  live('tpProg', v => t.prog = Math.min(100, Math.max(0, parseInt(v,10)||0)));
+  $('tpShift').onchange = () => edit(() => t.shift = $('tpShift').value);
+  $('tpBlk').onchange = () => edit(() => t.blockId = $('tpBlk').value);
+  $('tpD1').onclick = () => edit(() => t.days = Math.max(1, t.days-1));
+  $('tpD2').onclick = () => edit(() => t.days = t.days+1);
+  host.querySelectorAll('[data-st]').forEach(b => b.onclick = () => edit(() => {
+    t.status = b.dataset.st;
+    // 完了にした作業はその日で確定させる（あとから雨が入っても過去は動かない）
+    if (t.status === 'done'){ t.prog = 100; if (!t.pin && t._start) t.pin = t._start; }
+    if (t.status === 'plan' && t.prog === 100) t.prog = 0;
+  }));
+  $('tpPin').onchange = () => edit(() => t.pin = $('tpPin').value || null);
+  $('tpPinBtn').onclick = () => edit(() => t.pin = t.pin ? null : (t._start || state.meta.start));
+  $('tpUp').onclick = () => moveTask(t, -1); $('tpDn').onclick = () => moveTask(t, 1);
+  $('tpDup').onclick = () => edit(() => {
+    const i = state.tasks.indexOf(t), c = Object.assign({}, t, { id:uid(), pin:null, status:'plan', prog:0 });
+    delete c._dates; delete c._start; delete c._end; state.tasks.splice(i+1, 0, c); sel = { type:'task', id:c.id };
+  });
+  $('tpDel').onclick = () => edit(() => { state.tasks = state.tasks.filter(x=>x.id!==t.id); sel = { type:null, id:null }; });
+  $('tpAdd').onclick = () => addTask(t);
+  $('tpMark').onclick = () => { if (!state.dwg) return showToast('先に図面を読み込んでください。', true);
+    setTool('no'); showToast('図面の上をクリックすると番号が付き、選択中の作業の「箇所No」に足されます。'); };
+}
+function renderMarkPanel(host, m){
+  let body = '';
+  if (m.type === 'no'){
+    body = '<div class="prow"><label>番号</label><input id="mkNo" type="text" value="'+esc(m.no)+'"></div>' +
+      '<div style="font-size:11.5px;color:#5a6a78;margin:6px 0 4px">状態（図面の色）</div>' +
+      '<div class="pgrid c3">' + Object.keys(STATUS).map(k =>
+        '<button class="pbtn'+(m.st===k?' on':'')+'" data-mst="'+k+'"><span class="swatch" style="background:'+STATUS[k].fill+'"></span> '+STATUS[k].label+'</button>').join('') + '</div>';
+  } else if (m.type === 'text'){
+    body = '<div class="prow"><label>文字</label><input id="mkText" type="text" value="'+esc(m.text)+'"></div>' +
+      '<div class="prow"><label>大きさ</label><input id="mkSize" type="number" min="8" max="40" value="'+(m.size||13)+'"></div>';
+  } else if (m.type === 'span'){
+    body = '<div class="prow"><label>上のラベル</label><input id="mkTop" type="text" value="'+esc(m.top||'')+'"></div>' +
+      '<div class="prow"><label>下のラベル</label><input id="mkBot" type="text" value="'+esc(m.bot||'')+'"></div>';
+  } else {
+    body = '<div class="prow"><label>色</label>' + ['#e03131','#2f9e44','#7048e8','#22b8cf','#f59f00','#111111'].map(c =>
+      '<button class="pbtn" data-mc="'+c+'" style="padding:3px 6px"><span class="swatch" style="background:'+c+'"></span></button>').join('') + '</div>';
+    if (m.type === 'line') body += '<div class="pgrid"><button class="pbtn" id="mkAddPt">＋点を足す</button>' +
+      '<button class="pbtn'+(m.dash?' on':'')+'" id="mkDash">破線</button></div>';
+  }
+  host.innerHTML = '<h3>選択中のマーク（' + ({no:'番号',text:'文字',line:'線',rect:'範囲',span:'区切り'}[m.type]) + '）</h3>' + body +
+    '<div class="pgrid" style="margin-top:9px"><button class="pbtn" id="mkDup">複製</button><button class="pbtn danger" id="mkDel">削除</button></div>' +
+    '<div class="phint">図面上でドラッグすると動かせます。番号は丸と引き出し線の先（小さい●）を別々に動かせます。</div>';
+  const $ = id => document.getElementById(id);
+  const bind = (id, fn) => { const el = $(id); if (!el) return;
+    el.addEventListener('focus', beginEdit);
+    el.addEventListener('input', () => { fn(el.value); drawMarks(); autosave(); });
+    el.addEventListener('change', commitEdit); };
+  bind('mkNo', v => m.no = v); bind('mkText', v => m.text = v);
+  bind('mkSize', v => m.size = Math.max(8, Math.min(40, parseInt(v,10)||13)));
+  bind('mkTop', v => m.top = v); bind('mkBot', v => m.bot = v);
+  host.querySelectorAll('[data-mst]').forEach(b => b.onclick = () => edit(() => m.st = b.dataset.mst));
+  host.querySelectorAll('[data-mc]').forEach(b => b.onclick = () => edit(() => m.color = b.dataset.mc));
+  if ($('mkDash')) $('mkDash').onclick = () => edit(() => m.dash = !m.dash);
+  if ($('mkAddPt')) $('mkAddPt').onclick = () => edit(() => {
+    const a = m.pts[m.pts.length-2], b = m.pts[m.pts.length-1];
+    m.pts.push([ b[0] + (b[0]-a[0])*0.6, b[1] + (b[1]-a[1])*0.6 ]);
+  });
+  $('mkDup').onclick = () => edit(() => {
+    const c = JSON.parse(JSON.stringify(m)); c.id = uid();
+    if (c.nx != null) { c.nx += 0.02; c.ny = (c.ny||0) + 0.02; }
+    if (c.ax != null) { c.ax += 0.02; c.ay += 0.02; }
+    if (c.pts) c.pts = c.pts.map(p => [p[0]+0.02, p[1]+0.02]);
+    state.marks.push(c); sel = { type:'mark', id:c.id };
+  });
+  $('mkDel').onclick = () => edit(() => { state.marks = state.marks.filter(x=>x.id!==m.id); sel = { type:null, id:null }; });
+}
+function renderPanelOff(){
+  const host = document.getElementById('pOff');
+  const keys = Object.keys(state.off).sort();
+  const rows = keys.length ? keys.map(d =>
+    '<div class="prow" style="margin-bottom:4px"><span style="font-size:11.5px;flex:1">' + d.replace(/-/g,'/') + '（' + DOW[dowOf(d)] + '）' +
+    '　<b>' + esc(state.off[d].label) + '</b></span><button class="pbtn danger" data-offdel="'+d+'">解除</button></div>').join('')
+    : '<div class="phint">まだありません。工程表の日付（数字の行）をクリックすると、雨天中止・休工などを入れられます。</div>';
+  host.innerHTML = '<h3>休工日（' + keys.length + '日）</h3>' + rows +
+    '<div class="prow" style="margin-top:7px"><label>定休日</label><select id="wkOff">' +
+      '<option value="0"'+(sameOff([0])?' selected':'')+'>日曜</option>' +
+      '<option value="0,6"'+(sameOff([0,6])?' selected':'')+'>土日</option>' +
+      '<option value=""'+(sameOff([])?' selected':'')+'>なし</option></select></div>';
+  host.querySelectorAll('[data-offdel]').forEach(b => b.onclick = () => edit(() => delete state.off[b.dataset.offdel]));
+  document.getElementById('wkOff').onchange = e => edit(() => {
+    state.opt.weeklyOff = e.target.value ? e.target.value.split(',').map(Number) : [];
+  });
+}
+function sameOff(a){ const b = state.opt.weeklyOff; return a.length===b.length && a.every(x=>b.includes(x)); }
+function renderPanelView(){
+  const o = state.opt;
+  document.getElementById('pView').innerHTML = '<h3>用紙のレイアウト</h3>' +
+    '<div class="prow"><label>左の表</label><input type="checkbox" id="vwL"'+(o.showSideL?' checked':'')+'>' +
+      '<label>右の表</label><input type="checkbox" id="vwR"'+(o.showSideR?' checked':'')+'>' +
+      '<label>図面</label><input type="checkbox" id="vwD"'+(o.showDwg?' checked':'')+'></div>' +
+    '<div class="prow"><label>表の幅</label><input type="range" id="vwW" min="180" max="420" value="'+o.sideW+'" style="flex:1"><span style="font-size:11px;width:38px">'+o.sideW+'</span></div>' +
+    '<div class="prow"><label>工程表の高さ</label><input type="range" id="vwH" min="180" max="640" value="'+o.botH+'" style="flex:1"><span style="font-size:11px;width:38px">'+o.botH+'</span></div>' +
+    '<div class="prow"><button class="pbtn" id="vwFit" style="width:100%">工程表の高さを行数に合わせる</button></div>' +
+    '<div class="prow"><label>記号の大きさ</label><input type="range" id="vwM" min="0.6" max="2" step="0.1" value="'+o.markSize+'" style="flex:1"><span style="font-size:11px;width:38px">'+o.markSize.toFixed(1)+'</span></div>' +
+    '<div class="prow"><label>凡例</label><input type="checkbox" id="vwLg"'+(o.showLegend?' checked':'')+'>' +
+      '<label>状態の色</label><input type="checkbox" id="vwSt"'+(o.showStat?' checked':'')+'></div>' +
+    '<div style="font-size:11.5px;color:#5a6a78;margin:8px 0 4px">明細表に出す列</div>' +
+    '<div class="pgrid c3">' + COLS.filter(c=>c.k!=='area').map(c =>
+      '<button class="pbtn'+(o.cols[c.k]?' on':'')+'" data-col="'+c.k+'">'+esc(o.colLabels[c.k]||c.k)+'</button>').join('') + '</div>' +
+    '<div class="phint">列の見出しは、明細表の見出しを直接クリックして書き換えられます。</div>';
+  const $ = id => document.getElementById(id);
+  $('vwL').onchange = () => edit(() => o.showSideL = $('vwL').checked);
+  $('vwR').onchange = () => edit(() => o.showSideR = $('vwR').checked);
+  $('vwD').onchange = () => edit(() => o.showDwg = $('vwD').checked);
+  $('vwLg').onchange = () => edit(() => o.showLegend = $('vwLg').checked);
+  $('vwSt').onchange = () => edit(() => o.showStat = $('vwSt').checked);
+  const slide = (id, key, fn) => { const el = $(id);
+    el.oninput = () => { o[key] = fn(el.value); applySheetVars(); renderDwg(); el.nextElementSibling.textContent = key==='markSize'?o[key].toFixed(1):o[key]; };
+    el.onpointerdown = beginEdit;
+    el.onchange = () => { commitEdit(); renderSchedule(); autosave(); }; };
+  slide('vwW','sideW', v=>parseInt(v,10)); slide('vwH','botH', v=>parseInt(v,10)); slide('vwM','markSize', v=>parseFloat(v));
+  $('vwFit').onclick = () => edit(() => { if (state.view.mode !== 'bar') state.view.mode = 'bar'; fitBotHeight(); syncSegs(); });
+  document.querySelectorAll('[data-col]').forEach(b => b.onclick = () => edit(() => o.cols[b.dataset.col] = o.cols[b.dataset.col] ? 0 : 1));
+}
+function renderPanelLegend(){
+  document.getElementById('pLegend').innerHTML = '<h3>凡例（図面の右下）</h3>' +
+    state.legend.map(l => '<div class="prow" style="margin-bottom:4px">' +
+      '<input type="color" value="'+l.color+'" data-lgc="'+l.id+'" style="width:30px;height:22px;padding:0;border:1px solid var(--line)">' +
+      '<input type="text" value="'+esc(l.text)+'" data-lgt="'+l.id+'">' +
+      '<button class="pbtn danger" data-lgd="'+l.id+'">×</button></div>').join('') +
+    '<button class="pbtn" id="lgAdd" style="width:100%;margin-top:4px">＋凡例を足す</button>';
+  document.querySelectorAll('[data-lgc]').forEach(el => el.onchange = () => edit(() => {
+    const l = state.legend.find(x=>x.id===el.dataset.lgc); if (l) l.color = el.value; }));
+  document.querySelectorAll('[data-lgt]').forEach(el => {
+    el.onfocus = beginEdit;
+    el.oninput = () => { const l = state.legend.find(x=>x.id===el.dataset.lgt); if (l){ l.text = el.value; renderLegend(); autosave(); } };
+    el.onchange = commitEdit; });
+  document.querySelectorAll('[data-lgd]').forEach(el => el.onclick = () => edit(() => {
+    state.legend = state.legend.filter(x=>x.id!==el.dataset.lgd); }));
+  document.getElementById('lgAdd').onclick = () => edit(() => state.legend.push({ id:uid(), kind:'line', color:'#e03131', text:'（凡例）' }));
+}
+function addTask(after){
+  edit(() => {
+    if (!state.blocks.length) state.blocks.push({ id:uid(), title:'工程明細', side:'L' });
+    const t = newTask(after ? after.blockId : (state.blocks[0] && state.blocks[0].id));
+    if (after){ t.area = after.area; t.kind = after.kind; t.shift = after.shift; t.content = after.content;
+      state.tasks.splice(state.tasks.indexOf(after)+1, 0, t); }
+    else state.tasks.push(t);
+    sel = { type:'task', id:t.id };
+  });
+}
+/** バーチャートは行数で必要な高さが決まる。収まる高さを計算して合わせる（図面は最低280px残す） */
+function fitBotHeight(){
+  if (state.view.mode !== 'bar') return;
+  const headH = (state.view.range === 3 ? 16 : 0) + 15 + 14;
+  const nGrp = state.blocks.filter(b => state.tasks.some(t=>t.blockId===b.id)).length;
+  const need = headH + nGrp*14 + state.tasks.length*13 + 26;
+  state.opt.botH = Math.max(180, Math.min(600, need));
+}
+function addBlock(){
+  edit(() => state.blocks.push({ id:uid(), title:'新しい表', side: state.blocks.filter(b=>b.side==='R').length ? 'L' : 'R' }));
+}
+function moveTask(t, dir){
+  edit(() => {
+    const i = state.tasks.indexOf(t), j = i + dir;
+    if (j < 0 || j >= state.tasks.length) return;
+    state.tasks.splice(i,1); state.tasks.splice(j,0,t);
+  });
+}
+
+/* ══════════ 図面の操作（配置・移動・ズーム） ══════════ */
+function setTool(t){
+  ui.tool = t; ui.draft = null; renderDwgTools();
+  const hints = {
+    select:'', no:'図面をクリック → その位置に番号マークが付きます（Escで選択に戻る）',
+    text:'図面をクリック → 文字を入れます', line:'クリックで点を足し、ダブルクリックまたはEnterで確定',
+    rect:'ドラッグで範囲を囲みます', span:'クリックした位置に縦の区切り線を入れます',
+  };
+  setHint(hints[t] || '');
+}
+function fitDwg(){
+  const box = document.getElementById('dwgBox'), d = state.dwg; if (!d) return;
+  const bw = box.clientWidth, bh = box.clientHeight;
+  if (!bw || !bh) return;
+  d.z = Math.min(bw / d.nw, bh / d.nh);
+  d.x = (bw - d.nw*d.z)/2; d.y = (bh - d.nh*d.z)/2;
+  d.fitted = true;
+}
+function dwgLocal(e){
+  const r = document.getElementById('dwgBox').getBoundingClientRect();
+  return [ (e.clientX - r.left)/ui.zoom, (e.clientY - r.top)/ui.zoom ];
+}
+function nextMarkNo(){
+  const ns = state.marks.filter(m=>m.type==='no').map(m=>parseInt(m.no,10)).filter(n=>!isNaN(n));
+  return String(ns.length ? Math.max.apply(null, ns)+1 : 1);
+}
+function bindDwgEvents(){
+  const box = document.getElementById('dwgBox');
+  box.addEventListener('pointerdown', e => {
+    if (!state.dwg) return;
+    const g = e.target.closest && e.target.closest('[data-mk]');
+    const [lx,ly] = dwgLocal(e);
+    if (g){
+      const m = state.marks.find(x=>x.id===g.dataset.mk); if (!m) return;
+      selectIt('mark', m.id);
+      e.preventDefault();
+      const handle = e.target.dataset.mkh || (e.target.dataset.mkv != null ? 'v'+e.target.dataset.mkv : '');
+      let [n0x,n0y] = toNorm(lx,ly);
+      const before = JSON.stringify(m);
+      let moved = false;
+      const onMove = ev => {
+        const [mx,my] = dwgLocal(ev), [nx,ny] = toNorm(mx,my);
+        const dx = nx-n0x, dy = ny-n0y;
+        if (Math.abs(dx)+Math.abs(dy) > 0.0004) moved = true;
+        if (handle === 'a'){ m.ax = nx; m.ay = ny; }
+        else if (handle.startsWith('v')){
+          const i = Number(handle.slice(1));
+          if (m.type === 'line') m.pts[i] = [nx,ny];
+          else if (m.type === 'rect'){ m.nx2 = nx; m.ny2 = ny; }
+        }
+        else if (m.type === 'line'){ m.pts = m.pts.map(p => [p[0]+dx, p[1]+dy]); n0x = nx; n0y = ny; }
+        else if (m.type === 'span'){ m.nx = nx; }
+        else { m.nx = (m.nx||0)+dx; m.ny = (m.ny||0)+dy;
+               if (m.type === 'rect'){ m.nx2 += dx; m.ny2 += dy; } n0x = nx; n0y = ny; }
+        drawMarks();
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp);
+        if (moved){ const after = JSON.stringify(m); Object.assign(m, JSON.parse(before));
+          edit(() => Object.assign(m, JSON.parse(after))); }
+      };
+      window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+      return;
+    }
+    if (ui.tool === 'select'){            // 何も無い所をドラッグ＝図面のパン
+      e.preventDefault();
+      const sx = e.clientX/ui.zoom, sy = e.clientY/ui.zoom, ox = state.dwg.x, oy = state.dwg.y;
+      let moved = false;
+      const onMove = ev => { state.dwg.x = ox + (ev.clientX/ui.zoom - sx); state.dwg.y = oy + (ev.clientY/ui.zoom - sy);
+        state.dwg.fitted = false; moved = true; renderDwg(); };
+      const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp);
+        if (moved) autosave(); else if (sel.type === 'mark') selectIt(null, null); };
+      window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+      return;
+    }
+    if (ui.tool === 'rect'){
+      e.preventDefault();
+      const [n0x,n0y] = toNorm(lx,ly);
+      const m = { id:uid(), type:'rect', nx:n0x, ny:n0y, nx2:n0x, ny2:n0y, color:'#e03131' };
+      state.marks.push(m);
+      const onMove = ev => { const [mx,my] = dwgLocal(ev); const [nx,ny] = toNorm(mx,my); m.nx2 = nx; m.ny2 = ny; drawMarks(); };
+      const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp);
+        state.marks.pop();
+        if (Math.abs(m.nx2-m.nx) < 0.005){ setTool('select'); return; }
+        edit(() => { state.marks.push(m); sel = { type:'mark', id:m.id }; }); setTool('select'); };
+      window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+    }
+  });
+  box.addEventListener('click', async e => {
+    if (!state.dwg) return;
+    if (e.target.closest && e.target.closest('[data-mk]')) return;
+    const [lx,ly] = dwgLocal(e), [nx,ny] = toNorm(lx,ly);
+    if (ui.tool === 'no'){
+      const no = nextMarkNo();
+      edit(() => {
+        const m = { id:uid(), type:'no', no, st:'plan', ax:nx, ay:ny, nx:nx-0.03, ny:ny-0.06 };
+        state.marks.push(m); sel = { type:'mark', id:m.id };
+        // 作業を選んだまま打つと、その作業の「箇所No」に足す（図面と工程がつながる）
+        const t = state.tasks.find(x=>x.id===ui.lastTask);
+        if (t){ t.spots = t.spots ? t.spots + '・' + no : no; }
+      });
+      renderDwg();
+    } else if (ui.tool === 'text'){
+      const v = await askInput({ title:'文字を入れる', message:'図面に書き込む文字', value:'' });
+      if (v) edit(() => { const m = { id:uid(), type:'text', nx, ny, text:v, size:13, color:'#111' };
+        state.marks.push(m); sel = { type:'mark', id:m.id }; });
+      setTool('select');
+    } else if (ui.tool === 'span'){
+      edit(() => { const m = { id:uid(), type:'span', nx, top:'A', bot:'' }; state.marks.push(m); sel = { type:'mark', id:m.id }; });
+      setTool('select');
+    } else if (ui.tool === 'line'){
+      if (!ui.draft){ ui.draft = { id:uid(), type:'line', pts:[[nx,ny],[nx,ny]], color:'#e03131', w:2.2 };
+        state.marks.push(ui.draft); }
+      else ui.draft.pts.push([nx,ny]);
+      drawMarks();
+    }
+  });
+  box.addEventListener('pointermove', e => {
+    if (ui.tool === 'line' && ui.draft && state.dwg){
+      const [lx,ly] = dwgLocal(e), [nx,ny] = toNorm(lx,ly);
+      ui.draft.pts[ui.draft.pts.length-1] = [nx,ny]; drawMarks();
+    }
+  });
+  box.addEventListener('dblclick', () => finishLine());
+  box.addEventListener('wheel', e => {
+    if (!state.dwg) return;
+    e.preventDefault();
+    const [lx,ly] = dwgLocal(e), [nx,ny] = toNorm(lx,ly), d = state.dwg;
+    d.z = Math.max(0.05, Math.min(12, d.z * (e.deltaY < 0 ? 1.12 : 1/1.12)));
+    d.x = lx - nx*d.nw*d.z; d.y = ly - ny*d.nh*d.z; d.fitted = false;
+    renderDwg(); autosave();
+  }, { passive:false });
+  document.getElementById('dwgTools').addEventListener('click', e => {
+    const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool);
+  });
+  document.getElementById('dwgZoom').addEventListener('click', e => {
+    const b = e.target.closest('[data-dz]'); if (!b || !state.dwg) return;
+    const box2 = document.getElementById('dwgBox'), d = state.dwg;
+    if (b.dataset.dz === 'fit') fitDwg();
+    else { const f = b.dataset.dz === '1' ? 1.2 : 1/1.2, cx = box2.clientWidth/2, cy = box2.clientHeight/2;
+      const [nx,ny] = toNorm(cx,cy); d.z = Math.max(0.05, Math.min(12, d.z*f));
+      d.x = cx - nx*d.nw*d.z; d.y = cy - ny*d.nh*d.z; d.fitted = false; }
+    renderDwg(); autosave();
+  });
+}
+function finishLine(){
+  if (!ui.draft) return;
+  const d = ui.draft; ui.draft = null;
+  state.marks.pop();
+  if (d.pts.length >= 2){ d.pts.pop(); if (d.pts.length >= 2) edit(() => { state.marks.push(d); sel = { type:'mark', id:d.id }; }); else drawMarks(); }
+  else drawMarks();
+  setTool('select');
+}
+
+/* ══════════ 用紙のズーム ══════════ */
+function setZoom(z){
+  ui.zoom = Math.max(0.2, Math.min(2.5, z));
+  const sh = document.getElementById('sheet'), st = document.getElementById('stage');
+  sh.style.transform = 'scale(' + ui.zoom + ')';
+  st.style.width = (1587*ui.zoom + 36) + 'px';
+  st.style.height = (1122*ui.zoom + 36) + 'px';
+  document.getElementById('zoomLabel').textContent = Math.round(ui.zoom*100) + '%';
+}
+function zoomFit(){
+  const w = document.getElementById('stageWrap').clientWidth;
+  setZoom((w - 40) / 1587);
+}
+
+/* ══════════ 入出力 ══════════ */
+async function ensurePdfJs(){
+  if (window.pdfjsLib) return;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = res; s.onerror = () => rej(new Error('cdn'));
+    document.head.appendChild(s);
+  });
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+async function loadDwgFile(file){
+  try {
+    let dataURL;
+    if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)){
+      setHint('PDFを読み込み中…');
+      try { await ensurePdfJs(); }
+      catch(e){ setHint(''); alert('PDF表示ライブラリの読込に失敗しました（インターネット接続が必要です）。\nオフラインの現場PCでは、PDFを画像(PNG/JPG)にしてから読み込んでください。'); return; }
+      const pdf = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+      let page = 1;
+      if (pdf.numPages > 1){
+        setHint('');
+        const ans = await askInput({ title:'PDFのページ選択', message:'全'+pdf.numPages+'ページ。図面に使うページ番号を入力してください。', value:'1',
+          validate: v => { const n = parseInt(v,10); return (!Number.isInteger(n)||n<1||n>pdf.numPages) ? '1〜'+pdf.numPages+' の整数を入力してください。' : ''; } });
+        if (ans === null) return; page = parseInt(ans,10);
+      }
+      const pg = await pdf.getPage(page);
+      const vp = pg.getViewport({ scale: 2 });
+      const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+      await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+      dataURL = cv.toDataURL('image/jpeg', 0.86);
+    } else {
+      dataURL = await new Promise((res,rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+    }
+    const img = new Image();
+    img.onload = () => {
+      pushUndo();
+      state.dwg = { dataURL, nw: img.naturalWidth, nh: img.naturalHeight, x:0, y:0, z:1 };
+      renderDwg(); fitDwg(); renderDwg(); setHint(''); autosave();
+      showToast('図面を読み込みました。「①番号」で施工箇所の番号を打てます。');
+    };
+    img.onerror = () => { setHint(''); alert('画像の読み込みに失敗しました。'); };
+    img.src = dataURL;
+  } catch(e){ setHint(''); alert('図面の読み込みに失敗しました: ' + e.message); }
+}
+function download(name, blob){
+  const a = document.createElement('a'), url = URL.createObjectURL(blob);
+  a.href = url; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
+}
+function saveJson(){
+  const clean = JSON.parse(JSON.stringify(state));
+  for (const t of clean.tasks){ delete t._dates; delete t._start; delete t._end; delete t._overlap; }
+  delete clean._overlap; delete clean._end;
+  download((state.meta.title || '工程表') + '.json', new Blob([JSON.stringify(clean, null, 1)], { type:'application/json' }));
+  showToast('保存しました。このJSONを開けば、図面ごとそのまま復元できます。');
+}
+function loadJson(file){
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const o = JSON.parse(r.result);
+      if (!o.tasks || !o.blocks) throw new Error('この工程表ツールのファイルではないようです');
+      pushUndo(); state = o; migrate(); sel = { type:null, id:null };
+      renderAll(); if (state.dwg) setTimeout(() => { renderDwg(); }, 60);
+      autosave(); showToast('読み込みました。');
+    } catch(e){ alert('読み込みに失敗しました: ' + e.message); }
+  };
+  r.readAsText(file);
+}
+function migrate(){
+  const d = newState('general', '', todayStr(), [0]);
+  state.opt = Object.assign({}, d.opt, state.opt||{});
+  state.opt.cols = Object.assign({}, d.opt.cols, state.opt.cols||{});
+  state.opt.colLabels = Object.assign({}, d.opt.colLabels, state.opt.colLabels||{});
+  state.view = Object.assign({}, d.view, state.view||{});
+  state.meta = Object.assign({}, d.meta, state.meta||{});
+  state.off = state.off || {}; state.dayNotes = state.dayNotes || {};
+  state.marks = state.marks || []; state.legend = state.legend || [];
+}
+
+/* ══════════ 印刷 ══════════ */
+function doPrint(size, withDwg){
+  const prevDwg = state.opt.showDwg, prevZoom = ui.zoom;
+  if (!withDwg){ state.opt.showDwg = false; applySheetVars(); }
+  const st = document.createElement('style');
+  st.id = 'pgStyle';
+  st.textContent = '@page{size:' + size + ' landscape;margin:0}' +
+    '@media print{#sheet{transform:' + (size === 'A4' ? 'scale(0.7071)' : 'none') + ' !important;transform-origin:0 0 !important}' +
+    '#stage{width:auto !important;height:auto !important}}';
+  document.head.appendChild(st);
+  const cleanup = () => {
+    st.remove();
+    state.opt.showDwg = prevDwg; applySheetVars(); setZoom(prevZoom);
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(() => { window.print(); setTimeout(cleanup, 1200); }, 60);
+}
+
+/* ══════════ 使い方 ══════════ */
+const HELP_HTML = `
+<b>1. まず用意する</b><br>
+・「新規」でひな型（電線類地中化／汎用）と工事名・開始日・定休日を決めます。<br>
+・表題の工事名・施工箇所・会社名などは、用紙の上を直接クリックして書けます。<br><br>
+<b>2. 作業を並べる</b><br>
+・「＋作業」で明細表に行が増えます。<b>日数</b>を入れると、前の行の続きから自動で日程が決まります。<br>
+・行の順番＝施工の順番です。順番は右パネルの「↑上へ／↓下へ」で入れ替えます。<br>
+・状態（予定・施工中・完了・未承諾・取消）で表とカードの色が変わります。<br><br>
+<b>3. 雨で流れたとき</b><br>
+・工程表の<b>日付の数字をクリック</b>→「雨天中止」などを選ぶと、その日は施工日から外れ、<b>以降の予定が自動で後ろへずれます</b>。<br>
+・動かしたくない作業（協議済み・夜間規制取得済みなど）は、右パネルの📌で日付を固定します。固定した作業は雨が入っても動きません。<br>
+・完了にした作業は自動で📌が付き、過去がずれないようにします。<br><br>
+<b>4. 予定を手で動かす</b><br>
+・「バーチャート」表示で棒を<b>左右にドラッグ</b>＝開始日を決め打ち（📌が付きます）。<b>右端をドラッグ</b>＝日数の伸縮。<br>
+・📌を外すと、また前の作業から自動で詰まります。<br><br>
+<b>5. 図面</b><br>
+・「図面 → 読込」でPDF/画像を上中央の枠に入れます。ドラッグで移動、ホイールで拡大縮小。<br>
+・「①番号」で施工箇所の番号を打てます。丸と引き出し線の先は別々に動かせます。<br>
+・作業の行を選んだまま番号を打つと、その作業の「箇所No」に自動で足されます。行を選ぶと図面の丸が光ります。<br>
+・「文字」「線」「範囲」「区切り」で、書き込み・管路の色分け・50mごとの区切りなどを入れられます。<br><br>
+<b>6. 印刷</b><br>
+・「印刷」→ A3横／A4横。プリンタ側は「余白なし・用紙に合わせる」。画面の用紙がそのまま1枚に出ます。<br>
+・3ヶ月表示は列が細くなるので、線表（バーチャート）向きです。<br><br>
+<b>7. 保存</b><br>
+・自動保存はこの端末のブラウザの中だけです。<b>確実に残すには「保存」でJSONを書き出してください</b>（図面ごと復元できます）。<br><br>
+<b>ショートカット</b>：Ctrl+Z 元に戻す／Ctrl+Y やり直す／Ctrl+S 保存／Delete 選択したマークを削除／Esc 選択解除`;
+
+/* ══════════ 起動 ══════════ */
+function openNewModal(){
+  const pick = document.getElementById('tplPick');
+  pick.innerHTML = Object.keys(TEMPLATES).map(k =>
+    '<button class="tplCard'+(ui.tplPick===k?' on':'')+'" data-tpl="'+k+'"><b>'+TEMPLATES[k].label+'</b><span>'+TEMPLATES[k].desc+'</span></button>').join('');
+  pick.querySelectorAll('[data-tpl]').forEach(b => b.onclick = () => { ui.tplPick = b.dataset.tpl; openNewModal(); });
+  document.getElementById('nwTitle').value = state ? state.meta.title : '';
+  if (!document.getElementById('nwStart').value) document.getElementById('nwStart').value = todayStr();
+  document.getElementById('nwErr').textContent = '';
+  document.getElementById('newModal').classList.add('show');
+}
+function seedRows(){
+  const b = state.blocks[0].id;
+  for (const a of ['A','A','B']){ const t = newTask(b); t.area = a; state.tasks.push(t); }
+}
+function bindUI(){
+  const $ = id => document.getElementById(id);
+  $('btnNew').onclick = () => openNewModal();
+  $('nwCancel').onclick = () => $('newModal').classList.remove('show');
+  $('nwGo').onclick = () => {
+    const title = $('nwTitle').value.trim(), start = $('nwStart').value;
+    if (!start){ $('nwErr').textContent = '開始日を入れてください。'; return; }
+    const wo = $('nwOff').value ? $('nwOff').value.split(',').map(Number) : [];
+    pushUndo();
+    state = newState(ui.tplPick, title, start, wo); seedRows();
+    sel = { type:null, id:null }; $('newModal').classList.remove('show');
+    renderAll(); autosave();
+  };
+  $('btnOpen').onclick = () => $('fileJson').click();
+  $('fileJson').onchange = e => { if (e.target.files[0]) loadJson(e.target.files[0]); e.target.value = ''; };
+  $('btnSave').onclick = saveJson;
+  $('btnDwg').onclick = () => $('fileDwg').click();
+  $('fileDwg').onchange = e => { if (e.target.files[0]) loadDwgFile(e.target.files[0]); e.target.value = ''; };
+  $('btnDwgClear').onclick = () => { if (state.dwg && confirm('図面を消します（番号などのマークは残ります）。よろしいですか？')) edit(() => state.dwg = null); };
+  $('segRange').onclick = e => { const b = e.target.closest('[data-range]'); if (!b) return;
+    edit(() => state.view.range = Number(b.dataset.range)); syncSegs(); };
+  $('segMode').onclick = e => { const b = e.target.closest('[data-mode]'); if (!b) return;
+    edit(() => { state.view.mode = b.dataset.mode; fitBotHeight(); }); syncSegs(); };
+  $('btnPrev').onclick = () => edit(() => state.view.anchor = monthAdd(state.view.anchor, -1));
+  $('btnNext').onclick = () => edit(() => state.view.anchor = monthAdd(state.view.anchor, 1));
+  $('btnAddTask').onclick = () => addTask(selObj() && sel.type === 'task' ? selObj() : null);
+  $('btnUndo').onclick = undo; $('btnRedo').onclick = redo;
+  $('btnZoomIn').onclick = () => setZoom(ui.zoom*1.15);
+  $('btnZoomOut').onclick = () => setZoom(ui.zoom/1.15);
+  $('btnZoomFit').onclick = zoomFit;
+  $('btnPrint').onclick = () => $('printModal').classList.add('show');
+  $('prCancel').onclick = () => $('printModal').classList.remove('show');
+  $('prGo').onclick = () => { $('printModal').classList.remove('show');
+    doPrint($('prSize').value, $('prDwg').value === '1'); };
+  $('btnHelp').onclick = () => { $('helpBody').innerHTML = HELP_HTML; $('helpModal').classList.add('show'); };
+  $('hpClose').onclick = () => $('helpModal').classList.remove('show');
+  $('btnSide').onclick = () => { $('side').classList.toggle('hide'); };
+  document.querySelectorAll('.modal').forEach(m => m.addEventListener('mousedown', e => {
+    if (e.target === m && m.id !== 'inputModal') m.classList.remove('show'); }));
+  // 表題欄（用紙に直接書く欄）
+  document.querySelectorAll('#sheet [data-meta]').forEach(el => {
+    el.addEventListener('focus', beginEdit);
+    el.addEventListener('input', () => { state.meta[el.dataset.meta] = el.value; autosave(); });
+    el.addEventListener('change', commitEdit);
+  });
+  bindDwgEvents();
+  window.addEventListener('keydown', e => {
+    const inField = /INPUT|TEXTAREA|SELECT/.test((e.target.tagName||''));
+    if (e.ctrlKey || e.metaKey){
+      if (e.key === 'z' || e.key === 'Z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+      if (e.key === 'y' || e.key === 'Y'){ e.preventDefault(); redo(); return; }
+      if (e.key === 's' || e.key === 'S'){ e.preventDefault(); saveJson(); return; }
+    }
+    if (e.key === 'Escape'){ if (ui.draft) finishLine(); else if (ui.tool !== 'select') setTool('select');
+      else { closeOffMenu(); selectIt(null, null); } return; }
+    if (e.key === 'Enter' && ui.draft){ e.preventDefault(); finishLine(); return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !inField && sel.type === 'mark'){
+      e.preventDefault(); edit(() => { state.marks = state.marks.filter(x=>x.id!==sel.id); sel = { type:null, id:null }; });
+    }
+  });
+  window.addEventListener('resize', () => { clearTimeout(ui.dirtyTimer); ui.dirtyTimer = setTimeout(renderSchedule, 150); });
+  // どの作業を触っていたか（図面に番号を打つとき、その作業の箇所Noへ足すため）
+  document.addEventListener('focusin', () => { if (sel.type === 'task') ui.lastTask = sel.id; });
+}
+function syncSegs(){
+  document.querySelectorAll('#segRange [data-range]').forEach(b => b.classList.toggle('on', Number(b.dataset.range) === state.view.range));
+  document.querySelectorAll('#segMode [data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === state.view.mode));
+}
+function init(){
+  const raw = localStorage.getItem(LS_KEY);
+  if (raw){ try { state = JSON.parse(raw); migrate(); } catch(e){ state = null; } }
+  const fresh = !state;
+  if (fresh){ state = newState('chichuka', '', todayStr(), [0]); seedRows(); }
+  bindUI(); syncSegs(); renderAll(); zoomFit();
+  requestAnimationFrame(() => { if (state.dwg) { renderDwg(); } renderSchedule(); });
+  updateUndoBtns();
+  if (fresh) setTimeout(openNewModal, 200);
+}
+init();
+</script>
+</body>
+</html>

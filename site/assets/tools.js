@@ -76,6 +76,28 @@ window.TOOLS = [
       { v: 'v0.1', date: '2026-07-15', text: 'ロフトエンジン・DWG/DXF読込・立坑の3D起こし・統合ビューを試作' },
     ],
   },
+  {
+    id: 'koteihyo',
+    no: 'T-004',
+    name: '工程表作成ツール',
+    en: 'Construction Schedule Builder',
+    tagline: '図面つきの1ヶ月・3ヶ月工程表を、A3横1枚で。',
+    summary: '明細表・図面・日ごとの作業予定をA3横1枚に。1ヶ月と3ヶ月をワンタッチで切替、雨天中止や別現場を入れれば以降の予定が自動でずれる（📌で固定した作業は動かない）。図面に施工箇所の番号を打てて、そのまま印刷できる。',
+    category: 'manage',
+    tags: ['工程管理', '工程表', '雨休', '図面', '単一HTML', 'オフライン可'],
+    status: 'released',
+    version: 'v1.0.0',
+    updated: '2026-09-12',
+    platform: 'PC（Chrome / Edge）',
+    url: '../koteihyo/',
+    lp: 'tools/koteihyo.html',
+    guide: null,
+    accent: '#12a150',
+    shot: 'assets/img/koteihyo.webp',
+    changelog: [
+      { v: 'v1.0.0', date: '2026-09-12', text: '公開。1ヶ月／3ヶ月・日別セル／バーチャート・休工の自動スライド・図面への番号打ち・A3印刷' },
+    ],
+  },
 ];
 
 window.TOOL_CATEGORIES = [
@@ -83,4 +105,5 @@ window.TOOL_CATEGORIES = [
   { id: 'road', label: '道路・交通規制' },
   { id: 'temp', label: '仮設工・計算' },
   { id: 'cad',  label: '図面・3D' },
+  { id: 'manage', label: '工程・現場管理' },
 ];

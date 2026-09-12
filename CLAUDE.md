@@ -11,6 +11,8 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 > なお見た目の変更は、環境内の Chromium（`/opt/pw-browsers/`）で実描画してから提示すること（`sagyotaizu/test/README.md` 参照）。
 >
 > **ツール紹介サイト `site/`（2026-09 追加）**: 作業帯図ツール・覆工板ツールなど「現場ツール」のホームページ＋各ツールのLP＋要望フォーム。KABU DEXとは無関係。ビルド不要の静的HTML（依存ライブラリなし）で、**GitHub Pages（配信元 `main`）で公開**: `https://morioshota.github.io/Claude-code/site/`。ルートの `index.html`（KABU DEXのVite入口）には「`*.github.io` で開かれたときだけ `./site/` へ移動する」1行のスクリプトがあり、Vite/Vercelでは何もしない。ツールを追加・更新したら `site/assets/tools.js`（台帳）を更新すること。構成・手順は `site/README.md`、初めての公開手順は `docs/HOMEPAGE_GUIDE.md`。
+>
+> **工程表作成ツール `koteihyo/`（2026-09 追加）**: 現場管理の工程表（1ヶ月／3ヶ月）を、図面つきでA3横1枚にまとめる単一HTMLツール。KABU DEXとは無関係。sagyotaizu と同じ制約（**ビルド不要・外部依存なし**。PDFの図面を読み込むときだけ PDF.js をCDN遅延ロード）。触る前に `koteihyo/README.md`（仕様・データモデル・**日程の決まり方**）と `koteihyo/CODE_STRUCTURE.md`（コードの地図・実際に踏んだ落とし穴）を必ず読むこと。公開URLは `https://morioshota.github.io/Claude-code/koteihyo/`（**配信元は `main`**。作業ブランチにpushしただけでは公開URLは更新されない）。見た目を変えたときは、環境内の Chromium（`/opt/pw-browsers/`）で実描画してから提示すること。
 
 ## オーナーの利用文脈（重要）
 
