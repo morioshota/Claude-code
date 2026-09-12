@@ -76,6 +76,28 @@ window.TOOLS = [
       { v: 'v0.1', date: '2026-07-15', text: 'ロフトエンジン・DWG/DXF読込・立坑の3D起こし・統合ビューを試作' },
     ],
   },
+  {
+    id: 'zairyo',
+    no: 'T-004',
+    name: '材料在庫管理表',
+    en: 'Material Stock Manager',
+    tagline: '現場の材料を、使った分だけ記録。減ってきたら教えてくれる。',
+    summary: '品目ごとの在庫を、日々の出庫と仕入れの記録から自動で計算。1日平均使用量と残り日数を出し、発注点を割ったらアラートで知らせる。購入金額は月別・品目別のグラフで見える。データは端末内だけ、オフラインで動く。',
+    category: 'manage',
+    tags: ['資材管理', '在庫', '発注点', 'グラフ', '単一HTML', 'オフライン可', 'スマホ可'],
+    status: 'released',
+    version: 'v1.0.0',
+    updated: '2026-09-12',
+    platform: 'PC（Chrome / Edge）・スマホ',
+    url: '../zairyo/',
+    lp: 'tools/zairyo.html',
+    guide: null,
+    accent: '#0f766e',
+    shot: 'assets/img/zairyo.webp',
+    changelog: [
+      { v: 'v1.0.0', date: '2026-09-12', text: '初版公開。在庫一覧・入出庫記録・発注アラート・4種のグラフ・CSV/JSON入出力' },
+    ],
+  },
 ];
 
 window.TOOL_CATEGORIES = [
@@ -83,4 +105,5 @@ window.TOOL_CATEGORIES = [
   { id: 'road', label: '道路・交通規制' },
   { id: 'temp', label: '仮設工・計算' },
   { id: 'cad',  label: '図面・3D' },
+  { id: 'manage', label: '資材・管理' },
 ];

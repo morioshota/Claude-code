@@ -20,6 +20,7 @@ site/
 │   ├── fukkoban.html           T-002 覆工板 最適勾配 検討ツール LP（洗練案・3D＋体験。_build から生成）
 │   ├── fukkoban-details.html   T-002 くわしく
 │   ├── civil-3d.html           T-003 土木3Dビルダー LP（開発中・準備中表示）
+│   ├── zairyo.html             T-004 材料在庫管理表 LP（_template.html から作成）
 │   └── _template.html          「くわしく」型ページのテンプレート（★を書き換える）
 ├── _build/                     上記2つのLPの生成元（python3 site/_build/build_site.py で再生成）
 │   ├── pattern_a.py / pattern_f.py   各LPの本文・CSS・JS

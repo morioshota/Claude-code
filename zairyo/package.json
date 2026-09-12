@@ -1,0 +1,7 @@
+{
+  "name": "zairyo-stock-manager",
+  "private": true,
+  "type": "commonjs",
+  "description": "材料在庫管理表（単一HTML・ビルド不要・外部依存なし）。このpackage.jsonは親リポジトリが type:module のため、test/core.test.js を CommonJS として実行させるためだけに置いている。依存パッケージは無い。",
+  "scripts": { "test": "node test/core.test.js" }
+}

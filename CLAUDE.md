@@ -10,6 +10,11 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 > ② **最新の `sagyotaizu/作業帯図作成ツール.html` を毎回ユーザーへ送付する**（オフライン運用のため。ダウンロード版は更新されないスナップショットなので、更新のたびに渡し直す）。
 > なお見た目の変更は、環境内の Chromium（`/opt/pw-browsers/`）で実描画してから提示すること（`sagyotaizu/test/README.md` 参照）。
 >
+> **材料在庫管理表 `zairyo/`（2026-09 追加）**: 建設現場の材料在庫を、日々の使用記録と購入記録から管理する単一HTMLツール（T-004）。KABU DEXとは無関係。
+> 残数・1日平均使用量・残日数・発注点アラート・購入金額のグラフまで。ビルド不要・外部依存ゼロ・データは端末のlocalStorageのみ。
+> 触るときは `zairyo/CLAUDE.md`・`zairyo/README.md`・`zairyo/CODE_STRUCTURE.md` を先に読むこと。計算を変えたら `node zairyo/test/core.test.js`（全項目パス必須）。
+> 公開URL（配信元 `main`）: `https://morioshota.github.io/Claude-code/zairyo/`
+>
 > **ツール紹介サイト `site/`（2026-09 追加）**: 作業帯図ツール・覆工板ツールなど「現場ツール」のホームページ＋各ツールのLP＋要望フォーム。KABU DEXとは無関係。ビルド不要の静的HTML（依存ライブラリなし）で、**GitHub Pages（配信元 `main`）で公開**: `https://morioshota.github.io/Claude-code/site/`。ルートの `index.html`（KABU DEXのVite入口）には「`*.github.io` で開かれたときだけ `./site/` へ移動する」1行のスクリプトがあり、Vite/Vercelでは何もしない。ツールを追加・更新したら `site/assets/tools.js`（台帳）を更新すること。構成・手順は `site/README.md`、初めての公開手順は `docs/HOMEPAGE_GUIDE.md`。
 
 ## オーナーの利用文脈（重要）

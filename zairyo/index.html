@@ -1,0 +1,2575 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>材料在庫管理表 v1.0.0</title>
+<meta name="description" content="建設現場の材料在庫を、日々の使用記録と購入記録から管理する単一HTMLツール。残数・日平均使用量・残日数・発注アラート・購入金額のグラフまで。">
+<meta name="theme-color" content="#1F2933">
+<!-- ==========================================================
+     材料在庫管理表  /  Material Stock Manager for Construction Sites
+     Version : 1.0.0
+     Author  : Shota Onuma
+     単一HTMLファイル・ビルド不要・外部依存なし（完全オフライン動作）
+     データは端末の localStorage に保存する（サーバー送信なし）
+     詳細は README.md / CODE_STRUCTURE.md を参照
+     ========================================================== -->
+<style>
+  :root{
+    /* --- 下地（現場ツール共通のブループリント調） --- */
+    --paper:#FAF9F6; --panel:#F2F0EA; --ink:#1F2933; --ink2:#5A6472; --ink3:#8A929C;
+    --line:#D9D5C8; --line2:#C7C2B2; --cell:#FFFFFF;
+    --accent:#0F766E; --accent-d:#0B5D57; --accent-l:#E6F2F0;
+    /* --- ステータス（在庫の状態。系列色には絶対に流用しない） --- */
+    --st-ok:#2F7D4F; --st-ok-bg:#EAF4EE;
+    --st-warn:#B45309; --st-warn-bg:#FDF3E3;
+    --st-serious:#C2410C; --st-serious-bg:#FDEDE6;
+    --st-crit:#B42318; --st-crit-bg:#FDEAE8;
+    --st-idle:#5A6472; --st-idle-bg:#EFEFEC;
+    /* --- グラフの系列色（固定順。巡回させない / 検証済みパレット） --- */
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+    --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+    --mono:"SFMono-Regular", ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    --sans:"Inter", system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:var(--sans); color:var(--ink); background:var(--paper);
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:24px 24px; background-position:-1px -1px;
+    display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden;
+    -webkit-text-size-adjust:100%;
+  }
+
+  /* ===== ヘッダー ===== */
+  header{
+    display:flex; align-items:center; gap:14px; padding:9px 16px;
+    background:var(--ink); color:#fff; border-bottom:3px solid var(--accent); flex-shrink:0;
+  }
+  header .mark{width:32px;height:32px;border:2px solid var(--accent);border-radius:3px;position:relative;flex-shrink:0}
+  header .mark::before{content:"";position:absolute;left:5px;right:5px;top:8px;height:2px;background:var(--accent)}
+  header .mark::after{content:"";position:absolute;left:5px;right:5px;top:15px;height:6px;border:2px solid var(--accent);border-top:none}
+  header h1{font-size:15px;letter-spacing:.04em;margin:0;font-weight:650;white-space:nowrap}
+  header h1 small{display:block;font-weight:400;font-size:10px;color:#A9B2BD;letter-spacing:.1em;margin-top:2px}
+  header .spacer{flex:1}
+  header .sitebox{display:flex;align-items:center;gap:6px;font-size:11px;color:#A9B2BD}
+  header .sitebox input{
+    width:150px;font-family:var(--sans);font-size:12px;text-align:left;padding:4px 8px;
+    background:#2E3A47;border:1px solid #3A4856;color:#E7EAEE;border-radius:4px;
+  }
+  header .credit{font-size:10px;color:#7F8A96;letter-spacing:.03em;white-space:nowrap}
+
+  /* ===== ボタン ===== */
+  .btn{
+    font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.02em;
+    padding:7px 12px;border-radius:5px;border:1px solid transparent;cursor:pointer;
+    background:#2E3A47;color:#E7EAEE;transition:.12s;white-space:nowrap;
+  }
+  .btn:hover{background:#3A4856}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.primary:hover{background:var(--accent-d)}
+  .btn.ghost{background:transparent;border-color:#3A4856;color:#C3CAD2}
+  .btn.ghost:hover{background:#2E3A47}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .btn.lite{background:#fff;color:var(--ink);border:1px solid var(--line2)}
+  .btn.lite:hover{background:var(--panel);border-color:var(--accent)}
+  .btn.lite.on{background:var(--accent-l);border-color:var(--accent);color:var(--accent-d)}
+  .btn.sm{font-size:11px;padding:5px 9px}
+  .btn.danger{background:#fff;color:var(--st-crit);border:1px solid #E7C4C0}
+  .btn.danger:hover{background:var(--st-crit-bg)}
+
+  /* ===== タブ ===== */
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--line2);background:var(--panel);flex-shrink:0;padding:0 8px;overflow-x:auto;scrollbar-width:thin}
+  .tab{
+    font-size:12.5px;font-weight:600;padding:11px 15px;cursor:pointer;color:var(--ink2);
+    border-bottom:2.5px solid transparent;margin-bottom:-1px;white-space:nowrap;user-select:none;
+    background:none;border-top:none;border-left:none;border-right:none;font-family:var(--sans);
+  }
+  .tab:hover{color:var(--ink)}
+  .tab.active{color:var(--accent-d);border-bottom-color:var(--accent);background:#fff}
+  .tab .n{
+    display:inline-block;min-width:17px;padding:0 4px;margin-left:6px;border-radius:9px;
+    background:var(--st-crit);color:#fff;font-size:10px;line-height:17px;text-align:center;font-family:var(--mono);
+  }
+  .tab .n.hide{display:none}
+
+  /* ===== ビュー ===== */
+  .view{flex:1;min-height:0;overflow:auto;padding:16px 18px 60px;display:none}
+  .view.active{display:block}
+  .lim{max-width:1320px;margin:0 auto}
+  h2.sec{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);margin:0 0 10px;font-weight:700}
+  h2.sec .sub{text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink3);margin-left:8px;font-size:11px}
+  .card{background:#fff;border:1px solid var(--line2);border-radius:8px;padding:14px 16px;margin-bottom:16px}
+  .card > h2.sec{margin-bottom:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .muted{color:var(--ink2)}
+  .tiny{font-size:11px;color:var(--ink2);line-height:1.6}
+  .nodata{padding:28px 12px;text-align:center;color:var(--ink3);font-size:12.5px;line-height:1.9}
+
+  /* ===== 入力 ===== */
+  input[type=number],input[type=text],input[type=date],select,textarea{
+    font-family:var(--sans);font-size:13px;padding:6px 8px;
+    border:1px solid var(--line2);border-radius:4px;background:#fff;color:var(--ink);
+  }
+  input[type=number]{font-family:var(--mono);text-align:right;width:96px}
+  input[type=date]{font-family:var(--mono);width:140px}
+  textarea{width:100%;resize:vertical;min-height:52px;line-height:1.6}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(15,118,110,.16)}
+  input:disabled{background:var(--panel);color:var(--ink3)}
+  label.f{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--ink2);font-weight:600}
+  label.f > span.req::after{content:" *";color:var(--st-serious)}
+  .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 12px}
+  .fgrid label.f input,.fgrid label.f select,.fgrid label.f textarea{width:100%}
+  .seg{display:inline-flex;border:1px solid var(--line2);border-radius:6px;overflow:hidden;background:#fff}
+  .seg button{
+    font-family:var(--sans);font-size:12px;font-weight:650;padding:7px 14px;border:none;background:#fff;
+    color:var(--ink2);cursor:pointer;border-right:1px solid var(--line2);white-space:nowrap;
+  }
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:var(--accent);color:#fff}
+  .seg button:not(.on):hover{background:var(--panel)}
+
+  /* ===== KPI ===== */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:1px;background:var(--line2);border:1px solid var(--line2);border-radius:8px;overflow:hidden;margin-bottom:16px}
+  .kpi{background:#fff;padding:11px 13px}
+  .kpi .k{font-size:10px;letter-spacing:.08em;color:var(--ink2);text-transform:uppercase;white-space:nowrap}
+  .kpi .v{font-family:var(--mono);font-size:21px;font-weight:600;margin-top:3px;line-height:1.15}
+  .kpi .v small{font-size:11px;color:var(--ink2);font-weight:400;margin-left:3px}
+  .kpi .d{font-size:10.5px;color:var(--ink3);margin-top:3px}
+
+  /* ===== アラート ===== */
+  .alert{display:flex;gap:11px;align-items:flex-start;border-radius:8px;padding:11px 14px;margin-bottom:10px;border:1px solid}
+  .alert .ic{font-size:16px;line-height:1.3;flex-shrink:0}
+  .alert .bd{flex:1;min-width:0}
+  .alert .t{font-size:13px;font-weight:700;margin-bottom:3px}
+  .alert .m{font-size:12px;line-height:1.7}
+  .alert.crit{background:var(--st-crit-bg);border-color:#EFC9C4;color:var(--st-crit)}
+  .alert.serious{background:var(--st-serious-bg);border-color:#F0CDBB;color:var(--st-serious)}
+  .alert.warn{background:var(--st-warn-bg);border-color:#EEDCBB;color:var(--st-warn)}
+  .alert.ok{background:var(--st-ok-bg);border-color:#C7E0D1;color:var(--st-ok)}
+  .alert .m b{font-weight:700}
+  .alert .chips{margin-top:7px;display:flex;gap:6px;flex-wrap:wrap}
+  .alert .chips button{
+    font-family:var(--sans);font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:12px;cursor:pointer;
+    background:#fff;border:1px solid currentColor;color:inherit;
+  }
+  .alert .chips button:hover{background:rgba(0,0,0,.05)}
+
+  /* ===== バッジ ===== */
+  .bdg{
+    display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;
+    padding:2px 7px;border-radius:10px;white-space:nowrap;border:1px solid transparent;
+  }
+  .bdg.ok{background:var(--st-ok-bg);color:var(--st-ok);border-color:#C7E0D1}
+  .bdg.warn{background:var(--st-warn-bg);color:var(--st-warn);border-color:#EEDCBB}
+  .bdg.serious{background:var(--st-serious-bg);color:var(--st-serious);border-color:#F0CDBB}
+  .bdg.crit{background:var(--st-crit-bg);color:var(--st-crit);border-color:#EFC9C4}
+  .bdg.idle{background:var(--st-idle-bg);color:var(--st-idle);border-color:var(--line2)}
+  .bdg.cat{background:var(--panel);color:var(--ink2);border-color:var(--line);font-weight:600}
+
+  /* ===== テーブル ===== */
+  .tblwrap{overflow-x:auto;border:1px solid var(--line2);border-radius:8px;background:#fff}
+  table.tbl{border-collapse:collapse;width:100%;font-size:12.5px}
+  table.tbl th{
+    background:var(--ink);color:#fff;font-weight:600;padding:8px 10px;font-size:10.5px;letter-spacing:.04em;
+    position:sticky;top:0;z-index:2;text-align:left;white-space:nowrap;
+  }
+  table.tbl th.num,table.tbl td.num{text-align:right;font-family:var(--mono)}
+  table.tbl th.sortable{cursor:pointer;user-select:none}
+  table.tbl th.sortable:hover{background:#2E3A47}
+  table.tbl th .ar{opacity:.45;margin-left:3px}
+  table.tbl th .ar.on{opacity:1;color:#7FD1C6}
+  table.tbl td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.tbl tbody tr:hover{background:#F7FBFA}
+  table.tbl tbody tr:last-child td{border-bottom:none}
+  table.tbl tr.st-crit td:first-child{box-shadow:inset 3px 0 0 var(--st-crit)}
+  table.tbl tr.st-serious td:first-child{box-shadow:inset 3px 0 0 var(--st-serious)}
+  table.tbl tr.st-warn td:first-child{box-shadow:inset 3px 0 0 var(--st-warn)}
+  table.tbl tr.hit{animation:hit 1.6s ease-out}
+  @keyframes hit{0%,40%{background:#FFF3C4}100%{background:transparent}}
+  table.tbl td .nm{font-weight:650}
+  table.tbl td .cd{font-family:var(--mono);font-size:10.5px;color:var(--ink3)}
+  .bar-mini{height:5px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:4px;min-width:54px}
+  .bar-mini i{display:block;height:100%;border-radius:3px;background:var(--accent)}
+  .bar-mini i.crit{background:var(--st-crit)} .bar-mini i.serious{background:var(--st-serious)} .bar-mini i.warn{background:var(--st-warn)}
+
+  /* ===== グラフ ===== */
+  .chartbox{margin-bottom:16px}
+  .chart-head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+  .chart-head .ttl{font-size:13px;font-weight:700}
+  .chart-head .cap{font-size:11px;color:var(--ink2);margin-top:2px;line-height:1.6}
+  .chart-head .sp{flex:1}
+  .cv-wrap{position:relative;border:1px solid var(--line2);border-radius:6px;background:#fff;overflow:hidden}
+  .cv-wrap canvas{display:block;width:100%}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:11.5px;color:var(--ink2)}
+  .legend span.it{display:inline-flex;align-items:center;gap:5px}
+  .legend i{width:11px;height:11px;border-radius:2px;display:inline-block;flex-shrink:0}
+  .legend i.ln{height:3px;border-radius:2px}
+  .tip{
+    position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:11.5px;line-height:1.6;
+    padding:6px 9px;border-radius:5px;white-space:nowrap;z-index:5;opacity:0;transition:opacity .08s;
+    box-shadow:0 3px 10px rgba(0,0,0,.22);
+  }
+  .tip.on{opacity:1}
+  .tip b{font-family:var(--mono)}
+  details.datatbl{margin-top:8px}
+  details.datatbl summary{font-size:11.5px;color:var(--accent-d);cursor:pointer;font-weight:600;padding:3px 0}
+  details.datatbl summary:hover{text-decoration:underline}
+  details.datatbl .tblwrap{margin-top:8px;max-height:260px;overflow-y:auto}
+
+  /* ===== 記録フォーム ===== */
+  .quickpick{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+  .quickpick button{
+    font-family:var(--sans);font-size:12px;font-weight:600;padding:8px 11px;border-radius:6px;cursor:pointer;
+    background:#fff;border:1px solid var(--line2);color:var(--ink);text-align:left;line-height:1.35;
+  }
+  .quickpick button:hover{border-color:var(--accent);background:var(--accent-l)}
+  .quickpick button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .quickpick button small{display:block;font-size:10px;font-weight:400;opacity:.75;font-family:var(--mono);margin-top:2px}
+  .steppers{display:flex;align-items:stretch;gap:0;border:1px solid var(--line2);border-radius:6px;overflow:hidden;background:#fff;width:max-content}
+  .steppers button{
+    font-family:var(--sans);font-size:17px;font-weight:700;width:40px;border:none;background:var(--panel);
+    color:var(--ink);cursor:pointer;line-height:1;
+  }
+  .steppers button:hover{background:var(--accent-l);color:var(--accent-d)}
+  .steppers input{border:none;border-radius:0;width:96px;font-size:17px;text-align:center;padding:8px 4px}
+  .steppers input:focus{box-shadow:inset 0 0 0 2px var(--accent)}
+  .after{font-size:12px;color:var(--ink2);margin-top:8px;line-height:1.7}
+  .after b{font-family:var(--mono);font-size:15px;color:var(--ink)}
+  .after b.neg{color:var(--st-crit)}
+  .amt{font-family:var(--mono);font-size:19px;font-weight:650}
+
+  /* ===== トースト ===== */
+  #toast{
+    position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(14px);
+    background:var(--ink);color:#fff;font-size:13px;font-weight:600;padding:10px 18px;border-radius:22px;
+    box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transition:.2s;pointer-events:none;z-index:200;max-width:92vw;
+  }
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.bad{background:var(--st-crit)}
+
+  /* ===== モーダル ===== */
+  .ov{position:fixed;inset:0;background:rgba(31,41,51,.55);display:none;align-items:center;justify-content:center;z-index:150;padding:16px}
+  .ov.on{display:flex}
+  .modal{background:var(--paper);border-radius:10px;max-width:720px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+  .modal .mh{display:flex;align-items:center;gap:12px;padding:13px 18px;background:var(--ink);color:#fff;border-radius:10px 10px 0 0;position:sticky;top:0;z-index:3}
+  .modal .mh h3{margin:0;font-size:14px;font-weight:650;flex:1}
+  .modal .mb{padding:16px 18px}
+  .modal .mf{display:flex;gap:10px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line);background:var(--panel);position:sticky;bottom:0;flex-wrap:wrap}
+  .modal .mf .sp{flex:1}
+
+  /* ===== 印刷 ===== */
+  @media print{
+    body{height:auto;overflow:visible;background:#fff;background-image:none}
+    header,.tabs,.noprint,.ov,#toast{display:none!important}
+    .view{display:none!important;overflow:visible;padding:0}
+    .view.active{display:block!important}
+    .card{break-inside:avoid;border-color:#999}
+    table.tbl th{background:#333!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .bdg,.alert,.kpi{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    @page{size:A4 landscape;margin:10mm}
+  }
+
+  /* ===== 画面幅 ===== */
+  .seg .lg{display:inline}
+  @media (max-width:860px){
+    header{gap:9px;padding:8px 11px}
+    header h1{font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+    header h1 small{display:none}
+    header .sitebox span,header .credit{display:none}
+    header .sitebox input{width:100px}
+    .seg{width:100%}
+    .seg button{flex:1 1 0;padding:9px 4px;font-size:11.5px;min-width:0}
+    .seg .lg{display:none}
+    .view{padding:12px 11px 70px}
+    .tab{padding:10px 11px;font-size:12px}
+    .kpi .v{font-size:18px}
+    .btn{padding:7px 10px}
+  }
+  @media (max-width:560px){
+    header .sitebox{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="mark" aria-hidden="true"></div>
+  <h1>材料在庫管理表<small>MATERIAL STOCK MANAGER</small></h1>
+  <div class="sitebox"><span>現場</span><input id="siteName" type="text" placeholder="現場名を入力" aria-label="現場名"></div>
+  <div class="spacer"></div>
+  <span class="credit">Created by Shota Onuma　/　v1.0.0</span>
+  <button class="btn ghost" id="btnHelp" type="button">📖 使い方</button>
+  <button class="btn ghost" id="btnData" type="button">💾 データ</button>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="画面切替">
+  <button class="tab active" role="tab" data-view="dash" aria-selected="true">🏠 ダッシュボード<span class="n hide" id="tabAlertN">0</span></button>
+  <button class="tab" role="tab" data-view="stock" aria-selected="false">📋 在庫一覧</button>
+  <button class="tab" role="tab" data-view="entry" aria-selected="false">✏️ 記録する</button>
+  <button class="tab" role="tab" data-view="hist" aria-selected="false">🧾 履歴</button>
+  <button class="tab" role="tab" data-view="chart" aria-selected="false">📊 分析</button>
+  <button class="tab" role="tab" data-view="mat" aria-selected="false">📦 品目管理</button>
+</nav>
+
+<!-- ==================== 🏠 ダッシュボード ==================== -->
+<section class="view active" id="v-dash" role="tabpanel">
+  <div class="lim">
+    <div class="row noprint" style="margin-bottom:12px;justify-content:space-between">
+      <div>
+        <div style="font-size:15px;font-weight:700" id="dashTitle">きょうの在庫状況</div>
+        <div class="tiny" id="dashDate">—</div>
+      </div>
+      <div class="row">
+        <span class="tiny">平均使用量の集計期間</span>
+        <div class="seg" id="segWindow">
+          <button type="button" data-win="7">7日</button>
+          <button type="button" data-win="14" class="on">14日</button>
+          <button type="button" data-win="30">30日</button>
+          <button type="button" data-win="90">90日</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpis" id="dashKpis"></div>
+    <div id="dashAlerts"></div>
+
+    <div class="card">
+      <h2 class="sec">要発注リスト<span class="sub">在庫が発注点を割った／まもなく割る品目</span></h2>
+      <div id="orderList"></div>
+      <div class="row noprint" style="margin-top:11px">
+        <button class="btn lite sm" id="btnCopyOrder" type="button">📋 発注メモをコピー</button>
+        <button class="btn lite sm" id="btnPrintOrder" type="button">🖨 この画面を印刷</button>
+        <span class="tiny">発注数量は「発注点 ×2 − 現在庫」を目安として出している（品目ごとに直せる）。</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="sec">日別の使用量<span class="sub">直近30日・全品目の出庫件数と、7日移動平均</span></h2>
+      <div class="chartbox" id="chartDashUse"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="sec">きょうの記録<span class="sub">同じ日付で登録した入出庫</span></h2>
+      <div id="todayList"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 📋 在庫一覧 ==================== -->
+<section class="view" id="v-stock" role="tabpanel">
+  <div class="lim">
+    <div class="card noprint">
+      <div class="row">
+        <label class="f" style="flex:1;min-width:180px"><span>品名・品番でしぼり込み</span>
+          <input type="text" id="stockQ" placeholder="例: D16 / 生コン / 単管"></label>
+        <label class="f"><span>分類</span><select id="stockCat"><option value="">すべて</option></select></label>
+        <label class="f"><span>状態</span><select id="stockSt">
+          <option value="">すべて</option>
+          <option value="alert">⚠ 要注意だけ（欠品・要発注・まもなく）</option>
+          <option value="crit">欠品</option>
+          <option value="serious">要発注</option>
+          <option value="warn">まもなく発注</option>
+          <option value="idle">動きなし</option>
+          <option value="ok">問題なし</option>
+        </select></label>
+        <label class="f"><span>&nbsp;</span><button class="btn lite" id="btnPrintStock" type="button">🖨 在庫表を印刷</button></label>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:8px;justify-content:space-between">
+      <div class="tiny" id="stockCount">—</div>
+      <div class="tiny">※ 残日数 ＝ 現在庫 ÷ 1日平均使用量。平均が 0 の品目は「—」。</div>
+    </div>
+    <div class="tblwrap">
+      <table class="tbl" id="stockTbl">
+        <thead><tr>
+          <th class="sortable" data-k="name">品名 <span class="ar"></span></th>
+          <th class="sortable" data-k="cat">分類 <span class="ar"></span></th>
+          <th class="num sortable" data-k="stock">現在庫 <span class="ar"></span></th>
+          <th class="num sortable" data-k="rop">発注点 <span class="ar"></span></th>
+          <th class="num sortable" data-k="avg">1日平均<br>使用量 <span class="ar"></span></th>
+          <th class="num sortable" data-k="left">残日数 <span class="ar"></span></th>
+          <th class="num sortable" data-k="value">在庫金額 <span class="ar"></span></th>
+          <th class="sortable" data-k="last">最終<br>入出庫 <span class="ar"></span></th>
+          <th class="sortable" data-k="status">状態 <span class="ar"></span></th>
+          <th class="noprint">記録</th>
+        </tr></thead>
+        <tbody id="stockBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== ✏️ 記録する ==================== -->
+<section class="view" id="v-entry" role="tabpanel">
+  <div class="lim" style="max-width:900px">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <div class="seg" id="segType">
+          <button type="button" data-t="out" class="on">🔻 使った<span class="lg">（出庫）</span></button>
+          <button type="button" data-t="in">🔺 仕入れた<span class="lg">（入庫・購入）</span></button>
+          <button type="button" data-t="adj">🔢 数え直し<span class="lg">（棚卸）</span></button>
+        </div>
+        <label class="f" style="flex-direction:row;align-items:center;gap:7px"><span>日付</span>
+          <input type="date" id="enDate"></label>
+      </div>
+
+      <h2 class="sec">① 品目をえらぶ<span class="sub" id="pickHint">よく使う順に並んでいる</span></h2>
+      <div class="quickpick" id="quickPick"></div>
+      <label class="f" style="margin-bottom:14px"><span>一覧から探す</span>
+        <select id="enMat" style="max-width:420px"></select></label>
+
+      <h2 class="sec">② 数量を入れる</h2>
+      <div class="row" style="align-items:flex-end;gap:14px">
+        <div class="steppers">
+          <button type="button" id="qtyM" aria-label="減らす">−</button>
+          <input type="number" id="enQty" step="any" min="0" value="1" aria-label="数量">
+          <button type="button" id="qtyP" aria-label="増やす">＋</button>
+        </div>
+        <div style="font-size:14px;font-weight:650" id="enUnit">—</div>
+        <div class="row" id="qtyQuick" style="gap:6px"></div>
+      </div>
+      <div class="after" id="enAfter">品目を選ぶと、記録したあとの在庫が出る。</div>
+
+      <div id="inFields" style="display:none;margin-top:14px">
+        <h2 class="sec">③ 購入の情報<span class="sub">金額は「単価 × 数量」で自動計算。合計金額の方を直接入れてもよい</span></h2>
+        <div class="fgrid">
+          <label class="f"><span>単価（円）</span><input type="number" id="enPrice" step="any" min="0"></label>
+          <label class="f"><span>合計金額（円）</span><input type="number" id="enAmount" step="any" min="0"></label>
+          <label class="f"><span>仕入先</span><input type="text" id="enSupplier" list="dlSupplier"></label>
+          <label class="f"><span>伝票番号</span><input type="text" id="enSlip"></label>
+        </div>
+        <datalist id="dlSupplier"></datalist>
+      </div>
+
+      <div style="margin-top:14px">
+        <h2 class="sec" id="memoHead">③ 現場のメモ<span class="sub">あとから探しやすくなる。空でもよい</span></h2>
+        <div class="fgrid">
+          <label class="f"><span>工区・場所</span><input type="text" id="enSite" list="dlSite"></label>
+          <label class="f"><span>作業内容</span><input type="text" id="enWork" list="dlWork"></label>
+          <label class="f"><span>担当者</span><input type="text" id="enPerson" list="dlPerson"></label>
+          <label class="f" style="grid-column:1/-1"><span>備考</span><input type="text" id="enNote"></label>
+        </div>
+        <datalist id="dlSite"></datalist><datalist id="dlWork"></datalist><datalist id="dlPerson"></datalist>
+      </div>
+
+      <div class="row" style="margin-top:16px">
+        <button class="btn primary" id="btnSave" type="button" style="font-size:14px;padding:11px 24px">✓ この内容で記録する</button>
+        <button class="btn lite" id="btnSaveNext" type="button">✓ 記録して次の品目へ</button>
+        <span class="tiny" id="saveHint"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="sec">直近の記録<span class="sub">まちがえたらここから直せる</span></h2>
+      <div id="recentList"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 🧾 履歴 ==================== -->
+<section class="view" id="v-hist" role="tabpanel">
+  <div class="lim">
+    <div class="card noprint">
+      <div class="row">
+        <label class="f"><span>期間（から）</span><input type="date" id="hFrom"></label>
+        <label class="f"><span>期間（まで）</span><input type="date" id="hTo"></label>
+        <label class="f"><span>品目</span><select id="hMat"><option value="">すべて</option></select></label>
+        <label class="f"><span>種別</span><select id="hType">
+          <option value="">すべて</option><option value="out">出庫（使用）</option>
+          <option value="in">入庫（購入）</option><option value="adj">棚卸調整</option>
+        </select></label>
+        <label class="f" style="flex:1;min-width:150px"><span>キーワード</span><input type="text" id="hQ" placeholder="工区・作業・仕入先・備考"></label>
+        <label class="f"><span>&nbsp;</span><button class="btn lite" id="btnHClear" type="button">絞り込みを解除</button></label>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:8px;justify-content:space-between">
+      <div class="tiny" id="histSum">—</div>
+      <div class="row noprint">
+        <button class="btn lite sm" id="btnHCsv" type="button">⬇ 表示中をCSVで書き出す</button>
+        <button class="btn lite sm" id="btnPrintHist" type="button">🖨 印刷</button>
+      </div>
+    </div>
+    <div class="tblwrap">
+      <table class="tbl" id="histTbl">
+        <thead><tr>
+          <th>日付</th><th>種別</th><th>品名</th><th class="num">数量</th>
+          <th class="num">単価</th><th class="num">金額</th>
+          <th>工区・作業 / 仕入先</th><th>担当</th><th>備考</th><th class="noprint">操作</th>
+        </tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 📊 分析 ==================== -->
+<section class="view" id="v-chart" role="tabpanel">
+  <div class="lim">
+    <div class="card">
+      <div class="chart-head">
+        <div>
+          <div class="ttl">在庫の推移</div>
+          <div class="cap">入出庫の記録から日ごとの残数を積み上げたもの。破線は発注点。</div>
+        </div>
+        <div class="sp"></div>
+        <label class="f"><span>品目</span><select id="cMat"></select></label>
+        <label class="f"><span>期間</span><select id="cRange">
+          <option value="30">直近30日</option><option value="90" selected>直近90日</option>
+          <option value="180">直近180日</option><option value="365">直近1年</option>
+        </select></label>
+      </div>
+      <div class="chartbox" id="chartStock"></div>
+    </div>
+
+    <div class="card">
+      <div class="chart-head">
+        <div>
+          <div class="ttl">日別の使用量</div>
+          <div class="cap">棒＝その日に出庫した数量、線＝7日移動平均。ならすと1日あたりの使用ペースが見える。</div>
+        </div>
+        <div class="sp"></div>
+        <label class="f"><span>品目</span><select id="cUseMat"><option value="">すべての品目（件数）</option></select></label>
+      </div>
+      <div class="chartbox" id="chartUse"></div>
+    </div>
+
+    <div class="card">
+      <div class="chart-head">
+        <div>
+          <div class="ttl">月別の購入金額</div>
+          <div class="cap">入庫（購入）記録の金額を月ごとに集計し、分類で積み上げた。</div>
+        </div>
+      </div>
+      <div class="chartbox" id="chartBuy"></div>
+    </div>
+
+    <div class="card">
+      <div class="chart-head">
+        <div>
+          <div class="ttl">品目別の購入金額（上位10）</div>
+          <div class="cap">期間中に買った金額の大きい順。どこに金がかかっているかを見る。</div>
+        </div>
+        <div class="sp"></div>
+        <label class="f"><span>期間</span><select id="cTopRange">
+          <option value="90">直近90日</option><option value="180">直近180日</option>
+          <option value="365" selected>直近1年</option><option value="0">全期間</option>
+        </select></label>
+      </div>
+      <div class="chartbox" id="chartTop"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="sec">使用量サマリー<span class="sub">品目ごとの使用ペース。発注点を決めるときの根拠になる</span></h2>
+      <div class="tblwrap">
+        <table class="tbl" id="useTbl">
+          <thead><tr>
+            <th>品名</th><th class="num">期間中の<br>使用量</th><th class="num">使った日数</th>
+            <th class="num">1日平均<br>(暦日)</th><th class="num">1日平均<br>(使った日)</th>
+            <th class="num">1回あたり</th><th class="num">最大／日</th><th class="num">発注点の目安</th>
+          </tr></thead>
+          <tbody id="useBody"></tbody>
+        </table>
+      </div>
+      <div class="tiny" style="margin-top:8px">
+        発注点の目安 ＝ <b>1日平均使用量（暦日）× (リードタイム日数 ＋ 安全日数)</b>。
+        品目ごとのリードタイム・安全日数は「📦 品目管理」で設定する。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 📦 品目管理 ==================== -->
+<section class="view" id="v-mat" role="tabpanel">
+  <div class="lim">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <div style="font-size:14px;font-weight:700">品目マスタ</div>
+          <div class="tiny">ここに登録した品目が、記録画面と在庫一覧に出る。</div>
+        </div>
+        <div class="row">
+          <button class="btn primary" id="btnNewMat" type="button">＋ 品目を追加</button>
+          <button class="btn lite sm" id="btnMatCsv" type="button">⬇ CSV書き出し</button>
+          <button class="btn lite sm" id="btnMatCsvIn" type="button">⬆ CSV読み込み</button>
+        </div>
+      </div>
+    </div>
+    <div class="tblwrap">
+      <table class="tbl" id="matTbl">
+        <thead><tr>
+          <th>品番</th><th>品名</th><th>分類</th><th>単位</th>
+          <th class="num">現在庫</th><th class="num">発注点</th><th class="num">リード<br>タイム</th>
+          <th class="num">安全<br>日数</th><th class="num">標準単価</th><th>仕入先</th><th>保管場所</th><th class="noprint">操作</th>
+        </tr></thead>
+        <tbody id="matBody"></tbody>
+      </table>
+    </div>
+    <div class="tiny" style="margin-top:10px">
+      <b>発注点</b>を空欄にすると、使用実績（1日平均 × (リードタイム＋安全日数)）から自動で目安を使う。
+      数字を入れるとその値が優先される。<b>リードタイム</b>は発注してから現場に入るまでの日数。
+    </div>
+  </div>
+</section>
+
+<!-- ==================== モーダル ==================== -->
+<div class="ov" id="ovMat">
+  <div class="modal">
+    <div class="mh"><h3 id="matModalTitle">品目を追加</h3><button class="btn ghost sm" id="matClose" type="button">✕</button></div>
+    <div class="mb">
+      <div class="fgrid">
+        <label class="f"><span class="req">品名</span><input type="text" id="mName" placeholder="例: 異形棒鋼 D16"></label>
+        <label class="f"><span>品番・規格</span><input type="text" id="mCode" placeholder="例: SD345-D16-3.5m"></label>
+        <label class="f"><span class="req">分類</span><input type="text" id="mCat" list="dlCat" placeholder="例: 鋼材"></label>
+        <label class="f"><span class="req">単位</span><input type="text" id="mUnit" list="dlUnit" placeholder="例: 本"></label>
+        <label class="f"><span>初期在庫</span><input type="number" id="mOpening" step="any" value="0"></label>
+        <label class="f"><span>初期在庫の日付</span><input type="date" id="mOpenDate"></label>
+        <label class="f"><span>発注点（空欄＝自動）</span><input type="number" id="mRop" step="any" min="0" placeholder="自動"></label>
+        <label class="f"><span>リードタイム（日）</span><input type="number" id="mLead" step="1" min="0" value="3"></label>
+        <label class="f"><span>安全日数（日）</span><input type="number" id="mSafe" step="1" min="0" value="2"></label>
+        <label class="f"><span>標準単価（円）</span><input type="number" id="mPrice" step="any" min="0"></label>
+        <label class="f"><span>主な仕入先</span><input type="text" id="mSupplier" list="dlSupplier2"></label>
+        <label class="f"><span>保管場所</span><input type="text" id="mPlace" placeholder="例: 資材ヤードA"></label>
+        <label class="f" style="grid-column:1/-1"><span>備考</span><input type="text" id="mNote"></label>
+      </div>
+      <datalist id="dlCat"></datalist><datalist id="dlUnit"></datalist><datalist id="dlSupplier2"></datalist>
+      <div class="tiny" style="margin-top:12px">
+        初期在庫は「この日にこれだけあった」という出発点。以後は入出庫の記録で自動的に増減する。
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn danger" id="matDel" type="button">この品目を削除</button>
+      <div class="sp"></div>
+      <button class="btn lite" id="matCancel" type="button">やめる</button>
+      <button class="btn primary" id="matSave" type="button">保存する</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="ovMv">
+  <div class="modal" style="max-width:600px">
+    <div class="mh"><h3>記録を編集</h3><button class="btn ghost sm" id="mvClose" type="button">✕</button></div>
+    <div class="mb">
+      <div class="fgrid">
+        <label class="f"><span>日付</span><input type="date" id="eDate"></label>
+        <label class="f"><span>種別</span><select id="eType">
+          <option value="out">出庫（使用）</option><option value="in">入庫（購入）</option><option value="adj">棚卸調整</option>
+        </select></label>
+        <label class="f"><span>品目</span><select id="eMat"></select></label>
+        <label class="f"><span>数量</span><input type="number" id="eQty" step="any"></label>
+        <label class="f"><span>単価（円）</span><input type="number" id="ePrice" step="any" min="0"></label>
+        <label class="f"><span>金額（円）</span><input type="number" id="eAmount" step="any" min="0"></label>
+        <label class="f"><span>仕入先</span><input type="text" id="eSupplier"></label>
+        <label class="f"><span>伝票番号</span><input type="text" id="eSlip"></label>
+        <label class="f"><span>工区・場所</span><input type="text" id="eSite"></label>
+        <label class="f"><span>作業内容</span><input type="text" id="eWork"></label>
+        <label class="f"><span>担当者</span><input type="text" id="ePerson"></label>
+        <label class="f" style="grid-column:1/-1"><span>備考</span><input type="text" id="eNote"></label>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn danger" id="mvDel" type="button">この記録を削除</button>
+      <div class="sp"></div>
+      <button class="btn lite" id="mvCancel" type="button">やめる</button>
+      <button class="btn primary" id="mvSave" type="button">保存する</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="ovData">
+  <div class="modal" style="max-width:640px">
+    <div class="mh"><h3>データの保存・受け渡し</h3><button class="btn ghost sm" id="dataClose" type="button">✕</button></div>
+    <div class="mb">
+      <div class="alert warn" style="margin-bottom:14px">
+        <div class="ic">💡</div>
+        <div class="bd"><div class="t">データはこの端末のブラウザの中だけにある</div>
+        <div class="m">サーバーには何も送っていない。端末を替えるとき・ブラウザのデータを消す前には、必ずバックアップを書き出しておくこと。</div></div>
+      </div>
+      <h2 class="sec">まるごとバックアップ（推奨）</h2>
+      <div class="row" style="margin-bottom:6px">
+        <button class="btn primary" id="btnExport" type="button">⬇ バックアップを書き出す（JSON）</button>
+        <button class="btn lite" id="btnImport" type="button">⬆ バックアップを読み込む</button>
+      </div>
+      <div class="tiny" id="lastBackup" style="margin-bottom:16px">—</div>
+
+      <h2 class="sec">CSV（Excelで開く・他の表に貼る）</h2>
+      <div class="row" style="margin-bottom:16px">
+        <button class="btn lite sm" id="btnCsvMv" type="button">⬇ 入出庫の記録</button>
+        <button class="btn lite sm" id="btnCsvStock" type="button">⬇ 在庫一覧</button>
+        <button class="btn lite sm" id="btnCsvMat" type="button">⬇ 品目マスタ</button>
+        <button class="btn lite sm" id="btnCsvMvIn" type="button">⬆ 入出庫を読み込む</button>
+      </div>
+
+      <h2 class="sec">はじめて使うとき</h2>
+      <div class="row" style="margin-bottom:6px">
+        <button class="btn lite sm" id="btnSample" type="button">🧪 サンプルデータを入れて試す</button>
+        <button class="btn danger sm" id="btnReset" type="button">🗑 全データを消す</button>
+      </div>
+      <div class="tiny">サンプルは実在の現場のものではない。中身を消してから自分の品目を登録してもよい。</div>
+      <input type="file" id="fileIn" accept=".json,.csv,text/csv,application/json" style="display:none">
+    </div>
+    <div class="mf"><div class="sp"></div><button class="btn lite" id="dataOk" type="button">閉じる</button></div>
+  </div>
+</div>
+
+<div class="ov" id="ovHelp">
+  <div class="modal">
+    <div class="mh"><h3>使い方</h3><button class="btn ghost sm" id="helpClose" type="button">✕</button></div>
+    <div class="mb" id="helpBody"></div>
+    <div class="mf"><div class="sp"></div><button class="btn primary" id="helpOk" type="button">わかった</button></div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ==========================================================
+   計算コア — DOM に一切触らない純関数群
+   test/core.test.js がこのブロックを抽出して回帰テストする。
+   ⚠ 関数名と、このブロックの前後にあるセクション区切りコメントを消さないこと。
+   ========================================================== */
+
+/* ---------- 日付 ---------- */
+function ymd(d){
+  if (typeof d === 'string') return d.slice(0,10);
+  const y = d.getFullYear(), m = d.getMonth()+1, dd = d.getDate();
+  return y + '-' + String(m).padStart(2,'0') + '-' + String(dd).padStart(2,'0');
+}
+function parseYmd(s){
+  if (!s) return null;
+  const p = String(s).slice(0,10).split('-').map(Number);
+  if (p.length !== 3 || p.some(n => !isFinite(n))) return null;
+  return new Date(p[0], p[1]-1, p[2], 12, 0, 0); // 正午固定（夏時間の影響を避ける）
+}
+function addDays(s, n){
+  const d = parseYmd(s); if (!d) return s;
+  d.setDate(d.getDate() + n);
+  return ymd(d);
+}
+function diffDays(a, b){ // b - a （日数）
+  const da = parseYmd(a), db = parseYmd(b);
+  if (!da || !db) return 0;
+  return Math.round((db - da) / 86400000);
+}
+function monthKey(s){ return String(s||'').slice(0,7); }
+function dateList(from, to){
+  const out = []; let c = from;
+  let guard = 0;
+  while (diffDays(c, to) >= 0 && guard++ < 4000){ out.push(c); c = addDays(c, 1); }
+  return out;
+}
+
+/* ---------- 数値・書式 ---------- */
+function num(v, def){
+  if (v === '' || v === null || v === undefined) return def;
+  const n = Number(v);
+  return isFinite(n) ? n : def;
+}
+function round(v, p){
+  const f = Math.pow(10, p||0);
+  return Math.round((num(v,0) + Number.EPSILON) * f) / f;
+}
+function fmtQty(v){
+  const n = num(v, 0);
+  if (Math.abs(n - Math.round(n)) < 1e-9) return String(Math.round(n));
+  return String(round(n, 2));
+}
+function fmtYen(v){
+  const n = Math.round(num(v, 0));
+  return n.toLocaleString('ja-JP');
+}
+
+/* ---------- 入出庫の符号 ----------
+   out = 使用（減る） / in = 仕入（増える） / adj = 棚卸の差分（符号つきで保存） */
+function signedQty(mv){
+  const q = num(mv && mv.qty, 0);
+  if (!mv) return 0;
+  if (mv.type === 'out') return -Math.abs(q);
+  if (mv.type === 'in')  return  Math.abs(q);
+  return q; // adj は差分そのもの
+}
+function amountOf(mv){
+  if (!mv) return 0;
+  const a = num(mv.amount, null);
+  if (a !== null) return a;
+  const p = num(mv.unitPrice, null);
+  if (p === null) return 0;
+  return p * Math.abs(num(mv.qty, 0));
+}
+
+/* ---------- 在庫 ---------- */
+function movementsOf(movements, materialId){
+  return (movements||[]).filter(m => m && m.materialId === materialId);
+}
+/** 指定日（省略時は全期間）までの在庫数。初期在庫日より前の記録は数えない。 */
+function stockAt(material, movements, dateYmd){
+  if (!material) return 0;
+  const open = num(material.opening, 0);
+  const openDate = material.openingDate || null;
+  let s = open;
+  for (const mv of movementsOf(movements, material.id)){
+    if (!mv.date) continue;
+    if (openDate && diffDays(openDate, mv.date) < 0) continue;
+    if (dateYmd && diffDays(mv.date, dateYmd) < 0) continue;
+    s += signedQty(mv);
+  }
+  return round(s, 4);
+}
+function currentStock(material, movements){ return stockAt(material, movements, null); }
+
+function lastMoveDate(movements, materialId){
+  let last = null;
+  for (const mv of movementsOf(movements, materialId)){
+    if (!mv.date) continue;
+    if (!last || diffDays(last, mv.date) > 0) last = mv.date;
+  }
+  return last;
+}
+
+/* ---------- 使用量の統計 ----------
+   toDate を末日とする days 日間（両端含む）の出庫を集計する。 */
+function usageStats(movements, materialId, toDate, days){
+  const d = Math.max(1, Math.round(num(days, 14)));
+  const from = addDays(toDate, -(d - 1));
+  let total = 0, count = 0;
+  const byDay = {};
+  for (const mv of movementsOf(movements, materialId)){
+    if (mv.type !== 'out' || !mv.date) continue;
+    if (diffDays(from, mv.date) < 0 || diffDays(mv.date, toDate) < 0) continue;
+    const q = Math.abs(num(mv.qty, 0));
+    total += q; count++;
+    byDay[mv.date] = (byDay[mv.date] || 0) + q;
+  }
+  const dayVals = Object.values(byDay);
+  const activeDays = dayVals.length;
+  return {
+    days: d, from: from, to: toDate,
+    total: round(total, 4),
+    count: count,
+    activeDays: activeDays,
+    perCalendarDay: round(total / d, 4),
+    perActiveDay: activeDays ? round(total / activeDays, 4) : 0,
+    perEvent: count ? round(total / count, 4) : 0,
+    maxPerDay: activeDays ? round(Math.max.apply(null, dayVals), 4) : 0,
+  };
+}
+
+/* ---------- 発注点 ---------- */
+function suggestRop(avgPerDay, leadDays, safeDays){
+  const a = Math.max(0, num(avgPerDay, 0));
+  const d = Math.max(0, num(leadDays, 0)) + Math.max(0, num(safeDays, 0));
+  return round(a * d, 2);
+}
+/** 品目に発注点が明示されていればそれを、無ければ使用実績からの目安を返す。 */
+function ropOf(material, avgPerDay, settings){
+  const st = settings || {};
+  const explicit = num(material && material.reorderPoint, null);
+  if (explicit !== null && explicit >= 0) return { value: round(explicit, 4), auto: false };
+  const lead = num(material && material.leadDays, num(st.leadDays, 3));
+  const safe = num(material && material.safetyDays, num(st.safetyDays, 2));
+  return { value: suggestRop(avgPerDay, lead, safe), auto: true };
+}
+function daysLeft(stock, avgPerDay){
+  const a = num(avgPerDay, 0);
+  if (a <= 0) return null;
+  return round(num(stock, 0) / a, 1);
+}
+function orderQtySuggest(stock, rop){
+  const r = num(rop, 0);
+  if (r <= 0) return 0;
+  return round(Math.max(r * 2 - num(stock, 0), 0), 2);
+}
+/** 直近の入庫数量（＝ふだんの発注ロット）。発注点が立たない品目の代わりの目安に使う。 */
+function typicalOrderQty(movements, materialId){
+  let best = null;
+  for (const mv of movementsOf(movements, materialId)){
+    if (mv.type !== 'in' || !mv.date) continue;
+    if (!best) { best = mv; continue; }
+    const d = diffDays(best.date, mv.date);
+    if (d > 0 || (d === 0 && num(mv.ts, 0) >= num(best.ts, 0))) best = mv;
+  }
+  return best ? round(Math.abs(num(best.qty, 0)), 2) : 0;
+}
+
+/* ---------- 状態判定 ----------
+   crit 欠品 > serious 要発注 > warn まもなく > idle 動きなし > ok 問題なし */
+const STATUS_ORDER = { crit:0, serious:1, warn:2, idle:3, ok:4 };
+const IDLE_DAYS = 90;      // これだけ動きがなければ「動きなし」
+const NEAR_RATIO = 1.3;    // 発注点の 1.3 倍まで落ちたら「まもなく」
+function statusOf(o){
+  const stock = num(o.stock, 0);
+  const rop   = num(o.rop, 0);
+  const avg   = num(o.avgPerDay, 0);
+  const cover = Math.max(0, num(o.coverDays, 0)); // リードタイム＋安全日数
+  if (stock <= 0) return { level:'crit', label:'欠品', icon:'🛑', order:STATUS_ORDER.crit };
+  if (rop > 0 && stock <= rop) return { level:'serious', label:'要発注', icon:'⚠', order:STATUS_ORDER.serious };
+  if (rop > 0 && stock <= rop * NEAR_RATIO) return { level:'warn', label:'まもなく', icon:'🔔', order:STATUS_ORDER.warn };
+  const left = daysLeft(stock, avg);
+  if (left !== null && cover > 0 && left <= cover * NEAR_RATIO) return { level:'warn', label:'まもなく', icon:'🔔', order:STATUS_ORDER.warn };
+  if (avg <= 0 && o.lastMove && o.today && diffDays(o.lastMove, o.today) >= IDLE_DAYS)
+    return { level:'idle', label:'動きなし', icon:'💤', order:STATUS_ORDER.idle };
+  if (!o.lastMove && o.today && o.since && diffDays(o.since, o.today) >= IDLE_DAYS)
+    return { level:'idle', label:'動きなし', icon:'💤', order:STATUS_ORDER.idle };
+  return { level:'ok', label:'問題なし', icon:'✓', order:STATUS_ORDER.ok };
+}
+
+/* ---------- 在庫単価（移動平均法）---------- */
+function unitCostOf(material, movements){
+  let q = 0, amt = 0;
+  for (const mv of movementsOf(movements, material && material.id)){
+    if (mv.type !== 'in') continue;
+    const qq = Math.abs(num(mv.qty, 0));
+    const a = amountOf(mv);
+    if (qq > 0 && a > 0){ q += qq; amt += a; }
+  }
+  if (q > 0) return { price: round(amt / q, 2), basis:'avg' };
+  const std = num(material && material.price, null);
+  if (std !== null && std > 0) return { price: round(std, 2), basis:'std' };
+  return { price: 0, basis:'none' };
+}
+
+/* ---------- 時系列 ---------- */
+/** 日ごとの在庫残高。from より前の記録は初期残高として畳み込む。 */
+function seriesStock(material, movements, from, to){
+  const base = stockAt(material, movements, addDays(from, -1));
+  const delta = {};
+  for (const mv of movementsOf(movements, material.id)){
+    if (!mv.date) continue;
+    if (material.openingDate && diffDays(material.openingDate, mv.date) < 0) continue;
+    if (diffDays(from, mv.date) < 0 || diffDays(mv.date, to) < 0) continue;
+    delta[mv.date] = (delta[mv.date] || 0) + signedQty(mv);
+  }
+  let run = base;
+  return dateList(from, to).map(d => {
+    run += (delta[d] || 0);
+    return { date: d, qty: round(run, 4) };
+  });
+}
+/** 日ごとの出庫。materialId が null なら全品目（単位が混ざるので件数も返す）。 */
+function seriesUsage(movements, materialId, from, to){
+  const q = {}, c = {};
+  for (const mv of (movements||[])){
+    if (!mv || mv.type !== 'out' || !mv.date) continue;
+    if (materialId && mv.materialId !== materialId) continue;
+    if (diffDays(from, mv.date) < 0 || diffDays(mv.date, to) < 0) continue;
+    q[mv.date] = (q[mv.date] || 0) + Math.abs(num(mv.qty, 0));
+    c[mv.date] = (c[mv.date] || 0) + 1;
+  }
+  return dateList(from, to).map(d => ({ date: d, qty: round(q[d]||0, 4), count: c[d]||0 }));
+}
+/** 移動平均（末尾 n 点。先頭側は貯まっている分だけで平均する） */
+function movingAvg(vals, n){
+  const w = Math.max(1, Math.round(num(n, 7)));
+  const out = [];
+  let sum = 0;
+  for (let i = 0; i < vals.length; i++){
+    sum += num(vals[i], 0);
+    if (i >= w) sum -= num(vals[i-w], 0);
+    out.push(round(sum / Math.min(i+1, w), 4));
+  }
+  return out;
+}
+
+/* ---------- 購入金額の集計 ---------- */
+function purchaseByMonth(movements, materials){
+  const matCat = {};
+  for (const m of (materials||[])) matCat[m.id] = m.category || '未分類';
+  const months = [], cats = [], cell = {};
+  for (const mv of (movements||[])){
+    if (!mv || mv.type !== 'in' || !mv.date) continue;
+    const mk = monthKey(mv.date), ct = matCat[mv.materialId] || '未分類';
+    const a = amountOf(mv);
+    if (a <= 0) continue;
+    if (months.indexOf(mk) < 0) months.push(mk);
+    if (cats.indexOf(ct) < 0) cats.push(ct);
+    cell[mk + ' ' + ct] = (cell[mk + ' ' + ct] || 0) + a;
+  }
+  months.sort();
+  cats.sort();
+  const matrix = months.map(mk => cats.map(ct => round(cell[mk + ' ' + ct] || 0, 0)));
+  const totals = matrix.map(r => round(r.reduce((a,b)=>a+b,0), 0));
+  return { months, cats, matrix, totals };
+}
+function purchaseByMaterial(movements, from, to){
+  const acc = {};
+  for (const mv of (movements||[])){
+    if (!mv || mv.type !== 'in' || !mv.date) continue;
+    if (from && diffDays(from, mv.date) < 0) continue;
+    if (to && diffDays(mv.date, to) < 0) continue;
+    const a = amountOf(mv);
+    if (a <= 0) continue;
+    if (!acc[mv.materialId]) acc[mv.materialId] = { materialId: mv.materialId, amount:0, qty:0, count:0 };
+    acc[mv.materialId].amount += a;
+    acc[mv.materialId].qty += Math.abs(num(mv.qty,0));
+    acc[mv.materialId].count++;
+  }
+  return Object.values(acc)
+    .map(o => ({ materialId:o.materialId, amount:round(o.amount,0), qty:round(o.qty,4), count:o.count }))
+    .sort((a,b) => b.amount - a.amount);
+}
+
+/* ---------- CSV ---------- */
+function csvCell(v){
+  const s = (v === null || v === undefined) ? '' : String(v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+function toCSV(header, rows){
+  const lines = [header.map(csvCell).join(',')];
+  for (const r of rows) lines.push(r.map(csvCell).join(','));
+  return lines.join('\r\n');
+}
+function parseCSV(text){
+  const s = String(text||'').replace(/^\uFEFF/, '');
+  const rows = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < s.length; i++){
+    const c = s[i];
+    if (q){
+      if (c === '"'){ if (s[i+1] === '"'){ cur += '"'; i++; } else q = false; }
+      else cur += c;
+    } else {
+      if (c === '"') q = true;
+      else if (c === ','){ row.push(cur); cur = ''; }
+      else if (c === '\n'){ row.push(cur); rows.push(row); row = []; cur = ''; }
+      else if (c === '\r'){ /* skip */ }
+      else cur += c;
+    }
+  }
+  if (cur !== '' || row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r => r.length && !(r.length === 1 && r[0].trim() === ''));
+}
+
+/* ---------- その他 ---------- */
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function niceStep(range, targetTicks){
+  const t = Math.max(1, num(targetTicks, 5));
+  const raw = Math.abs(num(range, 0)) / t;
+  if (!(raw > 0)) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
+  return step * mag;
+}
+
+/* ==========================================================
+   ここから下は画面（DOM）側 — 上の計算コアだけがテスト対象
+   ========================================================== */
+
+/* ---------- 小道具 ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const TODAY = () => ymd(new Date());
+const SERIES = ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948'];
+const OTHER_COLOR = '#8A929C';
+const TYPE_LABEL = { out:'出庫', in:'入庫', adj:'棚卸' };
+const TYPE_ICON  = { out:'🔻', in:'🔺', adj:'🔢' };
+const WD = ['日','月','火','水','木','金','土'];
+
+function toast(msg, bad){
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'on' + (bad ? ' bad' : '');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { t.className = ''; }, 2400);
+}
+function fmtYenShort(v){
+  const n = Math.abs(num(v,0));
+  if (n >= 1e8) return round(v/1e8, 2) + '億';
+  if (n >= 1e4) return round(v/1e4, 1) + '万';
+  return fmtYen(v);
+}
+function dateLabel(s){
+  const d = parseYmd(s); if (!d) return s || '';
+  return (d.getMonth()+1) + '/' + d.getDate();
+}
+function dateLabelFull(s){
+  const d = parseYmd(s); if (!d) return s || '';
+  return (d.getMonth()+1) + '月' + d.getDate() + '日(' + WD[d.getDay()] + ')';
+}
+function copyText(text){
+  const done = () => toast('コピーした');
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done, () => fallback());
+  } else fallback();
+  function fallback(){
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch(e){ toast('コピーできなかった', true); }
+    document.body.removeChild(ta);
+  }
+}
+function download(name, text, mime){
+  const blob = new Blob([text], { type: (mime || 'text/plain') + ';charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+}
+
+/* ==========================================================
+   データの保持（localStorage）
+   ========================================================== */
+const KEY = 'genba-zairyo-v1';
+const BKEY = 'genba-zairyo-lastbackup';
+let DB = null;
+let loadFailed = false;
+
+function emptyDB(){
+  return { v:1, site:'', materials:[], movements:[],
+           settings:{ leadDays:3, safetyDays:2, avgWindow:14 } };
+}
+function loadDB(){
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw){ DB = emptyDB(); return; }
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== 'object' || !Array.isArray(o.materials)) throw new Error('形式が違う');
+    DB = Object.assign(emptyDB(), o);
+    DB.settings = Object.assign(emptyDB().settings, o.settings || {});
+    DB.movements = Array.isArray(o.movements) ? o.movements : [];
+  } catch(e){
+    // 読み込み失敗時は既存データを上書きしない（保存を止める）
+    loadFailed = true;
+    DB = emptyDB();
+    console.warn('保存データを読めなかった:', e);
+  }
+}
+function saveDB(){
+  if (loadFailed){
+    toast('保存データを読めていないため、書き込みを止めている', true);
+    return false;
+  }
+  try {
+    localStorage.setItem(KEY, JSON.stringify(DB));
+    return true;
+  } catch(e){
+    toast('保存できなかった（容量不足かもしれない）', true);
+    console.warn(e);
+    return false;
+  }
+}
+
+/* ==========================================================
+   派生値の計算（画面共通）
+   ========================================================== */
+function matById(id){ return DB.materials.find(m => m.id === id) || null; }
+function matName(id){ const m = matById(id); return m ? m.name : '(削除された品目)'; }
+
+function computeRows(){
+  const today = TODAY();
+  const win = num(DB.settings.avgWindow, 14);
+  return DB.materials.map(m => {
+    const stock = currentStock(m, DB.movements);
+    const u = usageStats(DB.movements, m.id, today, win);
+    const rop = ropOf(m, u.perCalendarDay, DB.settings);
+    const lead = num(m.leadDays, num(DB.settings.leadDays, 3));
+    const safe = num(m.safetyDays, num(DB.settings.safetyDays, 2));
+    const last = lastMoveDate(DB.movements, m.id);
+    const st = statusOf({ stock:stock, rop:rop.value, avgPerDay:u.perCalendarDay,
+                          coverDays:lead+safe, lastMove:last, today:today, since:m.openingDate });
+    const uc = unitCostOf(m, DB.movements);
+    return { m:m, stock:stock, u:u, rop:rop, lead:lead, safe:safe, last:last, st:st,
+             unitCost:uc, value:round(stock * uc.price, 0), left:daysLeft(stock, u.perCalendarDay) };
+  });
+}
+function categories(){
+  const s = [];
+  for (const m of DB.materials){ const c = m.category || '未分類'; if (s.indexOf(c) < 0) s.push(c); }
+  return s.sort();
+}
+function uniqVals(key){
+  const s = [];
+  for (const mv of DB.movements){ const v = (mv[key] || '').trim(); if (v && s.indexOf(v) < 0) s.push(v); }
+  return s.sort();
+}
+
+/* ==========================================================
+   画面の切り替え
+   ========================================================== */
+let curView = 'dash';
+let redraws = [];
+function show(v){
+  curView = v;
+  document.querySelectorAll('.tab').forEach(b => {
+    const on = b.dataset.view === v;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.id === 'v-' + v));
+  renderView();
+  document.querySelector('.view.active').scrollTop = 0;
+}
+function renderView(){
+  redraws = [];
+  if (curView === 'dash')  renderDash();
+  if (curView === 'stock') renderStock();
+  if (curView === 'entry') renderEntry();
+  if (curView === 'hist')  renderHist();
+  if (curView === 'chart') renderCharts();
+  if (curView === 'mat')   renderMat();
+  renderBadges();
+}
+function renderAll(){ renderView(); }
+function renderBadges(){
+  const rows = computeRows();
+  const n = rows.filter(r => r.st.order <= STATUS_ORDER.warn).length;
+  const b = $('tabAlertN');
+  b.textContent = n;
+  b.classList.toggle('hide', n === 0);
+}
+
+/* ==========================================================
+   🏠 ダッシュボード
+   ========================================================== */
+function renderDash(){
+  const today = TODAY();
+  const rows = computeRows();
+  const win = num(DB.settings.avgWindow, 14);
+  $('dashDate').textContent = dateLabelFull(today) + '　/　平均使用量は直近' + win + '日で計算';
+  $('dashTitle').textContent = (DB.site ? DB.site + '　' : '') + 'きょうの在庫状況';
+  document.querySelectorAll('#segWindow button').forEach(b => b.classList.toggle('on', num(b.dataset.win,0) === win));
+
+  const totalValue = rows.reduce((a, r) => a + r.value, 0);
+  const thisMonth = monthKey(today);
+  const buyThis = DB.movements.filter(mv => mv.type === 'in' && monthKey(mv.date) === thisMonth)
+                              .reduce((a, mv) => a + amountOf(mv), 0);
+  const todayN = DB.movements.filter(mv => mv.date === today).length;
+  const alertN = rows.filter(r => r.st.order <= STATUS_ORDER.warn).length;
+
+  $('dashKpis').innerHTML = [
+    kpi('登録品目', rows.length, '品目', ''),
+    kpi('在庫金額の合計', fmtYen(totalValue), '円', '移動平均単価 × 現在庫'),
+    kpi('今月の購入金額', fmtYen(buyThis), '円', thisMonth.replace('-', '年') + '月の入庫分'),
+    kpi('要注意の品目', alertN, '件', alertN ? '下のアラートを確認' : '発注点を割った品目はない'),
+    kpi('きょうの記録', todayN, '件', todayN ? '' : 'まだ記録がない'),
+  ].join('');
+
+  // --- アラート ---
+  const crit    = rows.filter(r => r.st.level === 'crit');
+  const serious = rows.filter(r => r.st.level === 'serious');
+  const warn    = rows.filter(r => r.st.level === 'warn');
+  const idle    = rows.filter(r => r.st.level === 'idle');
+  const box = [];
+  if (!rows.length){
+    box.push(alertHtml('warn', '📦', 'まず品目を登録する',
+      '「📦 品目管理」で材料を登録すると、ここに在庫の状況が出る。' +
+      '試しに動かすだけなら、ヘッダーの「💾 データ」からサンプルデータを入れられる。'));
+  } else {
+    if (crit.length) box.push(alertHtml('crit', '🛑', '欠品している（' + crit.length + '件）',
+      '在庫が 0 以下になっている。至急の手配がいる。', crit));
+    if (serious.length) box.push(alertHtml('serious', '⚠', '発注点を割った（' + serious.length + '件）',
+      'リードタイムを考えると、いま発注しないと現場が止まる可能性がある。', serious));
+    if (warn.length) box.push(alertHtml('warn', '🔔', 'まもなく発注点（' + warn.length + '件）',
+      '残り日数が少なくなってきた。次の搬入計画に載せておくとよい。', warn));
+    if (idle.length) box.push(alertHtml('warn', '💤', '長く動きがない（' + idle.length + '件）',
+      IDLE_DAYS + '日以上、入出庫の記録がない。現物が残っていないか確認する。', idle));
+    if (!crit.length && !serious.length && !warn.length)
+      box.push(alertHtml('ok', '✓', '発注点を割った品目はない', '登録' + rows.length + '品目すべて、在庫は発注点より上にある。'));
+  }
+  $('dashAlerts').innerHTML = box.join('');
+  $('dashAlerts').querySelectorAll('button[data-jump]').forEach(b => {
+    b.onclick = () => { show('stock'); setTimeout(() => highlight(b.dataset.jump), 60); };
+  });
+
+  // --- 要発注リスト ---
+  const need = rows.filter(r => r.st.order <= STATUS_ORDER.warn)
+                   .sort((a,b) => a.st.order - b.st.order || (a.left === null ? 1e9 : a.left) - (b.left === null ? 1e9 : b.left));
+  if (!need.length){
+    $('orderList').innerHTML = '<div class="nodata">いま発注が必要な品目はない。</div>';
+  } else {
+    $('orderList').innerHTML =
+      '<div class="tblwrap"><table class="tbl"><thead><tr>' +
+      '<th>状態</th><th>品名</th><th class="num">現在庫</th><th class="num">発注点</th>' +
+      '<th class="num">1日平均</th><th class="num">残日数</th><th class="num">発注数量の目安</th><th>仕入先</th>' +
+      '</tr></thead><tbody>' +
+      need.map(r => {
+        let oq = orderQtySuggest(r.stock, r.rop.value), src = '';
+        if (oq <= 0){ oq = typicalOrderQty(DB.movements, r.m.id); src = oq > 0 ? '前回の入庫数' : ''; }
+        return '<tr class="st-' + r.st.level + '">' +
+          '<td><span class="bdg ' + r.st.level + '">' + r.st.icon + ' ' + r.st.label + '</span></td>' +
+          '<td><span class="nm">' + esc(r.m.name) + '</span>' + (r.m.code ? '<div class="cd">' + esc(r.m.code) + '</div>' : '') + '</td>' +
+          '<td class="num">' + fmtQty(r.stock) + ' ' + esc(r.m.unit) + '</td>' +
+          '<td class="num">' + fmtQty(r.rop.value) + (r.rop.auto ? '<div class="cd">自動</div>' : '') + '</td>' +
+          '<td class="num">' + fmtQty(r.u.perCalendarDay) + '</td>' +
+          '<td class="num">' + (r.left === null ? '—' : fmtQty(r.left) + '日') + '</td>' +
+          '<td class="num">' + (oq > 0 ? '<b>' + fmtQty(oq) + '</b> ' + esc(r.m.unit) : '—') +
+            (src ? '<div class="cd">' + src + '</div>' : '') + '</td>' +
+          '<td>' + esc(r.m.supplier || '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  // --- 日別使用量（件数）---
+  drawUsageChart($('chartDashUse'), null, 30);
+
+  // --- きょうの記録 ---
+  const tl = DB.movements.filter(mv => mv.date === today)
+                         .sort((a,b) => (b.ts||0) - (a.ts||0));
+  $('todayList').innerHTML = tl.length ? movementTable(tl, true)
+    : '<div class="nodata">きょうはまだ記録がない。<br>「✏️ 記録する」から、使った材料や仕入れた材料を入れる。</div>';
+  bindMovementButtons($('todayList'));
+}
+function kpi(k, v, unit, d){
+  return '<div class="kpi"><div class="k">' + esc(k) + '</div><div class="v">' + esc(String(v)) +
+         (unit ? '<small>' + esc(unit) + '</small>' : '') + '</div>' +
+         (d ? '<div class="d">' + esc(d) + '</div>' : '') + '</div>';
+}
+function alertHtml(cls, ic, title, msg, rows){
+  let chips = '';
+  if (rows && rows.length){
+    chips = '<div class="chips">' + rows.slice(0, 12).map(r =>
+      '<button type="button" data-jump="' + esc(r.m.id) + '">' + esc(r.m.name) + ' ' +
+      fmtQty(r.stock) + esc(r.m.unit) + '</button>').join('') +
+      (rows.length > 12 ? '<span style="font-size:11.5px;align-self:center">ほか' + (rows.length-12) + '件</span>' : '') +
+      '</div>';
+  }
+  return '<div class="alert ' + cls + '"><div class="ic">' + ic + '</div><div class="bd">' +
+         '<div class="t">' + esc(title) + '</div><div class="m">' + esc(msg) + '</div>' + chips + '</div></div>';
+}
+function highlight(matId){
+  const tr = document.querySelector('#stockBody tr[data-id="' + matId + '"]');
+  if (!tr) return;
+  tr.classList.remove('hit'); void tr.offsetWidth; tr.classList.add('hit');
+  tr.scrollIntoView({ block:'center', behavior:'smooth' });
+}
+
+/* ==========================================================
+   📋 在庫一覧
+   ========================================================== */
+let stockSort = { k:'status', dir:1 };
+function renderStock(){
+  const q = ($('stockQ').value || '').trim().toLowerCase();
+  const cat = $('stockCat').value;
+  const stf = $('stockSt').value;
+
+  const catSel = $('stockCat');
+  const keep = catSel.value;
+  catSel.innerHTML = '<option value="">すべて</option>' + categories().map(c => '<option>' + esc(c) + '</option>').join('');
+  catSel.value = keep;
+
+  let rows = computeRows();
+  if (q) rows = rows.filter(r => ((r.m.name||'') + ' ' + (r.m.code||'') + ' ' + (r.m.category||'') + ' ' + (r.m.place||'')).toLowerCase().indexOf(q) >= 0);
+  if (cat) rows = rows.filter(r => (r.m.category || '未分類') === cat);
+  if (stf === 'alert') rows = rows.filter(r => r.st.order <= STATUS_ORDER.warn);
+  else if (stf) rows = rows.filter(r => r.st.level === stf);
+
+  const k = stockSort.k, dir = stockSort.dir;
+  const key = r => ({
+    name: (r.m.name||''), cat:(r.m.category||''), stock:r.stock, rop:r.rop.value,
+    avg:r.u.perCalendarDay, left:(r.left === null ? Infinity : r.left), value:r.value,
+    last:(r.last || ''), status:r.st.order,
+  })[k];
+  rows.sort((a,b) => {
+    const A = key(a), B = key(b);
+    let c = (typeof A === 'string') ? A.localeCompare(B, 'ja') : (A - B);
+    if (!c) c = (a.m.name||'').localeCompare(b.m.name||'', 'ja');
+    return c * dir;
+  });
+  document.querySelectorAll('#stockTbl th.sortable').forEach(th => {
+    const on = th.dataset.k === k;
+    th.querySelector('.ar').textContent = on ? (dir > 0 ? '▲' : '▼') : '↕';
+    th.querySelector('.ar').classList.toggle('on', on);
+  });
+
+  const all = computeRows();
+  $('stockCount').textContent = rows.length + ' 品目を表示（全 ' + all.length + ' 品目）　在庫金額 ' +
+    fmtYen(rows.reduce((a,r) => a + r.value, 0)) + ' 円';
+
+  if (!rows.length){
+    $('stockBody').innerHTML = '<tr><td colspan="10"><div class="nodata">' +
+      (all.length ? '条件に合う品目がない。' : '品目がまだ登録されていない。「📦 品目管理」から追加する。') + '</div></td></tr>';
+    return;
+  }
+  const maxStock = Math.max.apply(null, rows.map(r => Math.max(r.stock, r.rop.value * 2, 1)));
+  $('stockBody').innerHTML = rows.map(r => {
+    const full = r.rop.value > 0 ? r.rop.value * 2 : maxStock;
+    const pct = Math.max(0, Math.min(100, (r.stock / (full || 1)) * 100));
+    const bcls = r.st.level === 'crit' ? 'crit' : r.st.level === 'serious' ? 'serious' : r.st.level === 'warn' ? 'warn' : '';
+    return '<tr data-id="' + esc(r.m.id) + '" class="st-' + r.st.level + '">' +
+      '<td><span class="nm">' + esc(r.m.name) + '</span>' +
+        (r.m.code ? '<div class="cd">' + esc(r.m.code) + '</div>' : '') +
+        (r.m.place ? '<div class="cd">📍' + esc(r.m.place) + '</div>' : '') + '</td>' +
+      '<td><span class="bdg cat">' + esc(r.m.category || '未分類') + '</span></td>' +
+      '<td class="num"><b>' + fmtQty(r.stock) + '</b> ' + esc(r.m.unit) +
+        '<div class="bar-mini"><i class="' + bcls + '" style="width:' + pct.toFixed(1) + '%"></i></div></td>' +
+      '<td class="num">' + fmtQty(r.rop.value) + (r.rop.auto ? '<div class="cd">自動</div>' : '') + '</td>' +
+      '<td class="num">' + fmtQty(r.u.perCalendarDay) + '<div class="cd">' + esc(r.m.unit) + '/日</div></td>' +
+      '<td class="num">' + (r.left === null ? '—' : '<b>' + fmtQty(r.left) + '</b>日') + '</td>' +
+      '<td class="num">' + fmtYen(r.value) + '<div class="cd">@' + fmtYen(r.unitCost.price) +
+        (r.unitCost.basis === 'std' ? ' 標準' : r.unitCost.basis === 'avg' ? ' 平均' : '') + '</div></td>' +
+      '<td>' + (r.last ? dateLabel(r.last) + '<div class="cd">' + Math.abs(diffDays(r.last, TODAY())) + '日前</div>' : '—') + '</td>' +
+      '<td><span class="bdg ' + r.st.level + '">' + r.st.icon + ' ' + r.st.label + '</span></td>' +
+      '<td class="noprint" style="white-space:nowrap">' +
+        '<button class="btn lite sm" data-go="out" data-id="' + esc(r.m.id) + '">🔻出庫</button> ' +
+        '<button class="btn lite sm" data-go="in" data-id="' + esc(r.m.id) + '">🔺入庫</button></td>' +
+      '</tr>';
+  }).join('');
+  $('stockBody').querySelectorAll('button[data-go]').forEach(b => {
+    b.onclick = () => { entryPreset(b.dataset.id, b.dataset.go); show('entry'); };
+  });
+}
+
+/* ==========================================================
+   ✏️ 記録する
+   ========================================================== */
+let enType = 'out';
+function entryPreset(matId, type){
+  enType = type || 'out';
+  pendingMat = matId;
+}
+let pendingMat = null;
+
+function renderEntry(){
+  document.querySelectorAll('#segType button').forEach(b => b.classList.toggle('on', b.dataset.t === enType));
+  if (!$('enDate').value) $('enDate').value = TODAY();
+
+  const sel = $('enMat');
+  const prev = pendingMat || sel.value;
+  const rows = computeRows();
+  sel.innerHTML = '<option value="">— 品目を選ぶ —</option>' + rows
+    .slice().sort((a,b) => (a.m.category||'').localeCompare(b.m.category||'', 'ja') || (a.m.name||'').localeCompare(b.m.name||'', 'ja'))
+    .map(r => '<option value="' + esc(r.m.id) + '">' + esc((r.m.category ? '［' + r.m.category + '］' : '') + r.m.name) +
+              '（在庫 ' + fmtQty(r.stock) + esc(r.m.unit) + '）</option>').join('');
+  if (prev && rows.some(r => r.m.id === prev)) sel.value = prev;
+  pendingMat = null;
+
+  // よく使う品目（直近90日の出庫件数が多い順 → 要注意を先頭に）
+  const today = TODAY(), from = addDays(today, -90);
+  const freq = {};
+  for (const mv of DB.movements){
+    if (!mv.date || diffDays(from, mv.date) < 0) continue;
+    freq[mv.materialId] = (freq[mv.materialId] || 0) + 1;
+  }
+  const pick = rows.slice().sort((a,b) =>
+    (a.st.order - b.st.order) || ((freq[b.m.id]||0) - (freq[a.m.id]||0)) || (a.m.name||'').localeCompare(b.m.name||'','ja')
+  ).slice(0, 12);
+  $('quickPick').innerHTML = pick.map(r =>
+    '<button type="button" data-id="' + esc(r.m.id) + '"' + (sel.value === r.m.id ? ' class="on"' : '') + '>' +
+    (r.st.order <= STATUS_ORDER.warn ? r.st.icon + ' ' : '') + esc(r.m.name) +
+    '<small>在庫 ' + fmtQty(r.stock) + ' ' + esc(r.m.unit) + '</small></button>').join('');
+  $('quickPick').querySelectorAll('button').forEach(b => {
+    b.onclick = () => { sel.value = b.dataset.id; onEntryMat(); };
+  });
+  $('pickHint').textContent = pick.length ? '要注意の品目 → よく使う順' : '品目を登録すると、ここによく使うものが並ぶ';
+
+  fillDatalist('dlSupplier', uniqVals('supplier'));
+  fillDatalist('dlSite', uniqVals('site'));
+  fillDatalist('dlWork', uniqVals('work'));
+  fillDatalist('dlPerson', uniqVals('person'));
+
+  $('inFields').style.display = enType === 'in' ? '' : 'none';
+  $('memoHead').innerHTML = (enType === 'in' ? '④' : '③') + ' 現場のメモ<span class="sub">あとから探しやすくなる。空でもよい</span>';
+  $('saveHint').textContent = enType === 'out' ? '在庫が減る' : enType === 'in' ? '在庫が増える' : '数えた実数に合わせる';
+  onEntryMat();
+
+  const recent = DB.movements.slice().sort((a,b) =>
+    (b.date||'').localeCompare(a.date||'') || (b.ts||0) - (a.ts||0)).slice(0, 12);
+  $('recentList').innerHTML = recent.length ? movementTable(recent, true)
+    : '<div class="nodata">まだ記録がない。</div>';
+  bindMovementButtons($('recentList'));
+}
+function fillDatalist(id, vals){
+  const dl = $(id); if (!dl) return;
+  dl.innerHTML = vals.map(v => '<option value="' + esc(v) + '"></option>').join('');
+}
+function onEntryMat(){
+  const id = $('enMat').value;
+  document.querySelectorAll('#quickPick button').forEach(b => b.classList.toggle('on', b.dataset.id === id));
+  const m = matById(id);
+  $('enUnit').textContent = m ? m.unit : '—';
+  const step = [1, 5, 10, 50, 100];
+  $('qtyQuick').innerHTML = step.map(s => '<button class="btn lite sm" type="button" data-add="' + s + '">+' + s + '</button>').join('') +
+    '<button class="btn lite sm" type="button" data-set="0">クリア</button>';
+  $('qtyQuick').querySelectorAll('button').forEach(b => {
+    b.onclick = () => {
+      const cur = num($('enQty').value, 0);
+      $('enQty').value = b.dataset.set !== undefined ? 0 : round(cur + num(b.dataset.add, 0), 4);
+      onQty();
+    };
+  });
+  if (m && enType === 'in' && !$('enPrice').value && num(m.price, 0) > 0) $('enPrice').value = m.price;
+  if (m && enType === 'in' && !$('enSupplier').value && m.supplier) $('enSupplier').value = m.supplier;
+  onQty();
+}
+function onQty(){
+  const m = matById($('enMat').value);
+  const q = num($('enQty').value, 0);
+  if (!m){ $('enAfter').textContent = '品目を選ぶと、記録したあとの在庫が出る。'; return; }
+  const now = currentStock(m, DB.movements);
+  let after = now, verb = '';
+  if (enType === 'out'){ after = now - Math.abs(q); verb = '使う'; }
+  else if (enType === 'in'){ after = now + Math.abs(q); verb = '入れる'; }
+  else { after = q; verb = '数え直す'; }
+  after = round(after, 4);
+  const neg = after < 0 ? ' neg' : '';
+  let html = '記録すると　現在庫 <b>' + fmtQty(now) + '</b> ' + esc(m.unit) +
+             '　→　<b class="' + neg.trim() + '">' + fmtQty(after) + '</b> ' + esc(m.unit) + '　（' + verb + '）';
+  if (enType === 'adj') html += '<br>差分 <b>' + (after - now >= 0 ? '+' : '') + fmtQty(after - now) + '</b> ' + esc(m.unit) + ' として記録する。';
+  if (after < 0) html += '<br><span style="color:var(--st-crit);font-weight:700">⚠ 在庫がマイナスになる。数量か過去の記録を確認する。</span>';
+  const rows = computeRows().find(r => r.m.id === m.id);
+  if (rows && rows.u.perCalendarDay > 0){
+    const left = daysLeft(after, rows.u.perCalendarDay);
+    if (left !== null) html += '<br><span class="tiny">この使用ペース（1日 ' + fmtQty(rows.u.perCalendarDay) + esc(m.unit) +
+      '）なら、残り約 <b style="font-size:13px">' + fmtQty(left) + '</b> 日ぶん。</span>';
+  }
+  $('enAfter').innerHTML = html;
+  if (enType === 'in'){
+    const p = num($('enPrice').value, null), a = num($('enAmount').value, null);
+    if (p !== null && document.activeElement !== $('enAmount')) $('enAmount').value = round(p * Math.abs(q), 0);
+    else if (a !== null && p === null && q) $('enPrice').value = round(a / Math.abs(q), 2);
+  }
+}
+function saveEntry(keepGoing){
+  const m = matById($('enMat').value);
+  if (!m){ toast('品目を選ぶ', true); $('enMat').focus(); return; }
+  const date = $('enDate').value || TODAY();
+  const q = num($('enQty').value, null);
+  if (q === null || (enType !== 'adj' && !(q > 0))){ toast('数量を入れる', true); $('enQty').focus(); return; }
+
+  const mv = { id: uid(), ts: Date.now(), date: date, materialId: m.id, type: enType,
+               site: $('enSite').value.trim(), work: $('enWork').value.trim(),
+               person: $('enPerson').value.trim(), note: $('enNote').value.trim() };
+  if (enType === 'adj'){
+    const now = stockAt(m, DB.movements, null);
+    mv.qty = round(q - now, 4);
+    mv.counted = q;
+    if (mv.qty === 0){ toast('数えた実数が現在庫と同じ。記録することはない'); return; }
+    mv.note = (mv.note ? mv.note + ' / ' : '') + '棚卸: 実数 ' + fmtQty(q) + m.unit;
+  } else {
+    mv.qty = Math.abs(q);
+  }
+  if (enType === 'in'){
+    const p = num($('enPrice').value, null), a = num($('enAmount').value, null);
+    if (p !== null) mv.unitPrice = p;
+    if (a !== null) mv.amount = a;
+    mv.supplier = $('enSupplier').value.trim();
+    mv.slip = $('enSlip').value.trim();
+  }
+  DB.movements.push(mv);
+  if (!saveDB()){ DB.movements.pop(); return; }
+
+  const after = currentStock(m, DB.movements);
+  toast('✓ ' + m.name + ' を記録した（在庫 ' + fmtQty(after) + m.unit + '）');
+  $('enQty').value = enType === 'adj' ? 0 : 1;
+  $('enNote').value = '';
+  if (enType === 'in'){ $('enSlip').value = ''; $('enAmount').value = ''; }
+  if (keepGoing){ $('enMat').value = ''; $('enPrice').value = ''; }
+  renderEntry();
+  if (keepGoing) $('enMat').focus();
+}
+
+/* ==========================================================
+   🧾 記録の一覧（共通パーツ）
+   ========================================================== */
+function movementTable(list, compact){
+  return '<div class="tblwrap"><table class="tbl"><thead><tr>' +
+    '<th>日付</th><th>種別</th><th>品名</th><th class="num">数量</th>' +
+    (compact ? '' : '<th class="num">単価</th>') + '<th class="num">金額</th>' +
+    '<th>工区・作業 / 仕入先</th><th>担当</th><th>備考</th><th class="noprint">操作</th>' +
+    '</tr></thead><tbody>' + list.map(mvRow.bind(null, compact)).join('') + '</tbody></table></div>';
+}
+function mvRow(compact, mv){
+  const m = matById(mv.materialId);
+  const unit = m ? m.unit : '';
+  const sign = signedQty(mv);
+  const amt = amountOf(mv);
+  const ctx = mv.type === 'in' ? (mv.supplier || '') : [mv.site, mv.work].filter(Boolean).join(' / ');
+  return '<tr data-mv="' + esc(mv.id) + '">' +
+    '<td style="white-space:nowrap">' + esc(mv.date || '') + '</td>' +
+    '<td style="white-space:nowrap">' + (TYPE_ICON[mv.type] || '') + ' ' + (TYPE_LABEL[mv.type] || mv.type) + '</td>' +
+    '<td><span class="nm">' + esc(m ? m.name : '(削除された品目)') + '</span></td>' +
+    '<td class="num"><b>' + (sign > 0 ? '+' : '') + fmtQty(sign) + '</b> ' + esc(unit) + '</td>' +
+    (compact ? '' : '<td class="num">' + (num(mv.unitPrice, null) !== null ? fmtYen(mv.unitPrice) : '—') + '</td>') +
+    '<td class="num">' + (amt ? fmtYen(amt) : '—') + '</td>' +
+    '<td>' + esc(ctx || '—') + (mv.slip ? '<div class="cd">伝票 ' + esc(mv.slip) + '</div>' : '') + '</td>' +
+    '<td>' + esc(mv.person || '—') + '</td>' +
+    '<td>' + esc(mv.note || '') + '</td>' +
+    '<td class="noprint" style="white-space:nowrap">' +
+      '<button class="btn lite sm" data-edit="' + esc(mv.id) + '">✎</button> ' +
+      '<button class="btn lite sm" data-del="' + esc(mv.id) + '">🗑</button></td></tr>';
+}
+function bindMovementButtons(host){
+  if (!host) return;
+  host.querySelectorAll('button[data-edit]').forEach(b => b.onclick = () => openMv(b.dataset.edit));
+  host.querySelectorAll('button[data-del]').forEach(b => b.onclick = () => delMv(b.dataset.del));
+}
+function delMv(id){
+  const mv = DB.movements.find(x => x.id === id);
+  if (!mv) return;
+  const m = matById(mv.materialId);
+  if (!confirm('この記録を削除する。\n\n' + mv.date + '　' + (TYPE_LABEL[mv.type]||'') + '　' +
+               (m ? m.name : '') + '　' + fmtQty(mv.qty) + (m ? m.unit : ''))) return;
+  const i = DB.movements.indexOf(mv);
+  DB.movements.splice(i, 1);
+  if (!saveDB()){ DB.movements.splice(i, 0, mv); return; }
+  toast('記録を削除した');
+  renderAll();
+}
+
+/* ==========================================================
+   🧾 履歴
+   ========================================================== */
+function renderHist(){
+  const sel = $('hMat'), keep = sel.value;
+  sel.innerHTML = '<option value="">すべて</option>' + DB.materials.slice()
+    .sort((a,b) => (a.name||'').localeCompare(b.name||'','ja'))
+    .map(m => '<option value="' + esc(m.id) + '">' + esc(m.name) + '</option>').join('');
+  sel.value = keep;
+
+  const from = $('hFrom').value, to = $('hTo').value;
+  const mid = $('hMat').value, tp = $('hType').value;
+  const q = ($('hQ').value || '').trim().toLowerCase();
+
+  let list = DB.movements.filter(mv => {
+    if (from && diffDays(from, mv.date) < 0) return false;
+    if (to && diffDays(mv.date, to) < 0) return false;
+    if (mid && mv.materialId !== mid) return false;
+    if (tp && mv.type !== tp) return false;
+    if (q){
+      const hay = [matName(mv.materialId), mv.site, mv.work, mv.person, mv.note, mv.supplier, mv.slip]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  }).sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.ts||0) - (a.ts||0));
+
+  const buy = list.filter(mv => mv.type === 'in').reduce((a, mv) => a + amountOf(mv), 0);
+  $('histSum').textContent = list.length + ' 件　/　うち入庫 ' +
+    list.filter(mv => mv.type === 'in').length + ' 件・購入金額 ' + fmtYen(buy) + ' 円　/　出庫 ' +
+    list.filter(mv => mv.type === 'out').length + ' 件';
+
+  $('histBody').innerHTML = list.length ? list.map(mvRow.bind(null, false)).join('')
+    : '<tr><td colspan="10"><div class="nodata">条件に合う記録がない。</div></td></tr>';
+  bindMovementButtons($('histTbl'));
+  renderHist._list = list;
+}
+
+/* ==========================================================
+   📦 品目管理
+   ========================================================== */
+function renderMat(){
+  const rows = computeRows().sort((a,b) =>
+    (a.m.category||'').localeCompare(b.m.category||'','ja') || (a.m.name||'').localeCompare(b.m.name||'','ja'));
+  $('matBody').innerHTML = rows.length ? rows.map(r =>
+    '<tr data-id="' + esc(r.m.id) + '">' +
+    '<td class="cd">' + esc(r.m.code || '—') + '</td>' +
+    '<td><span class="nm">' + esc(r.m.name) + '</span>' + (r.m.note ? '<div class="cd">' + esc(r.m.note) + '</div>' : '') + '</td>' +
+    '<td><span class="bdg cat">' + esc(r.m.category || '未分類') + '</span></td>' +
+    '<td>' + esc(r.m.unit) + '</td>' +
+    '<td class="num">' + fmtQty(r.stock) + '</td>' +
+    '<td class="num">' + fmtQty(r.rop.value) + (r.rop.auto ? '<div class="cd">自動</div>' : '') + '</td>' +
+    '<td class="num">' + fmtQty(r.lead) + '</td>' +
+    '<td class="num">' + fmtQty(r.safe) + '</td>' +
+    '<td class="num">' + (num(r.m.price,0) ? fmtYen(r.m.price) : '—') + '</td>' +
+    '<td>' + esc(r.m.supplier || '—') + '</td>' +
+    '<td>' + esc(r.m.place || '—') + '</td>' +
+    '<td class="noprint"><button class="btn lite sm" data-edit="' + esc(r.m.id) + '">✎ 編集</button></td></tr>'
+  ).join('') : '<tr><td colspan="12"><div class="nodata">品目がまだ登録されていない。<br>右上の「＋ 品目を追加」から登録する。</div></td></tr>';
+  $('matBody').querySelectorAll('button[data-edit]').forEach(b => b.onclick = () => openMat(b.dataset.edit));
+}
+
+/* ==========================================================
+   📊 グラフ（canvas で自前描画・外部ライブラリなし）
+   ・系列色は固定順（SERIES）。巡回させない
+   ・軸は1本だけ。2軸グラフは作らない
+   ・どのグラフにも「数値で見る」表を添える（色だけに頼らないため）
+   ========================================================== */
+const GRID = '#EFEDE6', AXIS = '#C7C2B2', LBL = '#5A6472', INK = '#1F2933', SURF = '#FFFFFF';
+const PAD = { l:56, r:16, t:14, b:30 };
+
+function newChart(host, h){
+  host.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'cv-wrap';
+  const cv = document.createElement('canvas');
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  wrap.appendChild(cv); wrap.appendChild(tip);
+  host.appendChild(wrap);
+  return { host:host, wrap:wrap, cv:cv, tip:tip, h:h || 220 };
+}
+function ctxOf(c){
+  const dpr = window.devicePixelRatio || 1;
+  const W = Math.max(300, c.wrap.clientWidth || 600), H = c.h;
+  c.cv.width = Math.round(W * dpr); c.cv.height = Math.round(H * dpr);
+  c.cv.style.height = H + 'px';
+  const ctx = c.cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  ctx.font = '11px system-ui, -apple-system, "Hiragino Kaku Gothic ProN", sans-serif';
+  ctx.textBaseline = 'middle';
+  return { ctx:ctx, W:W, H:H };
+}
+function roundTop(ctx, x, y, w, h, r){
+  const rr = Math.max(0, Math.min(r, w/2, Math.abs(h)));
+  ctx.beginPath();
+  ctx.moveTo(x, y + h);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+  ctx.lineTo(x + w, y + h);
+  ctx.closePath();
+}
+function yAxis(ctx, W, H, yMin, yMax, fmt){
+  const step = niceStep(yMax - yMin, 4);
+  const t0 = Math.ceil(yMin / step) * step;
+  ctx.save();
+  ctx.strokeStyle = GRID; ctx.lineWidth = 1; ctx.fillStyle = LBL; ctx.textAlign = 'right';
+  for (let v = t0; v <= yMax + 1e-9; v += step){
+    const y = Math.round(H - PAD.b - (v - yMin) / (yMax - yMin || 1) * (H - PAD.t - PAD.b)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke();
+    ctx.fillText(fmt ? fmt(v) : fmtQty(round(v, 2)), PAD.l - 8, y);
+  }
+  ctx.strokeStyle = AXIS;
+  const y0 = Math.round(H - PAD.b) + 0.5;
+  ctx.beginPath(); ctx.moveTo(PAD.l, y0); ctx.lineTo(W - PAD.r, y0); ctx.stroke();
+  ctx.restore();
+}
+function xLabels(ctx, W, H, labels, every){
+  ctx.save();
+  ctx.fillStyle = LBL; ctx.textAlign = 'center';
+  const n = labels.length, bw = (W - PAD.l - PAD.r) / (n || 1);
+  const st = every || Math.max(1, Math.ceil(n / Math.max(3, Math.floor((W - PAD.l - PAD.r) / 58))));
+  for (let i = 0; i < n; i++){
+    if (i % st !== 0 && i !== n - 1) continue;
+    if (i !== n - 1 && (n - 1 - i) < st * 0.6) continue;
+    ctx.fillText(labels[i], PAD.l + bw * (i + 0.5), H - PAD.b + 13);
+  }
+  ctx.restore();
+}
+function attachTip(c, hit){
+  const move = ev => {
+    const r = c.cv.getBoundingClientRect();
+    const p = ev.touches && ev.touches[0] ? ev.touches[0] : ev;
+    const x = p.clientX - r.left, y = p.clientY - r.top;
+    const h = hit(x, y);
+    if (!h){ c.tip.classList.remove('on'); return; }
+    c.tip.innerHTML = h.html;
+    c.tip.classList.add('on');
+    const tw = c.tip.offsetWidth, th = c.tip.offsetHeight;
+    let tx = h.x + 12, ty = (h.y == null ? y : h.y) - th - 10;
+    if (tx + tw > r.width - 4) tx = h.x - tw - 12;
+    if (tx < 4) tx = 4;
+    if (ty < 4) ty = (h.y == null ? y : h.y) + 14;
+    c.tip.style.left = tx + 'px'; c.tip.style.top = ty + 'px';
+  };
+  c.cv.onmousemove = move;
+  c.cv.onmouseleave = () => c.tip.classList.remove('on');
+  c.cv.ontouchstart = move;
+  c.cv.ontouchmove = ev => { move(ev); ev.preventDefault(); };
+  c.cv.ontouchend = () => setTimeout(() => c.tip.classList.remove('on'), 1600);
+}
+function legendHtml(items){
+  return '<div class="legend">' + items.map(it =>
+    '<span class="it"><i class="' + (it.line ? 'ln' : '') + '" style="background:' + it.color + '"></i>' +
+    esc(it.name) + '</span>').join('') + '</div>';
+}
+function dataTable(host, head, rows, summary){
+  const d = document.createElement('details');
+  d.className = 'datatbl';
+  d.innerHTML = '<summary>' + esc(summary || '数値で見る') + '</summary>' +
+    '<div class="tblwrap"><table class="tbl"><thead><tr>' +
+    head.map((h, i) => '<th' + (i ? ' class="num"' : '') + '>' + esc(h) + '</th>').join('') +
+    '</tr></thead><tbody>' + rows.map(r => '<tr>' +
+      r.map((v, i) => '<td' + (i ? ' class="num"' : '') + '>' + esc(v) + '</td>').join('') +
+    '</tr>').join('') + '</tbody></table></div>';
+  host.appendChild(d);
+}
+function noDataBox(host, msg){
+  host.innerHTML = '<div class="cv-wrap"><div class="nodata">' + esc(msg) + '</div></div>';
+}
+
+/* ---------- 在庫の推移（折れ線＋発注点の破線） ---------- */
+function drawStockChart(host, materialId, days){
+  const m = matById(materialId);
+  if (!m){ noDataBox(host, '品目を選ぶと在庫の推移が出る。'); return; }
+  const to = TODAY(), from = addDays(to, -(days - 1));
+  const ser = seriesStock(m, DB.movements, from, to);
+  const row = computeRows().find(r => r.m.id === materialId);
+  const rop = row ? row.rop.value : 0;
+
+  const vals = ser.map(p => p.qty);
+  let yMax = Math.max.apply(null, vals.concat([rop, 1]));
+  let yMin = Math.min.apply(null, vals.concat([0]));
+  const padY = (yMax - yMin) * 0.12 || 1;
+  yMax += padY; yMin = Math.min(0, yMin - padY * 0.4);
+
+  const c = newChart(host, 230);
+  const draw = () => {
+    const o = ctxOf(c), ctx = o.ctx, W = o.W, H = o.H;
+    yAxis(ctx, W, H, yMin, yMax, null);
+    const X = i => PAD.l + (W - PAD.l - PAD.r) * (ser.length <= 1 ? 0.5 : i / (ser.length - 1));
+    const Y = v => H - PAD.b - (v - yMin) / (yMax - yMin || 1) * (H - PAD.t - PAD.b);
+    // 発注点
+    if (rop > 0){
+      ctx.save();
+      ctx.strokeStyle = '#C2410C'; ctx.lineWidth = 1.5; ctx.setLineDash([5,4]);
+      ctx.beginPath(); ctx.moveTo(PAD.l, Y(rop)); ctx.lineTo(W - PAD.r, Y(rop)); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#C2410C'; ctx.textAlign = 'left';
+      ctx.fillText('発注点 ' + fmtQty(rop), PAD.l + 5, Math.max(PAD.t + 7, Y(rop) - 9));
+      ctx.restore();
+    }
+    // 面 → 線
+    ctx.save();
+    ctx.beginPath();
+    ser.forEach((p, i) => i ? ctx.lineTo(X(i), Y(p.qty)) : ctx.moveTo(X(i), Y(p.qty)));
+    ctx.lineTo(X(ser.length - 1), Y(Math.max(0, yMin)));
+    ctx.lineTo(X(0), Y(Math.max(0, yMin)));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(42,120,214,.10)'; ctx.fill();
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle = SERIES[0]; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ser.forEach((p, i) => i ? ctx.lineTo(X(i), Y(p.qty)) : ctx.moveTo(X(i), Y(p.qty)));
+    ctx.stroke();
+    // 末端の点と直接ラベル
+    const last = ser[ser.length - 1];
+    ctx.fillStyle = SERIES[0];
+    ctx.beginPath(); ctx.arc(X(ser.length-1), Y(last.qty), 4, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = SURF; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = INK; ctx.textAlign = 'right';
+    ctx.fillText(fmtQty(last.qty) + m.unit, W - PAD.r - 6, Math.max(PAD.t + 7, Y(last.qty) - 12));
+    ctx.restore();
+    xLabels(ctx, W, H, ser.map(p => dateLabel(p.date)));
+    c._geo = { X:X, Y:Y, W:W, H:H };
+  };
+  draw(); redraws.push(draw);
+  attachTip(c, (x) => {
+    const g = c._geo; if (!g) return null;
+    const t = (x - PAD.l) / (g.W - PAD.l - PAD.r);
+    const i = Math.max(0, Math.min(ser.length - 1, Math.round(t * (ser.length - 1))));
+    const p = ser[i];
+    return { x:g.X(i), y:g.Y(p.qty), html: dateLabelFull(p.date) + '<br><b>' + fmtQty(p.qty) + '</b> ' + esc(m.unit) };
+  });
+  dataTable(host, ['日付', '在庫数（' + m.unit + '）'],
+    ser.slice().reverse().slice(0, 120).map(p => [p.date, fmtQty(p.qty)]),
+    '数値で見る（新しい順）');
+}
+
+/* ---------- 日別の使用量（棒＋7日移動平均の線） ---------- */
+function drawUsageChart(host, materialId, days){
+  const to = TODAY(), from = addDays(to, -(days - 1));
+  const m = materialId ? matById(materialId) : null;
+  const ser = seriesUsage(DB.movements, materialId || null, from, to);
+  const useCount = !materialId;
+  const vals = ser.map(p => useCount ? p.count : p.qty);
+  const unit = useCount ? '件' : (m ? m.unit : '');
+  if (!vals.some(v => v > 0)){
+    noDataBox(host, '直近' + days + '日に出庫の記録がない。');
+    return;
+  }
+  const avg = movingAvg(vals, 7);
+  const yMax = Math.max.apply(null, vals.concat(avg).concat([1])) * 1.15;
+
+  const c = newChart(host, 210);
+  const draw = () => {
+    const o = ctxOf(c), ctx = o.ctx, W = o.W, H = o.H;
+    yAxis(ctx, W, H, 0, yMax, null);
+    const n = vals.length, bw = (W - PAD.l - PAD.r) / n;
+    const Y = v => H - PAD.b - v / (yMax || 1) * (H - PAD.t - PAD.b);
+    ctx.save();
+    ctx.fillStyle = SERIES[0];
+    for (let i = 0; i < n; i++){
+      if (!vals[i]) continue;
+      const w = Math.max(2, bw - 2), x = PAD.l + bw * i + (bw - w) / 2;
+      const y = Y(vals[i]), h = (H - PAD.b) - y;
+      roundTop(ctx, x, y, w, h, 4); ctx.fill();
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle = SERIES[1]; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    avg.forEach((v, i) => { const x = PAD.l + bw * (i + 0.5); i ? ctx.lineTo(x, Y(v)) : ctx.moveTo(x, Y(v)); });
+    ctx.stroke();
+    ctx.restore();
+    xLabels(ctx, W, H, ser.map(p => dateLabel(p.date)));
+    c._geo = { bw:bw, Y:Y, W:W, H:H, n:n };
+  };
+  draw(); redraws.push(draw);
+  attachTip(c, x => {
+    const g = c._geo; if (!g) return null;
+    const i = Math.floor((x - PAD.l) / g.bw);
+    if (i < 0 || i >= g.n) return null;
+    return { x: PAD.l + g.bw * (i + 0.5), y: g.Y(Math.max(vals[i], avg[i])),
+      html: dateLabelFull(ser[i].date) + '<br>使用 <b>' + fmtQty(vals[i]) + '</b> ' + esc(unit) +
+            '<br>7日平均 <b>' + fmtQty(avg[i]) + '</b> ' + esc(unit) };
+  });
+  host.insertAdjacentHTML('beforeend', legendHtml([
+    { name:(useCount ? '出庫の件数' : '使用量（' + unit + '）'), color:SERIES[0] },
+    { name:'7日移動平均', color:SERIES[1], line:true },
+  ]));
+  dataTable(host, ['日付', (useCount ? '出庫件数' : '使用量（' + unit + '）'), '7日移動平均'],
+    ser.map((p, i) => [p.date, fmtQty(vals[i]), fmtQty(avg[i])]).reverse(), '数値で見る（新しい順）');
+}
+
+/* ---------- 月別の購入金額（分類で積み上げ） ---------- */
+function drawBuyChart(host){
+  const agg = purchaseByMonth(DB.movements, DB.materials);
+  if (!agg.months.length){ noDataBox(host, '入庫（購入）の記録がまだない。'); return; }
+  // 分類が8つを超える場合は上位7＋「その他」に畳む（色を巡回させないため）
+  const catTotal = agg.cats.map((ct, j) => agg.matrix.reduce((a, r) => a + r[j], 0));
+  const order = agg.cats.map((ct, j) => ({ ct:ct, j:j, t:catTotal[j] })).sort((a,b) => b.t - a.t);
+  const keep = order.slice(0, order.length > 8 ? 7 : 8);
+  const rest = order.slice(keep.length);
+  const cats = keep.map(o => o.ct).concat(rest.length ? ['その他'] : []);
+  const colors = keep.map((o, i) => SERIES[i]).concat(rest.length ? [OTHER_COLOR] : []);
+  const matrix = agg.matrix.map(row => keep.map(o => row[o.j]).concat(rest.length ? [rest.reduce((a,o) => a + row[o.j], 0)] : []));
+  const totals = matrix.map(r => r.reduce((a,b) => a+b, 0));
+  const yMax = Math.max.apply(null, totals.concat([1])) * 1.12;
+
+  const c = newChart(host, 240);
+  const draw = () => {
+    const o = ctxOf(c), ctx = o.ctx, W = o.W, H = o.H;
+    yAxis(ctx, W, H, 0, yMax, v => fmtYenShort(v));
+    const n = agg.months.length, bw = (W - PAD.l - PAD.r) / n;
+    const Y = v => H - PAD.b - v / (yMax || 1) * (H - PAD.t - PAD.b);
+    const w = Math.max(6, Math.min(58, bw - 14));
+    for (let i = 0; i < n; i++){
+      const x = PAD.l + bw * i + (bw - w) / 2;
+      let acc = 0;
+      for (let j = 0; j < cats.length; j++){
+        const v = matrix[i][j];
+        if (v <= 0) continue;
+        const yTop = Y(acc + v), yBot = Y(acc);
+        const h = yBot - yTop - 2; // 積み上げの境目に 2px の隙間
+        ctx.fillStyle = colors[j];
+        if (acc + v >= totals[i] - 1e-6) roundTop(ctx, x, yTop, w, Math.max(1, h), 4);
+        else { ctx.beginPath(); ctx.rect(x, yTop, w, Math.max(1, h)); }
+        ctx.fill();
+        acc += v;
+      }
+      ctx.fillStyle = INK; ctx.textAlign = 'center';
+      ctx.fillText(fmtYenShort(totals[i]), x + w/2, Y(totals[i]) - 10);
+    }
+    xLabels(ctx, W, H, agg.months.map(mk => mk.slice(5) + '月'), 1);
+    c._geo = { bw:bw, W:W, H:H, n:n, Y:Y };
+  };
+  draw(); redraws.push(draw);
+  attachTip(c, x => {
+    const g = c._geo; if (!g) return null;
+    const i = Math.floor((x - PAD.l) / g.bw);
+    if (i < 0 || i >= g.n) return null;
+    const parts = cats.map((ct, j) => matrix[i][j] > 0 ? esc(ct) + ' <b>' + fmtYen(matrix[i][j]) + '</b>円' : null).filter(Boolean);
+    return { x: PAD.l + g.bw * (i + 0.5), y: g.Y(totals[i]),
+      html: agg.months[i] + '　合計 <b>' + fmtYen(totals[i]) + '</b>円<br>' + parts.join('<br>') };
+  });
+  host.insertAdjacentHTML('beforeend', legendHtml(cats.map((ct, j) => ({ name:ct, color:colors[j] }))));
+  dataTable(host, ['月'].concat(cats).concat(['合計']),
+    agg.months.map((mk, i) => [mk].concat(matrix[i].map(v => fmtYen(v))).concat([fmtYen(totals[i])])));
+}
+
+/* ---------- 品目別の購入金額（横棒・上位10） ---------- */
+function drawTopChart(host, days){
+  const to = TODAY(), from = days ? addDays(to, -(days - 1)) : null;
+  const list = purchaseByMaterial(DB.movements, from, to).slice(0, 10);
+  if (!list.length){ noDataBox(host, 'この期間に購入の記録がない。'); return; }
+  const max = Math.max.apply(null, list.map(o => o.amount));
+  const c = newChart(host, Math.max(150, 34 * list.length + 34));
+  const draw = () => {
+    const o = ctxOf(c), ctx = o.ctx, W = o.W, H = o.H;
+    const L = Math.min(200, Math.max(110, W * 0.3));
+    const bh = 22, gap = 12;
+    ctx.save();
+    list.forEach((it, i) => {
+      const y = 16 + i * (bh + gap);
+      const w = Math.max(2, (it.amount / max) * (W - L - 96));
+      ctx.fillStyle = SERIES[0];
+      ctx.beginPath();
+      const r = 4;
+      ctx.moveTo(L, y); ctx.lineTo(L + w - r, y);
+      ctx.quadraticCurveTo(L + w, y, L + w, y + r);
+      ctx.lineTo(L + w, y + bh - r);
+      ctx.quadraticCurveTo(L + w, y + bh, L + w - r, y + bh);
+      ctx.lineTo(L, y + bh); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = INK; ctx.textAlign = 'right';
+      const nm = matName(it.materialId);
+      ctx.fillText(nm.length > 12 ? nm.slice(0, 11) + '…' : nm, L - 10, y + bh/2);
+      ctx.textAlign = 'left';
+      ctx.fillText(fmtYen(it.amount) + '円', L + w + 8, y + bh/2);
+    });
+    ctx.restore();
+    c._geo = { bh:bh, gap:gap, W:W };
+  };
+  draw(); redraws.push(draw);
+  attachTip(c, (x, y) => {
+    const g = c._geo; if (!g) return null;
+    const i = Math.floor((y - 16) / (g.bh + g.gap));
+    if (i < 0 || i >= list.length) return null;
+    const it = list[i];
+    const m = matById(it.materialId);
+    return { x:x, y:16 + i * (g.bh + g.gap),
+      html: esc(matName(it.materialId)) + '<br>購入 <b>' + fmtYen(it.amount) + '</b>円　' +
+            fmtQty(it.qty) + esc(m ? m.unit : '') + '　' + it.count + '回' };
+  });
+  dataTable(host, ['品名', '購入金額（円）', '数量', '回数'],
+    list.map(it => { const m = matById(it.materialId);
+      return [matName(it.materialId), fmtYen(it.amount), fmtQty(it.qty) + (m ? m.unit : ''), it.count]; }));
+}
+
+/* ---------- 分析ビュー ---------- */
+function renderCharts(){
+  const rows = computeRows();
+  const fill = (sel, head) => {
+    const keep = sel.value;
+    sel.innerHTML = (head || '') + rows.slice()
+      .sort((a,b) => (a.m.name||'').localeCompare(b.m.name||'','ja'))
+      .map(r => '<option value="' + esc(r.m.id) + '">' + esc(r.m.name) + '</option>').join('');
+    if (keep && rows.some(r => r.m.id === keep)) sel.value = keep;
+  };
+  fill($('cMat'), '');
+  fill($('cUseMat'), '<option value="">すべての品目（件数）</option>');
+  if (!$('cMat').value && rows.length) $('cMat').value = rows[0].m.id;
+
+  drawStockChart($('chartStock'), $('cMat').value, num($('cRange').value, 90));
+  drawUsageChart($('chartUse'), $('cUseMat').value || null, 30);
+  drawBuyChart($('chartBuy'));
+  drawTopChart($('chartTop'), num($('cTopRange').value, 365));
+
+  const win = num(DB.settings.avgWindow, 14);
+  $('useBody').innerHTML = rows.length ? rows.slice()
+    .sort((a,b) => b.u.total - a.u.total).map(r =>
+      '<tr><td><span class="nm">' + esc(r.m.name) + '</span><div class="cd">' + esc(r.m.unit) + '</div></td>' +
+      '<td class="num">' + fmtQty(r.u.total) + '</td>' +
+      '<td class="num">' + r.u.activeDays + ' / ' + win + '</td>' +
+      '<td class="num"><b>' + fmtQty(r.u.perCalendarDay) + '</b></td>' +
+      '<td class="num">' + fmtQty(r.u.perActiveDay) + '</td>' +
+      '<td class="num">' + fmtQty(r.u.perEvent) + '</td>' +
+      '<td class="num">' + fmtQty(r.u.maxPerDay) + '</td>' +
+      '<td class="num">' + fmtQty(suggestRop(r.u.perCalendarDay, r.lead, r.safe)) +
+        '<div class="cd">' + r.lead + '+' + r.safe + '日</div></td></tr>'
+    ).join('') : '<tr><td colspan="8"><div class="nodata">品目がまだ登録されていない。</div></td></tr>';
+}
+
+/* ==========================================================
+   品目の編集モーダル
+   ========================================================== */
+let editMatId = null;
+function openMat(id){
+  editMatId = id || null;
+  const m = id ? matById(id) : null;
+  $('matModalTitle').textContent = m ? '品目を編集' : '品目を追加';
+  $('mName').value = m ? (m.name || '') : '';
+  $('mCode').value = m ? (m.code || '') : '';
+  $('mCat').value  = m ? (m.category || '') : '';
+  $('mUnit').value = m ? (m.unit || '') : '';
+  $('mOpening').value = m ? num(m.opening, 0) : 0;
+  $('mOpenDate').value = m ? (m.openingDate || '') : TODAY();
+  $('mRop').value  = m && num(m.reorderPoint, null) !== null ? m.reorderPoint : '';
+  $('mLead').value = m ? num(m.leadDays, num(DB.settings.leadDays,3)) : num(DB.settings.leadDays, 3);
+  $('mSafe').value = m ? num(m.safetyDays, num(DB.settings.safetyDays,2)) : num(DB.settings.safetyDays, 2);
+  $('mPrice').value = m && num(m.price, null) !== null ? m.price : '';
+  $('mSupplier').value = m ? (m.supplier || '') : '';
+  $('mPlace').value = m ? (m.place || '') : '';
+  $('mNote').value  = m ? (m.note || '') : '';
+  fillDatalist('dlCat', categories());
+  fillDatalist('dlUnit', ['本','枚','個','袋','m','m2','m3','kg','t','台','缶','巻','双','セット','式']);
+  fillDatalist('dlSupplier2', DB.materials.map(x => x.supplier).filter(Boolean)
+    .concat(uniqVals('supplier')).filter((v,i,a) => a.indexOf(v) === i).sort());
+  $('matDel').style.display = m ? '' : 'none';
+  $('ovMat').classList.add('on');
+  setTimeout(() => $('mName').focus(), 30);
+}
+function saveMat(){
+  const name = $('mName').value.trim();
+  if (!name){ toast('品名を入れる', true); $('mName').focus(); return; }
+  const unit = $('mUnit').value.trim() || '個';
+  const o = {
+    name: name, code: $('mCode').value.trim(), category: $('mCat').value.trim() || '未分類',
+    unit: unit, opening: num($('mOpening').value, 0), openingDate: $('mOpenDate').value || '',
+    reorderPoint: $('mRop').value === '' ? null : num($('mRop').value, null),
+    leadDays: num($('mLead').value, 3), safetyDays: num($('mSafe').value, 2),
+    price: $('mPrice').value === '' ? null : num($('mPrice').value, null),
+    supplier: $('mSupplier').value.trim(), place: $('mPlace').value.trim(), note: $('mNote').value.trim(),
+  };
+  const snapshot = JSON.stringify(DB.materials);
+  if (editMatId){ Object.assign(matById(editMatId), o); }
+  else { o.id = uid(); DB.materials.push(o); }
+  if (!saveDB()){ DB.materials = JSON.parse(snapshot); return; }
+  $('ovMat').classList.remove('on');
+  toast(editMatId ? '品目を更新した' : '品目を追加した');
+  renderAll();
+}
+function delMat(){
+  const m = matById(editMatId); if (!m) return;
+  const n = movementsOf(DB.movements, m.id).length;
+  if (!confirm('「' + m.name + '」を削除する。\n' + (n ? 'この品目の入出庫記録 ' + n + ' 件も一緒に消える。' : '') + '\n元に戻せない。')) return;
+  const snapM = DB.materials.slice(), snapV = DB.movements.slice();
+  DB.materials = DB.materials.filter(x => x.id !== m.id);
+  DB.movements = DB.movements.filter(x => x.materialId !== m.id);
+  if (!saveDB()){ DB.materials = snapM; DB.movements = snapV; return; }
+  $('ovMat').classList.remove('on');
+  toast('品目を削除した');
+  renderAll();
+}
+
+/* ==========================================================
+   記録の編集モーダル
+   ========================================================== */
+let editMvId = null;
+function openMv(id){
+  const mv = DB.movements.find(x => x.id === id); if (!mv) return;
+  editMvId = id;
+  $('eMat').innerHTML = DB.materials.slice().sort((a,b) => (a.name||'').localeCompare(b.name||'','ja'))
+    .map(m => '<option value="' + esc(m.id) + '">' + esc(m.name) + '</option>').join('');
+  $('eDate').value = mv.date || '';
+  $('eType').value = mv.type;
+  $('eMat').value = mv.materialId;
+  $('eQty').value = mv.qty;
+  $('ePrice').value = num(mv.unitPrice, null) === null ? '' : mv.unitPrice;
+  $('eAmount').value = num(mv.amount, null) === null ? '' : mv.amount;
+  $('eSupplier').value = mv.supplier || '';
+  $('eSlip').value = mv.slip || '';
+  $('eSite').value = mv.site || '';
+  $('eWork').value = mv.work || '';
+  $('ePerson').value = mv.person || '';
+  $('eNote').value = mv.note || '';
+  $('ovMv').classList.add('on');
+}
+function saveMv(){
+  const mv = DB.movements.find(x => x.id === editMvId); if (!mv) return;
+  const snapshot = JSON.stringify(mv);
+  mv.date = $('eDate').value || mv.date;
+  mv.type = $('eType').value;
+  mv.materialId = $('eMat').value;
+  mv.qty = num($('eQty').value, 0);
+  mv.unitPrice = $('ePrice').value === '' ? null : num($('ePrice').value, null);
+  mv.amount = $('eAmount').value === '' ? null : num($('eAmount').value, null);
+  mv.supplier = $('eSupplier').value.trim();
+  mv.slip = $('eSlip').value.trim();
+  mv.site = $('eSite').value.trim();
+  mv.work = $('eWork').value.trim();
+  mv.person = $('ePerson').value.trim();
+  mv.note = $('eNote').value.trim();
+  if (!saveDB()){ Object.assign(mv, JSON.parse(snapshot)); return; }
+  $('ovMv').classList.remove('on');
+  toast('記録を更新した');
+  renderAll();
+}
+
+/* ==========================================================
+   データの書き出し・読み込み
+   ========================================================== */
+let fileMode = '';
+function stamp(){ return TODAY().replace(/-/g, ''); }
+function siteTag(){ return (DB.site ? DB.site.replace(/[\\/:*?"<>|\s]/g, '_') + '_' : ''); }
+
+function exportJSON(){
+  const payload = { app:'genba-zairyo', v:1, exportedAt:new Date().toISOString(), data:DB };
+  download(siteTag() + '材料在庫_バックアップ_' + stamp() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+  try { localStorage.setItem(BKEY, TODAY()); } catch(e){}
+  renderBackupNote();
+  toast('バックアップを書き出した');
+}
+function renderBackupNote(){
+  let last = null;
+  try { last = localStorage.getItem(BKEY); } catch(e){}
+  const el = $('lastBackup');
+  if (!el) return;
+  if (!last){ el.innerHTML = '<b style="color:var(--st-warn)">まだ一度も書き出していない。</b> 記録が貯まる前に一度試しておくとよい。'; return; }
+  const d = diffDays(last, TODAY());
+  el.innerHTML = '最後に書き出した日: ' + esc(last) + '（' + d + '日前）' +
+    (d >= 14 ? ' <b style="color:var(--st-warn)">— そろそろ書き出しておく</b>' : '');
+}
+function importJSON(text){
+  let o;
+  try { o = JSON.parse(text); } catch(e){ toast('JSONとして読めなかった', true); return; }
+  const d = (o && o.data && Array.isArray(o.data.materials)) ? o.data
+          : (o && Array.isArray(o.materials)) ? o : null;
+  if (!d){ toast('このツールのバックアップではないようだ', true); return; }
+  if (!confirm('いまのデータを、読み込んだバックアップで置き換える。\n\n' +
+               '品目 ' + d.materials.length + ' 件 / 記録 ' + ((d.movements||[]).length) + ' 件\n\n元に戻せない。')) return;
+  DB = Object.assign(emptyDB(), d);
+  DB.settings = Object.assign(emptyDB().settings, d.settings || {});
+  DB.movements = Array.isArray(d.movements) ? d.movements : [];
+  if (!saveDB()) return;
+  $('siteName').value = DB.site || '';
+  toast('バックアップを読み込んだ');
+  renderAll();
+}
+
+const MV_CSV_HEAD = ['日付','種別','品番','品名','単位','数量','単価','金額','仕入先','伝票番号','工区・場所','作業内容','担当者','備考'];
+function csvMovements(list){
+  const rows = (list || DB.movements).slice()
+    .sort((a,b) => (a.date||'').localeCompare(b.date||'') || (a.ts||0) - (b.ts||0))
+    .map(mv => {
+      const m = matById(mv.materialId);
+      return [mv.date, TYPE_LABEL[mv.type] || mv.type, m ? m.code : '', m ? m.name : '', m ? m.unit : '',
+              signedQty(mv), num(mv.unitPrice, ''), amountOf(mv) || '', mv.supplier || '', mv.slip || '',
+              mv.site || '', mv.work || '', mv.person || '', mv.note || ''];
+    });
+  return toCSV(MV_CSV_HEAD, rows);
+}
+function csvStock(){
+  const head = ['品番','品名','分類','単位','現在庫','発注点','発注点の決め方','1日平均使用量','残日数',
+                '在庫単価','在庫金額','最終入出庫','状態','保管場所','仕入先'];
+  const rows = computeRows().map(r => [
+    r.m.code || '', r.m.name, r.m.category || '', r.m.unit, r.stock, r.rop.value, r.rop.auto ? '自動' : '手入力',
+    r.u.perCalendarDay, r.left === null ? '' : r.left, r.unitCost.price, r.value,
+    r.last || '', r.st.label, r.m.place || '', r.m.supplier || '']);
+  return toCSV(head, rows);
+}
+const MAT_CSV_HEAD = ['品番','品名','分類','単位','初期在庫','初期在庫の日付','発注点','リードタイム(日)','安全日数(日)','標準単価','仕入先','保管場所','備考'];
+function csvMaterials(){
+  return toCSV(MAT_CSV_HEAD, DB.materials.map(m => [
+    m.code || '', m.name, m.category || '', m.unit, num(m.opening, 0), m.openingDate || '',
+    num(m.reorderPoint, null) === null ? '' : m.reorderPoint,
+    num(m.leadDays, ''), num(m.safetyDays, ''), num(m.price, ''), m.supplier || '', m.place || '', m.note || '']));
+}
+function idx(head, names){
+  for (const n of names){ const i = head.indexOf(n); if (i >= 0) return i; }
+  return -1;
+}
+function importMaterialsCSV(text){
+  const rows = parseCSV(text);
+  if (rows.length < 2){ toast('中身が読めなかった', true); return; }
+  const h = rows[0].map(s => s.trim());
+  const iName = idx(h, ['品名','名称','材料名']);
+  if (iName < 0){ toast('「品名」の列が見つからない', true); return; }
+  const g = (r, names) => { const i = idx(h, names); return i >= 0 ? (r[i] || '').trim() : ''; };
+  const snap = DB.materials.slice();
+  let add = 0, upd = 0;
+  for (const r of rows.slice(1)){
+    const name = (r[iName] || '').trim();
+    if (!name) continue;
+    const o = {
+      name: name, code: g(r, ['品番','規格','品番・規格']), category: g(r, ['分類','カテゴリ']) || '未分類',
+      unit: g(r, ['単位']) || '個', opening: num(g(r, ['初期在庫','期首在庫']), 0),
+      openingDate: g(r, ['初期在庫の日付','初期在庫日']) || '',
+      reorderPoint: g(r, ['発注点']) === '' ? null : num(g(r, ['発注点']), null),
+      leadDays: num(g(r, ['リードタイム(日)','リードタイム']), num(DB.settings.leadDays,3)),
+      safetyDays: num(g(r, ['安全日数(日)','安全日数']), num(DB.settings.safetyDays,2)),
+      price: g(r, ['標準単価','単価']) === '' ? null : num(g(r, ['標準単価','単価']), null),
+      supplier: g(r, ['仕入先','業者']), place: g(r, ['保管場所','置き場']), note: g(r, ['備考']),
+    };
+    const ex = DB.materials.find(m => m.name === name && (m.code || '') === o.code);
+    if (ex){ Object.assign(ex, o); upd++; } else { o.id = uid(); DB.materials.push(o); add++; }
+  }
+  if (!saveDB()){ DB.materials = snap; return; }
+  toast('品目を読み込んだ（新規 ' + add + ' / 更新 ' + upd + '）');
+  renderAll();
+}
+function importMovementsCSV(text){
+  const rows = parseCSV(text);
+  if (rows.length < 2){ toast('中身が読めなかった', true); return; }
+  const h = rows[0].map(s => s.trim());
+  const g = (r, names) => { const i = idx(h, names); return i >= 0 ? (r[i] || '').trim() : ''; };
+  if (idx(h, ['日付']) < 0 || idx(h, ['品名']) < 0){ toast('「日付」と「品名」の列がいる', true); return; }
+  const snap = DB.movements.slice();
+  let ok = 0, ng = 0;
+  for (const r of rows.slice(1)){
+    const date = g(r, ['日付']).slice(0, 10);
+    const name = g(r, ['品名']), code = g(r, ['品番']);
+    const m = DB.materials.find(x => (code && x.code === code) || x.name === name);
+    if (!date || !m){ ng++; continue; }
+    const tRaw = g(r, ['種別','区分']);
+    const qRaw = num(g(r, ['数量']), 0);
+    let type = tRaw.indexOf('入') >= 0 ? 'in' : tRaw.indexOf('棚') >= 0 ? 'adj' : tRaw.indexOf('出') >= 0 ? 'out' : (qRaw >= 0 ? 'in' : 'out');
+    const mv = { id: uid(), ts: Date.now() + ok, date: date, materialId: m.id, type: type,
+                 qty: type === 'adj' ? qRaw : Math.abs(qRaw),
+                 unitPrice: g(r, ['単価']) === '' ? null : num(g(r, ['単価']), null),
+                 amount: g(r, ['金額']) === '' ? null : num(g(r, ['金額']), null),
+                 supplier: g(r, ['仕入先']), slip: g(r, ['伝票番号','伝票']),
+                 site: g(r, ['工区・場所','工区','場所']), work: g(r, ['作業内容','作業']),
+                 person: g(r, ['担当者','担当']), note: g(r, ['備考']) };
+    DB.movements.push(mv); ok++;
+  }
+  if (!saveDB()){ DB.movements = snap; return; }
+  toast('記録を読み込んだ（' + ok + ' 件' + (ng ? ' / 読めなかった ' + ng + ' 件' : '') + '）');
+  renderAll();
+}
+
+/* ==========================================================
+   サンプルデータ（動作確認用。実在の現場のものではない）
+   ========================================================== */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function sampleData(){
+  const rnd = mulberry32(20260912);
+  const today = TODAY(), start = addDays(today, -119), DAYS = 120;
+  // stop … その日以降は発注をやめる（アラートの見え方を確かめるため）
+  const defs = [
+    { name:'異形棒鋼 D16 5.5m', code:'SD345-D16', category:'鋼材', unit:'本', price:1850,
+      supplier:'丸和鋼材', place:'資材ヤードA', lead:5, safe:3, rop:120, explicit:true, use:[8,26], p:0.55, open:340, dec:0 },
+    { name:'単管パイプ 3.0m', code:'TP-3000', category:'仮設材', unit:'本', price:980,
+      supplier:'現場資材センター', place:'資材ヤードB', lead:3, safe:2, rop:90, explicit:false, use:[6,22], p:0.50, open:240, dec:0 },
+    { name:'直交クランプ', code:'CL-90', category:'仮設材', unit:'個', price:260,
+      supplier:'現場資材センター', place:'資材ヤードB', lead:3, safe:2, rop:150, explicit:false, use:[10,40], p:0.50, open:420, dec:0, stop:94 },
+    { name:'再生砕石 RC-40', code:'RC-40', category:'路盤材', unit:'m3', price:2800,
+      supplier:'山田砕石', place:'ストックヤード', lead:2, safe:2, rop:40, explicit:true, use:[4,18], p:0.45, open:95, dec:1 },
+    { name:'セメント 普通ポルトランド 25kg', code:'CE-25', category:'セメント', unit:'袋', price:750,
+      supplier:'中央建材', place:'倉庫', lead:2, safe:2, rop:60, explicit:false, use:[4,20], p:0.40, open:160, dec:0 },
+    { name:'常温合材 25kg', code:'AS-C25', category:'舗装材', unit:'袋', price:1250,
+      supplier:'北部アスコン', place:'倉庫', lead:3, safe:2, rop:40, explicit:false, use:[2,12], p:0.30, open:110, dec:0 },
+    { name:'塩ビ管 VU100 4m', code:'VU100-4', category:'管材', unit:'本', price:2400,
+      supplier:'中央管材', place:'資材ヤードA', lead:4, safe:3, rop:30, explicit:true, use:[2,8], p:0.35, open:70, dec:0 },
+    { name:'保安コーン 700', code:'CN-700', category:'安全用品', unit:'本', price:950,
+      supplier:'安全用品ショップ', place:'倉庫', lead:3, safe:2, rop:25, explicit:false, use:[1,6], p:0.30, open:70, dec:0, stop:104 },
+    { name:'型枠合板 12mm', code:'PW-12', category:'型枠材', unit:'枚', price:1750,
+      supplier:'丸和建材', place:'資材ヤードA', lead:4, safe:2, rop:60, explicit:true, use:[4,16], p:0.40, open:150, dec:0, stop:100 },
+    { name:'軍手（作業手袋）', code:'GL-01', category:'消耗品', unit:'双', price:120,
+      supplier:'安全用品ショップ', place:'詰所', lead:2, safe:3, rop:40, explicit:false, use:[2,10], p:0.50, open:120, dec:0 },
+  ];
+  const mats = defs.map((d, i) => ({
+    id: 'sm' + i + Math.floor(rnd() * 1e6).toString(36),
+    name:d.name, code:d.code, category:d.category, unit:d.unit, price:d.price,
+    supplier:d.supplier, place:d.place, opening:d.open, openingDate:start,
+    reorderPoint: d.explicit ? d.rop : null, leadDays:d.lead, safetyDays:d.safe, note:'',
+  }));
+  const works = ['基礎配筋','足場組立','路盤敷均し','舗装補修','管布設','土留め設置','型枠建込み','片付け'];
+  const sites = ['1工区','2工区','橋台部','取付道路'];
+  const people = ['大沼','佐藤','鈴木','高橋'];
+  const movs = [];
+  let ts = Date.now() - 2e7;
+  const q = (v, dec) => dec ? round(v, dec) : Math.round(v);
+
+  defs.forEach((d, i) => {
+    const m = mats[i];
+    let stock = d.open;
+    const pend = [];           // 発注済み・未着（{day, qty}）
+    let slip = 1000 + i * 40;
+    for (let k = 0; k < DAYS; k++){
+      const day = addDays(start, k);
+      const wd = parseYmd(day).getDay();
+      const off = (wd === 0) || (wd === 6 && rnd() < 0.75);
+      // 納入
+      for (let j = pend.length - 1; j >= 0; j--){
+        if (pend[j].day !== k) continue;
+        const price = Math.round(d.price * (0.94 + rnd() * 0.12));
+        stock += pend[j].qty;
+        movs.push({ id:'si' + i + '_' + k, ts: ts++, date: day, materialId: m.id, type:'in',
+                    qty: pend[j].qty, unitPrice: price, amount: Math.round(pend[j].qty * price),
+                    supplier: d.supplier, slip: 'D-' + (slip++), note:'' });
+        pend.splice(j, 1);
+      }
+      // 使用
+      if (!off && stock > 0 && rnd() < d.p){
+        let u = q(d.use[0] + rnd() * (d.use[1] - d.use[0]), d.dec);
+        if (u > stock) u = q(stock, d.dec);
+        if (u > 0){
+          stock = round(stock - u, 4);
+          movs.push({ id:'su' + i + '_' + k, ts: ts++, date: day, materialId: m.id, type:'out', qty: u,
+                      site: sites[Math.floor(rnd() * sites.length)], work: works[Math.floor(rnd() * works.length)],
+                      person: people[Math.floor(rnd() * people.length)], note:'' });
+        }
+      }
+      // 発注（在庫が発注点を割ったら、リードタイムぶん先に届く）
+      const stopAt = (d.stop === undefined) ? DAYS : d.stop;
+      if (k < stopAt && stock <= d.rop && !pend.length){
+        const order = q(Math.max(d.rop * 2 - stock, d.rop), d.dec);
+        pend.push({ day: Math.min(DAYS - 1, k + d.lead + (rnd() < 0.25 ? 1 : 0)), qty: order });
+      }
+    }
+  });
+  // 棚卸の調整を1件（帳簿と現物が合わなかった例）
+  movs.push({ id:'sadj', ts: ts++, date: addDays(today, -23), materialId: mats[1].id,
+              type:'adj', qty:-8, note:'棚卸: 現物と差異 8本（他工区へ転用ぶん）' });
+  movs.sort((a, b) => (a.date).localeCompare(b.date) || a.ts - b.ts);
+  return { v:1, site:'○○地区 道路改良工事', materials: mats, movements: movs,
+           settings:{ leadDays:3, safetyDays:2, avgWindow:14 } };
+}
+
+function loadSample(){
+  if (DB.materials.length && !confirm('いまのデータをサンプルデータで置き換える。元に戻せない。')) return;
+  DB = sampleData();
+  if (!saveDB()) return;
+  $('siteName').value = DB.site;
+  toast('サンプルデータを入れた');
+  show('dash');
+}
+
+/* ==========================================================
+   使い方
+   ========================================================== */
+const HELP = [
+  ['はじめに', '<p>この表は、現場で使う材料の <b>残り数・使うペース・買った金額</b> を1か所にまとめるためのもの。' +
+   'データは<b>この端末のブラウザの中だけ</b>に保存される（サーバーには送らない）。端末を替えるときは「💾 データ」からバックアップを書き出す。</p>'],
+  ['① まず品目を登録する', '<p>「📦 品目管理」→「＋ 品目を追加」。品名・分類・単位・初期在庫を入れる。' +
+   '<b>リードタイム</b>（発注してから現場に入るまでの日数）と<b>安全日数</b>を入れておくと、発注点が自動で計算される。</p>'],
+  ['② 毎日の記録', '<p>「✏️ 記録する」で、<b>🔻 使った</b>／<b>🔺 仕入れた</b>／<b>🔢 数え直し</b>を選び、品目と数量を入れて記録するだけ。' +
+   'よく使う品目はボタンで一発で選べる。仕入れのときは単価を入れると金額が自動で出る（合計金額を直接入れてもよい）。</p>'],
+  ['③ アラートの見方', '<p>「🏠 ダッシュボード」の上部に出る。判定はこの順。</p>' +
+   '<ul><li><b>🛑 欠品</b>… 在庫が 0 以下</li>' +
+   '<li><b>⚠ 要発注</b>… 在庫が発注点を下回った</li>' +
+   '<li><b>🔔 まもなく</b>… 発注点の1.3倍まで落ちた／残日数がリードタイム＋安全日数の1.3倍を切った</li>' +
+   '<li><b>💤 動きなし</b>… ' + IDLE_DAYS + '日以上、入出庫の記録がない</li></ul>'],
+  ['④ 発注点のしくみ', '<p>品目の発注点を空欄にしておくと、実績から自動で計算する。</p>' +
+   '<p style="font-family:var(--mono);background:var(--panel);padding:9px 11px;border-radius:5px">' +
+   '発注点 ＝ 1日平均使用量 × （リードタイム ＋ 安全日数）</p>' +
+   '<p>1日平均使用量は「直近○日の出庫合計 ÷ ○日」（暦日割り）。集計期間はダッシュボード右上の 7/14/30/90日 で切り替える。' +
+   '数字を直接入れればその値が優先される。</p>'],
+  ['⑤ 残日数', '<p><b>残日数 ＝ 現在庫 ÷ 1日平均使用量</b>。「このペースならあと何日もつか」という目安。' +
+   '出庫の記録がない品目は計算できないので「—」になる。</p>'],
+  ['⑥ 在庫金額', '<p>入庫（購入）の記録から<b>移動平均単価</b>（購入金額の合計 ÷ 購入数量の合計）を出し、現在庫に掛けている。' +
+   '購入記録がまだ無い品目は、品目マスタの<b>標準単価</b>を使う。</p>'],
+  ['⑦ 棚卸（数え直し）', '<p>実際に数えた数と帳簿が合わないときは「🔢 数え直し」。' +
+   '数えた<b>実数</b>を入れると、差分が調整記録として残る（消したり書き換えたりしない）。</p>'],
+  ['⑧ 印刷・書き出し', '<p>在庫一覧とダッシュボードはA4横で印刷できる（詰所に貼る用）。' +
+   'CSVはExcelでそのまま開ける。「💾 データ」のJSONバックアップが、端末を移すときの正本。</p>'],
+];
+function openHelp(){
+  $('helpBody').innerHTML = HELP.map(h =>
+    '<div style="margin-bottom:16px"><h2 class="sec">' + esc(h[0]) + '</h2>' +
+    '<div style="font-size:12.5px;line-height:1.85">' + h[1] + '</div></div>').join('') +
+    '<div class="tiny" style="border-top:1px solid var(--line);padding-top:10px">' +
+    'このツールは在庫の<b>事実</b>を記録・集計して見せるためのもの。発注するかどうかを決めるのは現場の判断であり、' +
+    'アラートは「決めたラインに届いた」という合図にすぎない。</div>';
+  $('ovHelp').classList.add('on');
+}
+
+/* ==========================================================
+   発注メモ
+   ========================================================== */
+function orderMemo(){
+  const rows = computeRows().filter(r => r.st.order <= STATUS_ORDER.warn)
+                            .sort((a,b) => a.st.order - b.st.order);
+  if (!rows.length) return '発注が必要な品目はありません。';
+  const lines = ['【発注メモ】' + (DB.site ? DB.site + '　' : '') + TODAY(), ''];
+  for (const r of rows){
+    let q = orderQtySuggest(r.stock, r.rop.value);
+    if (q <= 0) q = typicalOrderQty(DB.movements, r.m.id);
+    lines.push('・' + r.m.name + (r.m.code ? '（' + r.m.code + '）' : '') +
+      '　' + (q > 0 ? fmtQty(q) + r.m.unit : '数量は要確認') +
+      '　［現在庫 ' + fmtQty(r.stock) + r.m.unit + ' / 発注点 ' + fmtQty(r.rop.value) + r.m.unit +
+      (r.left !== null ? ' / 残り約' + fmtQty(r.left) + '日' : '') + '］' +
+      (r.m.supplier ? '　仕入先: ' + r.m.supplier : ''));
+  }
+  lines.push('', '※ 数量は「発注点×2 − 現在庫」の目安。現場の段取りに合わせて調整すること。');
+  return lines.join('\n');
+}
+
+/* ==========================================================
+   起動・イベント
+   ========================================================== */
+function wire(){
+  document.querySelectorAll('.tab').forEach(b => b.onclick = () => show(b.dataset.view));
+
+  $('siteName').oninput = () => { DB.site = $('siteName').value; saveDB(); };
+  $('btnHelp').onclick = openHelp;
+  $('helpClose').onclick = $('helpOk').onclick = () => $('ovHelp').classList.remove('on');
+  $('btnData').onclick = () => { renderBackupNote(); $('ovData').classList.add('on'); };
+  $('dataClose').onclick = $('dataOk').onclick = () => $('ovData').classList.remove('on');
+
+  // ダッシュボード
+  document.querySelectorAll('#segWindow button').forEach(b => b.onclick = () => {
+    DB.settings.avgWindow = num(b.dataset.win, 14); saveDB(); renderAll();
+  });
+  $('btnCopyOrder').onclick = () => copyText(orderMemo());
+  $('btnPrintOrder').onclick = () => window.print();
+
+  // 在庫一覧
+  ['stockQ','stockCat','stockSt'].forEach(id => { $(id).oninput = renderStock; $(id).onchange = renderStock; });
+  $('btnPrintStock').onclick = () => window.print();
+  document.querySelectorAll('#stockTbl th.sortable').forEach(th => th.onclick = () => {
+    if (stockSort.k === th.dataset.k) stockSort.dir *= -1;
+    else stockSort = { k: th.dataset.k, dir: (th.dataset.k === 'name' || th.dataset.k === 'cat' || th.dataset.k === 'status') ? 1 : -1 };
+    renderStock();
+  });
+
+  // 記録する
+  document.querySelectorAll('#segType button').forEach(b => b.onclick = () => { enType = b.dataset.t; renderEntry(); });
+  $('enMat').onchange = onEntryMat;
+  $('enQty').oninput = onQty;
+  $('enPrice').oninput = onQty;
+  $('enAmount').oninput = () => {
+    const q = Math.abs(num($('enQty').value, 0)), a = num($('enAmount').value, null);
+    if (a !== null && q > 0) $('enPrice').value = round(a / q, 2);
+  };
+  $('qtyP').onclick = () => { $('enQty').value = round(num($('enQty').value, 0) + 1, 4); onQty(); };
+  $('qtyM').onclick = () => { $('enQty').value = Math.max(0, round(num($('enQty').value, 0) - 1, 4)); onQty(); };
+  $('btnSave').onclick = () => saveEntry(false);
+  $('btnSaveNext').onclick = () => saveEntry(true);
+  $('enQty').onkeydown = ev => { if (ev.key === 'Enter'){ ev.preventDefault(); saveEntry(false); } };
+
+  // 履歴
+  ['hFrom','hTo','hMat','hType','hQ'].forEach(id => { $(id).oninput = renderHist; $(id).onchange = renderHist; });
+  $('btnHClear').onclick = () => { ['hFrom','hTo','hQ'].forEach(id => $(id).value = ''); $('hMat').value = ''; $('hType').value = ''; renderHist(); };
+  $('btnHCsv').onclick = () => download(siteTag() + '入出庫_' + stamp() + '.csv', '﻿' + csvMovements(renderHist._list || []), 'text/csv');
+  $('btnPrintHist').onclick = () => window.print();
+
+  // 分析
+  ['cMat','cRange','cUseMat','cTopRange'].forEach(id => $(id).onchange = renderCharts);
+
+  // 品目管理
+  $('btnNewMat').onclick = () => openMat(null);
+  $('matClose').onclick = $('matCancel').onclick = () => $('ovMat').classList.remove('on');
+  $('matSave').onclick = saveMat;
+  $('matDel').onclick = delMat;
+  $('btnMatCsv').onclick = () => download(siteTag() + '品目マスタ_' + stamp() + '.csv', '﻿' + csvMaterials(), 'text/csv');
+  $('btnMatCsvIn').onclick = () => pickFile('mat');
+
+  // 記録の編集
+  $('mvClose').onclick = $('mvCancel').onclick = () => $('ovMv').classList.remove('on');
+  $('mvSave').onclick = saveMv;
+  $('mvDel').onclick = () => { const id = editMvId; $('ovMv').classList.remove('on'); delMv(id); };
+
+  // データ
+  $('btnExport').onclick = exportJSON;
+  $('btnImport').onclick = () => pickFile('json');
+  $('btnCsvMv').onclick = () => download(siteTag() + '入出庫_全件_' + stamp() + '.csv', '﻿' + csvMovements(), 'text/csv');
+  $('btnCsvStock').onclick = () => download(siteTag() + '在庫一覧_' + stamp() + '.csv', '﻿' + csvStock(), 'text/csv');
+  $('btnCsvMat').onclick = () => download(siteTag() + '品目マスタ_' + stamp() + '.csv', '﻿' + csvMaterials(), 'text/csv');
+  $('btnCsvMvIn').onclick = () => pickFile('mv');
+  $('btnSample').onclick = () => { $('ovData').classList.remove('on'); loadSample(); };
+  $('btnReset').onclick = () => {
+    if (!confirm('この端末に保存した在庫データを全部消す。元に戻せない。\n先にバックアップを書き出しておくこと。')) return;
+    DB = emptyDB();
+    if (!saveDB()) return;
+    $('siteName').value = '';
+    $('ovData').classList.remove('on');
+    toast('全データを消した');
+    show('dash');
+  };
+  $('fileIn').onchange = ev => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      const txt = String(rd.result || '');
+      if (fileMode === 'json') importJSON(txt);
+      if (fileMode === 'mat') importMaterialsCSV(txt);
+      if (fileMode === 'mv') importMovementsCSV(txt);
+    };
+    rd.readAsText(f, 'UTF-8');
+    ev.target.value = '';
+  };
+
+  // モーダルの背景クリックで閉じる
+  document.querySelectorAll('.ov').forEach(ov => ov.onclick = ev => { if (ev.target === ov) ov.classList.remove('on'); });
+  document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape') document.querySelectorAll('.ov.on').forEach(o => o.classList.remove('on'));
+  });
+
+  let rt = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(rt);
+    rt = setTimeout(() => { redraws.forEach(f => { try { f(); } catch(e){} }); }, 160);
+  });
+}
+function pickFile(mode){ fileMode = mode; $('fileIn').click(); }
+
+function boot(){
+  loadDB();
+  if (loadFailed) toast('保存データを読めなかった。データは上書きしていない', true);
+  $('siteName').value = DB.site || '';
+  $('enDate').value = TODAY();
+  wire();
+  renderBackupNote();
+  show('dash');
+}
+boot();
+</script>
+</body>
+</html>

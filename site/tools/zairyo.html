@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<!--
+  T-004 材料在庫管理表 LP（tools/_template.html から作成）
+  版・更新日・更新履歴・「ツールを開く」のURLは site/assets/tools.js から自動で埋まる。
+-->
+<html lang="ja" data-root="../" data-tool="zairyo">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>材料在庫管理表 — 現場の材料を、使った分だけ記録 | GENBA TOOLS</title>
+<meta name="description" content="建設現場の材料在庫を、日々の使用記録と購入記録から自動で計算。1日平均使用量と残り日数を出し、発注点を割ったらアラートで知らせる単一HTMLツール。オフラインで動き、データは端末内だけ。">
+<meta name="theme-color" content="#0a0f1c">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://morioshota.github.io/Claude-code/site/tools/zairyo.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GENBA TOOLS">
+<meta property="og:title" content="材料在庫管理表 — 現場の材料を、使った分だけ記録">
+<meta property="og:description" content="使った分を記録するだけで、残数・1日平均使用量・残り日数が出る。発注点を割ったらアラート。購入金額はグラフで。オフラインで動く単一HTML。">
+<meta property="og:url" content="https://morioshota.github.io/Claude-code/site/tools/zairyo.html">
+<meta property="og:image" content="https://morioshota.github.io/Claude-code/site/assets/og/zairyo.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/config.js"></script>
+<script src="../assets/tools.js"></script>
+<script src="../assets/site.js" defer></script>
+</head>
+<body>
+<div class="hazard" aria-hidden="true"></div>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../" aria-label="ホーム"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline"></small></span></a>
+    <button class="nav-toggle" aria-label="メニュー" aria-expanded="false">☰</button>
+    <nav class="nav" aria-label="ページ内">
+      <a href="../#tools">ツール一覧</a>
+      <a href="#features">できること</a>
+      <a href="#howto">使い方</a>
+      <a href="#faq">FAQ</a>
+      <a class="cta" data-tool-open href="#" target="_blank" rel="noopener">ツールを開く ↗</a>
+      <button class="theme-toggle" type="button" aria-label="テーマ切替">☀️</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="lp-hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="wrap">
+      <nav class="breadcrumb" aria-label="現在位置"><a href="../">ホーム</a><span>/</span><a href="../#tools">ツール一覧</a><span>/</span><span>材料在庫管理表</span></nav>
+      <div class="top">
+        <div>
+          <div class="no"><span class="badge" data-tool-field="no">T-0XX</span><span class="stamp released">公開中</span><span class="badge" data-tool-field="version">v1.0</span></div>
+          <h1>材料在庫管理表<small>MATERIAL STOCK MANAGER</small></h1>
+          <p class="lead">現場で使った材料を、その場で1件ずつ記録するだけ。残数・1日あたりの使用ペース・あと何日もつかが自動で出ます。自分で決めた発注点を割ったら、ダッシュボードのアラートと要発注リストで知らせます。インストール不要、通信なし、データは端末の中だけです。</p>
+          <div class="cta-row" style="display:flex;gap:12px;flex-wrap:wrap">
+            <a class="btn primary lg" data-tool-open href="#" target="_blank" rel="noopener">ツールを開く（無料・登録不要）↗</a>
+            <a class="btn lg ghost" href="#howto">使い方を見る</a>
+          </div>
+          <div class="badges"><span class="chip">📄 単一HTML</span><span class="chip">📵 オフライン可</span><span class="chip">📱 スマホでも入力可</span><span class="chip">🔒 データは端末内</span></div>
+        </div>
+        <div class="browser reveal">
+          <div class="bar"><i></i><i></i><i></i><span>材料在庫管理表 — ダッシュボード</span></div>
+          <img src="../assets/img/zairyo.webp" alt="ダッシュボード。欠品・要発注のアラート、要発注リスト、日別の使用量グラフが並んでいる" width="1800" height="1125">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:20px">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">PAIN / こんな作業、毎回やっていませんか</div><h2>材料の残りは、たいてい「誰かの記憶」の中にある</h2></div>
+      <div class="grid cols-3">
+        <div class="card feature reveal"><div class="icon">🧐</div><h3>あるはずのものが無い</h3><p>朝いちで取りに行ったら空だった。ヤードに行くまで残数が分からないので、段取りが止まってから気づく。</p></div>
+        <div class="card feature reveal d1"><div class="icon">📄</div><h3>発注の時期が勘になる</h3><p>「そろそろ頼むか」の根拠が無い。早すぎれば置き場を圧迫し、遅ければリードタイムが間に合わない。</p></div>
+        <div class="card feature reveal d2"><div class="icon">🧾</div><h3>いくら買ったか後で分からない</h3><p>納品書は溜まるが、月にどの材料へいくら出たかは集計しないと見えない。原価の当たりが遅れる。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" style="background:var(--bg-2)">
+    <div class="wrap">
+      <div class="section-head"><div class="kicker">FEATURES / できること</div><h2>記録するのは「使った数」だけ</h2><p>あとの計算はツールがやります。</p></div>
+      <div class="grid cols-3">
+        <div class="card feature reveal"><div class="icon">📉</div><h3>1日平均使用量と残り日数</h3><p>直近7/14/30/90日の出庫から、1日あたりの使用ペースを算出。現在庫と突き合わせて「このペースであと何日」を出します。</p></div>
+        <div class="card feature reveal d1"><div class="icon">🔔</div><h3>発注点アラートと発注メモ</h3><p>発注点＝平均使用量×(リードタイム＋安全日数)を自動で算出（手入力も可）。割った品目は要発注リストに集まり、発注メモを1クリックでコピーできます。</p></div>
+        <div class="card feature reveal d2"><div class="icon">📊</div><h3>在庫と金額をグラフで</h3><p>在庫の推移、日別使用量と7日移動平均、月別の購入金額（分類で積み上げ）、品目別の購入金額 上位10。どのグラフにも数値表が付きます。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="howto">
+    <div class="wrap two-col">
+      <div>
+        <div class="section-head"><div class="kicker">HOW TO / 使い方</div><h2>基本のステップ</h2></div>
+        <div class="steps">
+          <div class="step reveal"><div class="num"></div><div><h3>品目を登録する</h3><p>「品目管理」で品名・単位・初期在庫を入れます。リードタイム（発注してから現場に入るまでの日数）と安全日数を入れておくと、発注点が自動で計算されます。</p></div></div>
+          <div class="step reveal d1"><div class="num"></div><div><h3>使った分・仕入れた分を記録する</h3><p>「記録する」で品目ボタンを押し、数量を入れるだけ。仕入れのときは単価を入れると金額が自動で出ます。記録後の在庫がその場で確認できます。</p></div></div>
+          <div class="step reveal d2"><div class="num"></div><div><h3>朝いちでダッシュボードを見る</h3><p>欠品・要発注・まもなくの品目がまとまっています。在庫一覧はA4横で印刷できるので、詰所に貼る在庫表としても使えます。</p></div></div>
+        </div>
+      </div>
+      <div class="gallery">
+        <figure class="reveal"><img src="../assets/img/zairyo-stock.webp" alt="在庫一覧。品目ごとの現在庫・発注点・1日平均使用量・残日数・在庫金額・状態が並ぶ表" loading="lazy"><figcaption>在庫一覧。状態バッジと残り日数で、手当てのいる品目がすぐ分かる</figcaption></figure>
+        <figure class="reveal d1"><img src="../assets/img/zairyo-chart.webp" alt="分析画面。在庫の推移グラフと日別使用量のグラフ" loading="lazy"><figcaption>在庫の推移。破線が発注点。仕入れと使用の山谷がそのまま出る</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="background:var(--bg-2)">
+    <div class="wrap two-col">
+      <div>
+        <div class="section-head"><div class="kicker">SPEC / 動作環境</div><h2>使う前に知っておくこと</h2></div>
+        <div class="table-wrap"><table class="spec">
+          <tr><th>対応ブラウザ</th><td>Chrome / Edge / Safari（PC・スマホとも）。インストール不要</td></tr>
+          <tr><th>通信</th><td>不要。外部ライブラリも読み込まないので、回線の無い現場でも動く</td></tr>
+          <tr><th>保存先</th><td>使っている端末のブラウザ内（localStorage）。サーバーには送らない。端末を替えるときはJSONバックアップで移す</td></tr>
+        </table></div>
+      </div>
+      <div style="display:grid;gap:16px">
+        <div class="notice reveal"><b>このツールがしないこと。</b> 「買い時」「持ちすぎ」といった評価はしません。アラートは<b>自分で決めた発注点に届いた</b>という到達の事実を伝えるだけで、発注するかどうかは現場の段取りを見て人が決めます。</div>
+        <div class="card reveal d1"><p style="margin:0 0 6px"><b>更新履歴</b> <span class="muted small">最新 <span data-tool-field="updated">—</span></span></p><ul class="timeline" id="tool-changelog" style="margin-top:12px"></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <div class="wrap" style="max-width:860px">
+      <div class="section-head"><div class="kicker">FAQ / よくある質問</div><h2>質問と答え</h2></div>
+      <div class="faq">
+        <details><summary>いまの在庫を、途中から入れ始めてもいいですか。</summary><div class="a">できます。品目の「初期在庫」と「初期在庫の日付」に、数えた日の実数を入れてください。それより前の記録は計算に入りません。</div></details>
+        <details><summary>帳簿と現物が合わなくなったら。</summary><div class="a">「数え直し（棚卸）」で数えた実数を入れます。過去の記録は書き換えず、差分だけが調整記録として1件残ります。いつ合わせたかが追えます。</div></details>
+        <details><summary>発注点は自分で決められますか。</summary><div class="a">品目管理で数字を入れればその値が優先されます。空欄のままなら、1日平均使用量×(リードタイム＋安全日数)で自動計算します。</div></details>
+        <details><summary>複数人で同じデータを見られますか。</summary><div class="a">いまは端末ごとに独立しています。共有したいときはJSONバックアップを書き出して渡してください（同時編集はできません）。</div></details>
+        <details><summary>ExcelやCSVとやり取りできますか。</summary><div class="a">品目マスタ・入出庫の記録・在庫一覧をCSVで書き出せます。品目マスタと入出庫はCSVからの読み込みにも対応しています。</div></details>
+        <details><summary>データが消えることはありますか。</summary><div class="a">ブラウザのデータを消したり、端末を初期化すると消えます。「データ」からJSONバックアップを定期的に書き出してください。最後に書き出した日が画面に出ます。</div></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap"><div class="band reveal"><div class="inner">
+      <div><h2>まずはサンプルデータで試せます</h2><p>インストール不要。開いてすぐ使えます。</p></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary lg" data-tool-open href="#" target="_blank" rel="noopener">ツールを開く ↗</a><a class="btn lg" data-tool-feedback href="../feedback.html">要望・不具合を送る</a></div>
+    </div></div></div>
+  </section>
+</main>
+
+<a class="btn primary fab" data-tool-feedback href="../feedback.html">💬 <span>このツールへの要望</span></a>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="../"><span class="mark" aria-hidden="true"></span><span><span data-cfg="siteName">GENBA TOOLS</span><small data-cfg="siteTagline"></small></span></a>
+      <p class="copy" style="margin-top:14px">本ツールは在庫の記録・集計を補助するものです。数値は入力された記録にもとづく事実の集計であり、発注や施工の判断は利用者が行ってください。<br>© <span data-year>2026</span> <span data-cfg="author"></span></p>
+    </div>
+    <div><h4>LINKS</h4><ul><li><a href="../#tools">ツール一覧</a></li><li><a data-tool-feedback href="../feedback.html">要望・不具合を送る</a></li><li><a data-cfg-href="repoUrl" href="#" target="_blank" rel="noopener">ソースコード（GitHub）↗</a></li></ul></div>
+    <div class="titleblock" aria-label="表題欄">
+      <div>TOOL</div><div><span data-tool-field="no"></span> <span data-tool-field="name"></span></div>
+      <div>VERSION</div><div data-tool-field="version">—</div>
+      <div>UPDATED</div><div data-tool-field="updated">—</div>
+      <div>AUTHOR</div><div data-cfg="author"></div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
