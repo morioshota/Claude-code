@@ -215,6 +215,52 @@ ok('最後は床付けまで掘る', steps[steps.length-1].dig === 5);
 ok('掘削深さは単調に増える', steps.every((s, i) => i === 0 || s.dig >= steps[i-1].dig));
 ok('オープンカットは土留めを立てない', buildSteps('open', [], 3).every(s => s.walls === false));
 
+/* ---------- 必要断面係数と適合部材 ---------- */
+near('必要Z = |M|×1000÷σa', requiredZ(-36, 180), 200, 1e-9);
+ok('σaが0なら必要Zは出さない', requiredZ(36, 0) === null);
+const flib = [
+  { id:'a', cat:'sheet', name:'A', Z:150, wm:60 },
+  { id:'b', cat:'sheet', name:'B', Z:300, wm:90 },
+  { id:'c', cat:'sheet', name:'C', Z:250, wm:70 },
+  { id:'d', cat:'sheet', name:'D', Z:null, wm:null },
+  { id:'h', cat:'hpile', name:'H', Z:900, wm:70 }
+];
+const fit = memberFit(flib, 'sheet', 36, 180, 1.5);   // Zreq = 200
+near('適合: 必要Z', fit.zReq, 200, 1e-9);
+ok('適合: 区分が違う部材は出さない', fit.rows.every(r => r.m.cat === 'sheet'));
+ok('適合: 満たす部材→不足→未入力の順', fit.rows.map(r => r.m.id).join('') === 'cbad', fit.rows.map(r => r.m.id).join(''));
+ok('適合: 満たす中で最も軽い部材を示す', fit.lightest === 'c');
+near('適合: 余裕 = 1 − Zreq/Z', fit.rows[0].margin, 1 - 200/250, 1e-9);
+ok('適合: 規格値が無い部材は判定しない', fit.rows[3].ok === null);
+const fitH = memberFit(flib, 'hpile', 36, 180, 1.5);
+near('適合: 親杭は Z÷間隔 で壁1mあたりにして比べる', fitH.rows[0].zWall, 600, 1e-9);
+ok('適合: 親杭 600 ≧ 200 で OK', fitH.rows[0].ok === true);
+
+/* ---------- 貼り付けの読み取り ---------- */
+const pasted = parseLibraryText([
+  '区分\t名称\t断面係数Z\t単位質量\t有効幅\t出典メモ',
+  '鋼矢板\tテスト U形\t1,340\t150\t400\tカタログp.12',
+  '簡易,軽量テスト,１２３,45,400',
+  '親杭\tテスト H\t1350\t93.0\t\tJIS',
+  'ふしぎ\tだめな行\t100\t10\t400',
+  '鋼矢板\t数値が変\tabc\t10\t400'
+].join('\n'));
+ok('貼り付け: 見出し行を読み飛ばし3件読む', pasted.items.length === 3, pasted.items.length);
+near('貼り付け: 桁区切りのカンマを読む', pasted.items[0].Z, 1340);
+ok('貼り付け: 出典メモを持つ', pasted.items[0].ref === 'カタログp.12');
+ok('貼り付け: カンマ区切りも読む', pasted.items[1].cat === 'simple' && pasted.items[1].name === '軽量テスト');
+near('貼り付け: 全角数字を読む', pasted.items[1].Z, 123);
+ok('貼り付け: 空欄は null', pasted.items[2].wid === null && pasted.items[2].cat === 'hpile');
+ok('貼り付け: 読めない行はエラーとして返す', pasted.errors.length === 2, JSON.stringify(pasted.errors));
+
+/* ---------- ライブラリへの合流 ---------- */
+const base = [{ id:'x', cat:'sheet', name:'テスト U形', Z:null, wm:null, wid:400, src:'要入力' }];
+const mg = mergeLibrary(base, pasted.items, '自分で入力');
+ok('合流: 同じ名称は上書き', mg.updated === 1 && mg.lib[0].Z === 1340 && mg.lib[0].id === 'x');
+ok('合流: 上書きすると出典が変わる', mg.lib[0].src === '自分で入力');
+ok('合流: 無い部材は追加', mg.added === 2 && mg.lib.length === 3);
+ok('合流: 元の配列は変えない', base[0].Z === null);
+
 /* ---------- まとめ ---------- */
 console.log((fail === 0 ? '✓ ' : '✗ ') + pass + ' / ' + (pass + fail) + ' 項目パス');
 process.exit(fail === 0 ? 0 : 1);

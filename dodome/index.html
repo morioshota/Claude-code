@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>土留め検討ツール v1.0.0</title>
+<title>土留め検討ツール v1.1.0</title>
 <!-- ==========================================================
      土留め検討ツール  /  Earth Retaining Work Planner
-     Version : 1.0.0
+     Version : 1.1.0
      Author  : Shota Onuma
      単一HTMLファイル・ビルド不要・外部依存なし（three.js r128 を同梱＝完全オフライン動作）
      使い方ページは guide/index.html（ヘッダーの「📖 使い方」から別タブで開く）
@@ -151,6 +151,10 @@
   .badge.ng{background:#FBE6E3;color:var(--ng)}
   .badge.warn{background:#FBF1DC;color:var(--warn)}
   /* ---------- notice ---------- */
+  details.paste{margin-top:12px;background:#fff;border:1px solid var(--line2);border-radius:6px;padding:9px 12px}
+  details.paste summary{cursor:pointer;font-size:12px;font-weight:650;color:var(--accent-d)}
+  details.paste .formula{margin:6px 0;tab-size:14}
+  details.paste textarea{width:100%;font-family:var(--mono);font-size:12px;border:1px solid var(--line2);border-radius:4px;padding:7px;resize:vertical}
   .notice{border:1px solid var(--line2);border-left:4px solid var(--warn);background:#FDFBF3;padding:10px 13px;border-radius:5px;font-size:11.5px;line-height:1.65;color:#5A5240;margin-bottom:16px}
   .notice b{color:#7A6A2E}
   .notice.info{border-left-color:var(--accent);background:#F1FAFA;color:#3D5B5C}
@@ -167,11 +171,37 @@
   #cv3d{width:100%;height:100%;display:block;touch-action:none}
   .d3bar{flex-shrink:0;background:var(--panel);border-top:1px solid var(--line2);padding:9px 14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   .d3bar .chk{margin-bottom:0}
-  .d3bar .stepwrap{display:flex;align-items:center;gap:9px;flex:1;min-width:280px}
+  .d3bar .stepwrap{display:flex;align-items:center;gap:9px;flex:1 1 380px;min-width:280px}
+  .d3bar .stepwrap > span:first-child{white-space:nowrap}
+  .d3bar .chk{white-space:nowrap}
+  .viewseg button{white-space:nowrap}
   .d3bar input[type=range]{flex:1;min-width:120px;accent-color:var(--accent)}
   .d3bar .steplabel{font-size:12px;font-weight:650;color:var(--accent-d);min-width:190px}
-  .d3legend{position:absolute;left:12px;top:12px;background:rgba(255,255,255,.92);border:1px solid var(--line2);border-radius:6px;padding:8px 11px;font-size:11px;line-height:1.7;pointer-events:none}
+  .d3legend{position:absolute;left:12px;top:12px;background:rgba(255,255,255,.92);border:1px solid var(--line2);border-radius:6px;padding:6px 11px;font-size:11px;line-height:1.7}
+  .pn-t{cursor:pointer;font-weight:700;color:var(--ink2);user-select:none;display:flex;align-items:center;gap:6px}
+  .pn-t span{margin-left:auto;color:#8A94A2;font-size:10px}
+  .haulHud.closed .hh-rows,.haulHud.closed .hh-s{display:none}
   .d3legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  .viewwrap{display:flex;align-items:center;gap:8px}
+  .barlabel{font-size:11.5px;font-weight:700;color:var(--ink2);white-space:nowrap}
+  .viewseg{margin-bottom:0;min-width:230px}
+  .viewseg button{padding:6px 10px}
+  .viewseg button:disabled{color:#B8BEC6;cursor:not-allowed;background:#F3F3EF}
+  .haulHud{position:absolute;right:12px;top:12px;width:min(330px,calc(100% - 24px));background:rgba(255,255,255,.95);border:1px solid var(--line2);border-top:3px solid #1F6FB2;border-radius:7px;padding:10px 12px;font-size:11.5px;line-height:1.55;box-shadow:0 4px 14px rgba(31,41,51,.10)}
+  .haulHud .hh-t{font-weight:700;color:var(--ink);font-size:12px}
+  .haulHud .hh-t small{font-weight:500;color:#8A94A2;margin-left:4px}
+  .haulHud .hh-big{display:flex;align-items:baseline;gap:4px;margin:4px 0 2px;color:#1F6FB2}
+  .haulHud .hh-big b{font-family:var(--mono);font-size:26px;line-height:1}
+  .haulHud .hh-big span{color:#8A94A2;font-size:11px;margin:0 8px 0 2px}
+  .haulHud .hh-s{color:#5A6472;font-size:10.8px}
+  .haulHud .hh-rows{margin:7px 0 5px;border-top:1px solid var(--line);padding-top:6px}
+  .haulHud .hh-row{display:flex;align-items:center;gap:6px;margin:2px 0}
+  .haulHud .hh-d{width:38px;color:#5A6472;font-size:10.5px;flex-shrink:0}
+  .haulHud .hh-i{flex:1;display:flex;flex-wrap:wrap;gap:1px 2px;align-items:center;min-height:12px}
+  .haulHud .hh-i em{font-style:normal;font-size:10px;color:#1F6FB2;margin-left:3px;font-weight:700}
+  .haulHud .hh-n{width:32px;text-align:right;font-family:var(--mono);font-weight:700;color:#1F6FB2;flex-shrink:0}
+  .haulHud .hh-more{color:#8A94A2;font-size:10.5px;margin-top:2px}
+  .haulHud .hh-imp{margin-top:5px;padding-top:5px;border-top:1px dashed var(--line2)}
   .d3hint{position:absolute;right:12px;bottom:12px;background:rgba(31,41,51,.78);color:#E7EAEE;border-radius:6px;padding:6px 10px;font-size:10.5px;line-height:1.6;pointer-events:none}
   /* ---------- print ---------- */
   #printHead{display:none}
@@ -197,7 +227,7 @@
   <div class="mark" aria-hidden="true"></div>
   <h1>土留め検討ツール<small>EARTH RETAINING WORK PLANNER</small></h1>
   <div class="spacer"></div>
-  <span class="credit">Created by Shota Onuma　/　v1.0.0</span>
+  <span class="credit">Created by Shota Onuma　/　v1.1.0</span>
   <a class="btn ghost" id="btnHelp" href="guide/index.html" target="_blank" rel="noopener">📖 使い方</a>
   <button class="btn ghost" id="btnReset">初期値に戻す</button>
   <button class="btn ghost" id="btnJson">📦 JSON</button>
@@ -340,6 +370,11 @@
   <section class="view" id="v2">
     <div class="notice"><b>この画面の数値は検討用の参考値です。</b>正式な設計計算書の代わりにはなりません。土質定数・地下水位・上載荷重の取り方で結果は大きく変わります。実際の施工には、土質調査結果に基づく設計者の照査を受けた計算書を用いてください。ボイリング・ヒービング・盤ぶくれ・たわみ量の照査、および多層地盤・弾塑性法はこのツールでは扱っていません。</div>
     <div class="cards" id="cardsStr"></div>
+    <div id="fitWrap" hidden>
+      <h3 class="blk">この条件で使える部材</h3>
+      <p class="hint" id="fitNote" style="margin:-2px 0 8px"></p>
+      <div class="tw"><table class="t" id="tblFit"></table></div>
+    </div>
     <div class="diagwrap">
       <div class="diagbox"><h4>側圧分布（背面）と支点</h4><canvas id="cvPress" width="520" height="420"></canvas></div>
       <div class="diagbox"><h4>曲げモーメント図</h4><canvas id="cvMoment" width="520" height="420"></canvas></div>
@@ -355,11 +390,20 @@
     <div class="d3wrap">
       <canvas id="cv3d"></canvas>
       <div class="d3legend" id="legend3d"></div>
+      <div class="haulHud" id="haulHud" hidden></div>
       <div class="d3hint">ドラッグ＝回転　/　右ドラッグ・2本指＝移動　/　ホイール＝拡大縮小</div>
     </div>
     <div class="d3bar">
+      <div class="viewwrap">
+        <span class="barlabel">視点</span>
+        <div class="seg viewseg" id="segView">
+          <button data-v="all" class="on">全体</button>
+          <button data-v="pit">掘削</button>
+          <button data-v="yard">残土・ダンプ</button>
+        </div>
+      </div>
       <div class="stepwrap">
-        <span style="font-size:11.5px;font-weight:700;color:var(--ink2)">施工段階</span>
+        <span class="barlabel">施工段階</span>
         <input type="range" id="rngStep" min="0" max="1" value="0" step="1">
         <span class="steplabel" id="stepLabel">—</span>
       </div>
@@ -369,7 +413,6 @@
       <label class="chk"><input type="checkbox" id="ck3dRoad" checked>道路・埋設管</label>
       <label class="chk"><input type="checkbox" id="ck3dSoil" checked>土量とダンプ</label>
       <label class="chk"><input type="checkbox" id="ck3dLabel" checked>寸法</label>
-      <button class="btn sm" id="btnCam">視点を戻す</button>
     </div>
   </section>
 
@@ -385,8 +428,26 @@
     <div class="tw"><table class="t" id="tblLib"></table></div>
     <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn sm" id="btnLibAdd">＋ 部材を追加</button>
+      <button class="btn sm" id="btnLibExport">📤 ライブラリを書き出す</button>
+      <button class="btn sm" id="btnLibImport">📥 ライブラリを読み込む</button>
+      <input type="file" id="fileLib" accept=".json,application/json" hidden>
       <button class="btn sm" id="btnLibReset">ライブラリを初期状態に戻す</button>
     </div>
+    <p class="hint">書き出したファイルを会社の共有フォルダに置いておけば、<b>だれか1人が一度入れた規格値を全員・全端末で使えます</b>（読み込むと同じ名前の部材は上書き、無い部材は追加）。</p>
+    <details class="paste">
+      <summary>Excel・表から貼り付けて、まとめて入れる</summary>
+      <p class="hint">カタログの表を Excel に打ち込むか、PDFの表をコピーして、下に貼り付けてください。<b>1行に1部材</b>、列の順番は次のとおりです（タブ区切り・カンマ区切りのどちらでも読めます）。見出しの行は読み飛ばします。</p>
+      <div class="formula">区分	名称	断面係数Z	単位質量	有効幅	出典メモ
+鋼矢板	鋼矢板 U形 II型	874	120	400	〇〇社カタログ2024 p.12
+簡易	軽量鋼矢板 LSP-3	（カタログ値）	（カタログ値）	400	〇〇社カタログ p.5
+親杭	H形鋼 H-300×300	1350	93.0		JIS G 3192</div>
+      <p class="hint">区分は「簡易／鋼矢板／親杭」。断面係数は鋼矢板・簡易は <b>壁幅1mあたり cm³/m</b>、親杭は <b>1本あたり cm³</b>。単位質量は鋼矢板・簡易が kg/m²、親杭が kg/m。</p>
+      <textarea id="taLib" rows="6" placeholder="ここに貼り付け"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        <button class="btn sm primary" id="btnLibPaste">取り込む</button>
+        <span class="hint" id="pasteMsg" style="margin:0"></span>
+      </div>
+    </details>
     <h3 class="blk">車種ライブラリ</h3>
     <div class="tw"><table class="t" id="tblTruckLib"></table></div>
     <div style="margin-top:10px"><button class="btn sm" id="btnTruckAdd">＋ 車種を追加</button></div>
@@ -395,7 +456,7 @@
 </div>
 <script>
 /* =====================================================================
-   土留め検討ツール v1.0.0 — アプリ本体
+   土留め検討ツール v1.1.0 — アプリ本体
    構成: 計算コア → 状態 → レンダラ → 3D → 保存 → UI配線 → 起動
    詳細は CODE_STRUCTURE.md
    ===================================================================== */
@@ -841,6 +902,91 @@ function buildSteps(method, levels, H){
 }
 function circled(n){ var c='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'; return n>=1 && n<=20 ? c[n-1] : '('+n+')'; }
 
+/* ============================ 必要断面係数と適合部材 ============================
+   規格値を1つずつ調べなくても使えるように、「この条件で要る断面係数」を先に出す。
+   Zreq[cm3/m] = |Mmax|[kN·m/m] × 1000 ÷ σa[N/mm2]   （sectionCheck の式を Z について解いたもの）
+   親杭は1本あたりに戻して Zreq × 建込み間隔 [cm3/本] でも示す。 */
+function requiredZ(Mmax, sigmaA){
+  if (!(sigmaA > 0) || Mmax == null || !isFinite(Mmax)) return null;
+  return Math.abs(Mmax) * 1000 / sigmaA;
+}
+
+/* ライブラリのうち工法の区分(cat)に合う部材を、条件を満たすか・どれだけ余裕があるかで並べる。
+   並び順: 満たす部材（軽い順）→ 満たさない部材（Zの大きい順）→ 規格値が未入力の部材。
+   ※並べるのは「断面係数と単位質量という事実」だけ。根入れ・たわみ・施工性・入手性は見ていない。 */
+function memberFit(lib, cat, Mmax, sigmaA, pitch){
+  var zr = requiredZ(Mmax, sigmaA);
+  var pc = pitch > 0 ? pitch : 1;
+  var rows = (lib || []).filter(function(m){ return !cat || m.cat === cat; }).map(function(m){
+    var zWall = m.Z == null ? null : (m.cat === 'hpile' ? m.Z / pc : m.Z);
+    var massWall = m.wm == null ? null : (m.cat === 'hpile' ? m.wm / pc : m.wm);   // kg/m2（壁1m2あたり）
+    var ok = (zWall == null || zr == null) ? null : zWall >= zr;
+    return { m:m, zWall:zWall, massWall:massWall, ok:ok,
+             margin: (zWall == null || zr == null || zWall <= 0) ? null : 1 - zr / zWall };
+  });
+  var rank = function(r){ return r.ok === true ? 0 : (r.ok === false ? 1 : 2); };
+  rows.sort(function(a, b){
+    var d = rank(a) - rank(b);
+    if (d) return d;
+    if (a.ok === true){
+      var ma = a.massWall == null ? Infinity : a.massWall, mb = b.massWall == null ? Infinity : b.massWall;
+      return ma - mb || a.zWall - b.zWall;
+    }
+    if (a.ok === false) return b.zWall - a.zWall;
+    return 0;
+  });
+  var lightest = rows.filter(function(r){ return r.ok === true && r.massWall != null; })[0] || null;
+  return { zReq:zr, rows:rows, lightest: lightest ? lightest.m.id : null };
+}
+
+/* Excel や表からの貼り付けを読む。1行1部材、タブかカンマ区切り。
+   列: 区分, 名称, 断面係数Z, 単位質量, 有効幅, 出典メモ（Z以降は空欄可・出典メモは任意）
+   区分は「簡易/鋼矢板/親杭」または「simple/sheet/hpile」。見出し行（Zが数字でない行）は読み飛ばす。 */
+var CAT_ALIASES = { '簡易':'simple', '簡易土留め':'simple', '軽量鋼矢板':'simple', 'simple':'simple',
+                    '鋼矢板':'sheet', 'sheet':'sheet',
+                    '親杭':'hpile', 'h形鋼':'hpile', 'H形鋼':'hpile', 'hpile':'hpile' };
+function parseLibraryText(text){
+  var items = [], errors = [];
+  var toNum = function(v){
+    v = String(v == null ? '' : v).replace(/[,，\s]/g, '').replace(/[０-９．]/g, function(c){
+      return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+    if (v === '' || v === '-' || v === '—') return null;
+    var n = parseFloat(v); return isFinite(n) ? n : NaN;
+  };
+  String(text || '').split(/\r?\n/).forEach(function(line, i){
+    if (!line.trim()) return;
+    var c = line.indexOf('\t') >= 0 ? line.split('\t') : line.split(',');
+    c = c.map(function(x){ return x.trim(); });
+    if (c.length < 2){ errors.push((i+1) + '行目: 列が足りません'); return; }
+    var cat = CAT_ALIASES[c[0]] || CAT_ALIASES[c[0].toLowerCase()];
+    var Z = toNum(c[2]), wm = toNum(c[3]), wid = toNum(c[4]);
+    if (!cat){
+      if (i === 0 || isNaN(Z)) return;                     // 見出し行とみなして読み飛ばす
+      errors.push((i+1) + '行目: 区分「' + c[0] + '」が分かりません（簡易／鋼矢板／親杭）'); return;
+    }
+    if (!c[1]){ errors.push((i+1) + '行目: 名称が空です'); return; }
+    if ([Z, wm, wid].some(function(v){ return typeof v === 'number' && isNaN(v); })){
+      errors.push((i+1) + '行目: 数値が読めません'); return;
+    }
+    items.push({ cat:cat, name:c[1], Z:Z, wm:wm, wid:wid, ref: c[5] || '' });
+  });
+  return { items:items, errors:errors };
+}
+
+/* 取り込んだ部材をライブラリへ合流させる。名称が同じなら上書き、無ければ追加。元の配列は変えない。 */
+function mergeLibrary(lib, items, src){
+  var out = (lib || []).map(function(m){ return Object.assign({}, m); });
+  var updated = 0, added = 0;
+  (items || []).forEach(function(it, k){
+    var hit = out.filter(function(m){ return m.name === it.name; })[0];
+    var rec = { cat:it.cat, name:it.name, Z:it.Z == null ? null : it.Z, wm:it.wm == null ? null : it.wm,
+                wid:it.wid == null ? null : it.wid, src: it.src || src || '自分で入力', ref: it.ref || '' };
+    if (hit){ Object.assign(hit, rec); updated++; }
+    else { rec.id = it.id || ('imp' + Date.now().toString(36) + k); out.push(rec); added++; }
+  });
+  return { lib:out, updated:updated, added:added };
+}
+
 /* ==================== ① 計算コア ここまで ==================== */
 
 /* ==================== ② 状態とパラメータ ==================== */
@@ -1089,10 +1235,43 @@ function volumeFormulaText(s){
 }
 
 /* ==================== ⑤ ② 構造検討ビュー ==================== */
+
+/* この条件で使える部材の一覧。規格値を1つずつ調べなくても、必要な断面係数と見比べて選べるようにする */
+function renderFit(fit, p){
+  var wrap = $('fitWrap');
+  if (fit.zReq == null){ wrap.hidden = true; return; }
+  wrap.hidden = false;
+  var unit = p.mem.cat === 'hpile' ? '（1本 / 壁1mあたり）' : '';
+  var nUnknown = fit.rows.filter(function(r){ return r.ok === null; }).length;
+  $('fitNote').innerHTML = '必要な断面係数 <b>' + f(fit.zReq,0) + ' cm³/m</b> と、ライブラリの部材を見比べた結果です。' +
+    '判定しているのは<b>曲げ（断面係数）だけ</b>で、たわみ・施工性・入手性は見ていません。' +
+    (nUnknown ? '<br>規格値が未入力の部材が ' + nUnknown + ' 件あります。<b>カタログのZを1つ入れるだけで、ここに判定が出ます。</b>' : '');
+  $('tblFit').innerHTML =
+    '<thead><tr><th class="l">部材</th><th>断面係数 Z' + unit + '</th><th>余裕 / 不足</th><th>判定</th><th>単位質量 kg/m²</th><th>出典</th><th></th></tr></thead><tbody>' +
+    fit.rows.map(function(r){
+      var m = r.m, cur = m.id === p.mem.id;
+      var z = m.Z == null ? '<span style="color:#C0392B">未入力</span>'
+            : (m.cat === 'hpile' ? f(m.Z,0) + ' / ' + f(r.zWall,0) : f(m.Z,0));
+      var judge = r.ok === true ? '<span class="badge ok">OK</span>' + (fit.lightest === m.id ? ' <span class="badge warn">最も軽い</span>' : '')
+                : r.ok === false ? '<span class="badge ng">不足</span>' : '<span style="color:#8A94A2">—</span>';
+      return '<tr' + (cur ? ' style="background:#F1FAFA"' : '') + '><td class="l">' + esc(m.name) + (cur ? '　<b style="color:var(--accent-d)">← 選択中</b>' : '') + '</td>' +
+        '<td class="num">' + z + '</td>' +
+        '<td class="num">' + (r.margin == null ? '—'
+            : r.ok ? '+' + f(r.margin * 100, 0) + '%'
+            : '<span style="color:#C0392B">' + f((1 - r.zWall / fit.zReq) * 100, 0) + '% 不足</span>') + '</td>' +
+        '<td>' + judge + '</td>' +
+        '<td class="num">' + (r.massWall == null ? '—' : f(r.massWall,1)) + '</td>' +
+        '<td><span class="badge ' + (SRC_BADGE[m.src] || 'warn') + '">' + esc(m.src) + '</span></td>' +
+        '<td>' + (m.Z == null
+            ? '<button class="btn sm" data-fitedit="' + esc(m.id) + '">Zを入れる</button>'
+            : (cur ? '' : '<button class="btn sm" data-fituse="' + esc(m.id) + '">この部材にする</button>')) + '</td></tr>';
+    }).join('') + '</tbody>';
+}
 function renderStructure(){
   var s = ST, st = s.st, p = s.p, g = s.geo;
 
   if (st.mode === 'none'){
+    $('fitWrap').hidden = true;
     $('cardsStr').innerHTML = card('土留めなし', '—', '', '法面オープンカットのため構造検討はありません');
     $('tblStrut').innerHTML = '<tbody><tr><td class="l" style="color:#8A94A2">切梁はありません</td></tr></tbody>';
     $('fmStr').textContent = '法面オープンカットを選んでいます。\n法勾配 1:' + f(g.n,2) +
@@ -1103,6 +1282,8 @@ function renderStructure(){
 
   var ck = st.check, D = st.D;
   var total = D != null ? g.H + D + p.str.head : null;
+  var fit = memberFit(LIB, p.mem.cat, st.beam ? st.beam.Mmax : null, p.str.sigmaA, p.str.pitch);
+  renderFit(fit, p);
   var maxN = 0, maxNz = null;
   (st.struts || []).forEach(function(x){ if (Math.abs(x.N) > Math.abs(maxN)){ maxN = x.N; maxNz = x.z; } });
 
@@ -1121,6 +1302,10 @@ function renderStructure(){
     card('土留め材の全長', total != null ? f(total,2) : '—', 'm', '掘削 + 根入れ + 頭出し'),
     card('最大曲げモーメント', st.beam ? f(Math.abs(st.beam.Mmax),1) : '—', 'kN·m/m',
          st.beam ? 'GL−' + f(st.beam.zMmax,2) + ' m の位置' : ''),
+    card('必要な断面係数', fit.zReq != null ? f(fit.zReq,0) : '—', 'cm³/m',
+         fit.zReq == null ? '' : (p.mem.cat === 'hpile'
+           ? '親杭1本あたり ' + f(fit.zReq * p.str.pitch,0) + ' cm³（間隔 ' + f(p.str.pitch,2) + ' m）'
+           : 'Z = M×1000 ÷ σa。これ以上の部材なら曲げはもつ'), 'hl'),
     card('発生曲げ応力度', ck.sigma != null ? f(ck.sigma,1) : '—', 'N/mm²',
          s.ZperM != null ? 'σ = M×1000 ÷ Z（Z = ' + f(s.ZperM,0) + ' cm³/m）' : '断面係数が未入力'),
     verdict,
@@ -1403,6 +1588,7 @@ function init3D(){
   // --- 自前オービット
   var drag = null, pts = {};
   cv.addEventListener('pointerdown', function(e){
+    if (T3) T3.goal = null;
     cv.setPointerCapture(e.pointerId);
     pts[e.pointerId] = { x:e.clientX, y:e.clientY };
     drag = { x:e.clientX, y:e.clientY, pan: (e.button === 2 || e.shiftKey) };
@@ -1429,15 +1615,28 @@ function init3D(){
   cv.addEventListener('contextmenu', function(e){ e.preventDefault(); });
   cv.addEventListener('wheel', function(e){
     e.preventDefault();
+    if (T3) T3.goal = null;
     cam.r *= Math.exp(e.deltaY * 0.0012);
     cam.r = Math.max(3, Math.min(400, cam.r));
     place();
   }, { passive:false });
 
   T3 = { renderer:renderer, scene:scene, camera:camera, cam:cam, root:root, place:place, first:true };
+  // 作った直後に描画バッファを画面の大きさへ合わせる。これが無いと初回は既定の 300×150 のまま
+  // 引き伸ばされてぼやける（v1.0.0 の不具合）。以後は描画領域の大きさの変化に追従する
+  // （操作バーの折り返し・ウィンドウの大きさ・印刷など）。
+  resize3D();
+  if (window.ResizeObserver) new ResizeObserver(function(){ resize3D(); }).observe(cv.parentNode);
   place();
   (function loop(){
     requestAnimationFrame(loop);
+    if (T3 && T3.goal){
+      var gq = T3.goal, u = Math.min(1, (performance.now() - gq.t0) / gq.dur);
+      var e = u < 0.5 ? 2*u*u : 1 - Math.pow(-2*u + 2, 2) / 2;       // ease-in-out
+      ['tx','ty','tz','az','el','r'].forEach(function(k){ cam[k] = gq.from[k] + (gq.to[k] - gq.from[k]) * e; });
+      place();
+      if (u >= 1) T3.goal = null;
+    }
     var k = Math.max(0.6, cam.r / 42);            // 引くほどラベルを大きく
     root.traverse(function(o){
       if (o.isSprite && o.userData.bh) o.scale.set(o.userData.bw * k, o.userData.bh * k, 1);
@@ -1485,30 +1684,37 @@ function mkCyl(r, h, color, opt){
   return m;
 }
 function makeLabel(text, color, worldH){
-  var pad = 10, fs = 72;
-  var cv = document.createElement('canvas');
-  var g = cv.getContext('2d');
+  var pad = 10, fs = 64;
+  // まず文字の大きさぴったりのキャンバスに描く
+  var src = document.createElement('canvas');
+  var g = src.getContext('2d');
   g.font = 'bold ' + fs + 'px system-ui, sans-serif';
   var w = Math.ceil(g.measureText(text).width) + pad * 2;
-  cv.width = w; cv.height = fs + pad * 2;
-  g = cv.getContext('2d');
-  g.fillStyle = 'rgba(255,255,255,.92)';
-  g.fillRect(0, 0, cv.width, cv.height);
-  g.strokeStyle = color; g.lineWidth = 3; g.strokeRect(1.5, 1.5, cv.width-3, cv.height-3);
+  src.width = w; src.height = fs + pad * 2;
+  g = src.getContext('2d');
+  g.fillStyle = 'rgba(255,255,255,.94)';
+  g.fillRect(0, 0, src.width, src.height);
+  g.strokeStyle = color; g.lineWidth = 4; g.strokeRect(2, 2, src.width-4, src.height-4);
   g.font = 'bold ' + fs + 'px system-ui, sans-serif';
   g.fillStyle = color; g.textBaseline = 'middle'; g.textAlign = 'center';
-  g.fillText(text, cv.width/2, cv.height/2 + 1);
+  g.fillText(text, src.width/2, src.height/2 + 2);
+  // 2のべき乗のキャンバスへ引き伸ばして写す。WebGL1 でもミップマップが効き、
+  // 遠くから見たときに文字がギザギザにつぶれなくなる（縦横比はスプライトの大きさで戻す）
+  var pot = function(n){ var v = 1; while (v < n) v *= 2; return Math.min(v, 2048); };
+  var cv = document.createElement('canvas');
+  cv.width = pot(src.width); cv.height = pot(src.height);
+  cv.getContext('2d').drawImage(src, 0, 0, cv.width, cv.height);
   var tex = new THREE.CanvasTexture(cv);
-  tex.minFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
   tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = false;
   tex.anisotropy = 4;
   var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, depthTest:false, transparent:true }));
   sp.renderOrder = 20;
   var h = worldH || 0.7;
   // 実際の大きさは描画ループでカメラ距離に合わせて調整する（寄っても引いても読める大きさに保つ）
   sp.userData.bh = h;
-  sp.userData.bw = h * cv.width / cv.height;
+  sp.userData.bw = h * src.width / src.height;
   sp.scale.set(sp.userData.bw, h, 1);
   return sp;
 }
@@ -1591,9 +1797,15 @@ function update3D(){
   var D  = st.D || 0;
   var core = Math.max(bx/2 + n*g.H, p.site.road ? p.site.roadW/2 : 0, Math.abs(p.site.pipeO) + 2) + 4.5;
   var showYard = chk('ck3dSoil') && (s.bal.vSurLoose > 0.01 || s.haul.sur.loads > 0);
-  var YARD = showYard ? 16 : 0;                 // 残土とダンプを置く帯（+X 側）
+  // 残土とダンプを置く帯（+X 側）。掘削の真横・延長の中央に置く
+  // （以前は奥の角に置いていて、既定の視点から最も遠くなっていた）
+  var tan35 = Math.tan(35 * Math.PI / 180);
+  var heapR = s.bal.vSurLoose > 0.01 ? Math.pow(3 * s.bal.vSurLoose / (Math.PI * tan35), 1/3) : 0;
+  var heapX = core + 1.5 + heapR;
+  var truckX0 = heapX + heapR + 3.2;            // ダンプ1列目の中心
+  var YARD = showYard ? (truckX0 + 5.4 + 3.0 - core) : 0;
   var EXn = core, EXp = core + YARD;
-  var EZ = Math.max(bz/2 + 5, showYard ? 15 : 6);
+  var EZ = Math.max(bz/2 + 5, showYard ? Math.max(14, heapR + 3) : 6);
   var GD = Math.max(g.H + D + 1.2, 4);
   STAFF.x = bx/2 + n*g.H + 0.55; STAFF.z = bz/2 + n*g.H + 0.55;
 
@@ -1747,38 +1959,32 @@ function update3D(){
 
   // --- 土量とダンプ
   if (chk('ck3dSoil')){
-    var heapTop = 0;
     var vol = s.bal.vSurLoose;
-    var baseX = EXn + YARD * 0.34;
     if (vol > 0.01){
-      // 安息角35°の円錐として、体積が残土ほぐし量と等しくなる大きさで描く
-      var tan35 = Math.tan(35 * Math.PI / 180);
-      var r = Math.pow(3 * vol / (Math.PI * tan35), 1/3);
-      var hh = r * tan35;
-      var cone = new THREE.Mesh(new THREE.ConeGeometry(r, hh, 28),
+      // 安息角35°の円錐として、体積が残土ほぐし量と等しくなる大きさで描く（実寸）
+      var hh = heapR * tan35;
+      var cone = new THREE.Mesh(new THREE.ConeGeometry(heapR, hh, 32),
         new THREE.MeshLambertMaterial({ color:COL.heap }));
-      var coneZ = -EZ + r + 1.5;
-      cone.position.set(baseX, hh/2, coneZ); t.root.add(cone);
+      cone.position.set(heapX, hh/2, 0); t.root.add(cone);
       if (chk('ck3dLabel')){
         var l4 = makeLabel('残土 ' + f(vol,1) + 'm³ / ' + f(s.bal.massSur,1) + 't', '#8C6B3F', 0.5);
-        l4.position.set(baseX, hh + 1.3, coneZ); t.root.add(l4);
+        l4.position.set(heapX, hh + 1.0, 0); t.root.add(l4);
       }
-      heapTop = hh;
     }
+    // ダンプは2列×3段で、残土の山の横に並べる（延べ台数そのものは右上の運搬パネルで見せる）
     var loads = s.haul.sur.loads;
     var draw = Math.min(6, loads);
+    var rows = Math.ceil(draw / 2);
     for (var d2 = 0; d2 < draw; d2++){
       var col = d2 % 2, rowi = Math.floor(d2 / 2);
       var tr = mkTruck();
-      tr.position.set(EXn + 3.6 + col * 5.4, 0, -EZ + 12 + rowi * 8.0);
+      tr.position.set(truckX0 + col * 5.4, 0, (rowi - (rows - 1) / 2) * 8.2);
       tr.rotation.y = Math.PI;
       t.root.add(tr);
     }
     if (chk('ck3dLabel') && loads > 0){
-      var l5 = makeLabel(p.haul.truck.name + ' 延べ ' + f(loads,0) + ' 台' +
-        (loads > draw ? '（絵は6台）' : '') + (isFinite(s.haul.sur.days) ? ' / ' + f(s.haul.sur.days,0) + '日' : ''),
-        '#1F6FB2', 0.5);
-      l5.position.set(EXn + 6.2, 4.2, -EZ + 9); t.root.add(l5);
+      var l5 = makeLabel(p.haul.truck.name + ' 延べ ' + f(loads,0) + ' 台', '#1F6FB2', 0.5);
+      l5.position.set(truckX0 + 2.7, 4.0, 0); t.root.add(l5);
     }
   }
 
@@ -1799,22 +2005,85 @@ function update3D(){
     lB.position.set(0, 1.5, bz/2 + 1.4); t.root.add(lB);
   }
 
-  // 初回だけカメラを現場の大きさに合わせる
-  if (t.first){
-    // 掘削そのものが十分な大きさで映るように寄せる（ヤードは端が切れてよい）
-    t.cam.r  = Math.min(160, Math.max(16, Math.max(bz + 8, bx * 3.5, g.H * 3.5, 22) * 1.15));
-    t.cam.az = -0.95; t.cam.el = 0.62;
-    t.cam.tx = Math.min((EXp - EXn) / 5, bx * 1.2 + 3); t.cam.tz = 0;
-    t.cam.ty = -g.H * 0.5;
-    t.place(); t.first = false;
-  }
+  // 視点のプリセット（全体／掘削／残土・ダンプ）。形が変わるたびに作り直す
+  var pitHalfX = bx/2 + n*g.H, pitHalfZ = bz/2 + n*g.H;
+  var xMin = -pitHalfX - 1, xMax = showYard ? (truckX0 + 5.4 + 1.5) : pitHalfX + 1;
+  var zHalf = Math.max(pitHalfZ, showYard ? Math.max(heapR, rows * 4.1) : 0) + 1;
+  var fitR = function(w, d, h){ return Math.max(14, Math.sqrt(w*w + d*d + h*h) * 1.25); };
+  var wAll = xMax - xMin;
+  var yardL = heapX - heapR - 1, yardR = truckX0 + 5.4 + 1.5, yardW = yardR - yardL;
+  var yardD = Math.max(heapR * 2, rows * 8.2) + 2;
+  t.presets = {
+    all:  { tx:(xMin + xMax)/2 + (showYard ? wAll * 0.10 : 0), ty:-g.H*0.3, tz:0, az:-0.38, el:0.80,
+            r: fitR(wAll, zHalf*2, g.H) },
+    pit:  { tx:0, ty:-g.H*0.5, tz:0, az:-0.95, el:0.60,
+            r: Math.min(160, Math.max(12, Math.max(bz * 0.9, bx * 3.2, g.H * 3.2, 14) * 1.1)) },
+    yard: showYard ? { tx:(yardL + yardR)/2 + yardW * 0.12, ty:0.8, tz:0, az:-0.50, el:0.62,
+            r: Math.max(18, Math.sqrt(yardW*yardW + yardD*yardD) * 1.30) } : null
+  };
+  var yb = document.querySelector('#segView button[data-v="yard"]');
+  if (yb){ yb.disabled = !showYard; yb.title = showYard ? '' : '残土が出ない条件のため、残土・ダンプはありません'; }
+
+  // 初回（と形が変わったとき）は「全体」に合わせる
+  if (t.first){ applyView(t.viewKey || 'all', true); t.first = false; }
   renderLegend();
+  renderHaulHud();
 }
 
-function resetCam(){
-  if (!T3) return;
-  T3.first = true; T3.cam.az = -0.95; T3.cam.el = 0.62; T3.cam.tx = 0; T3.cam.tz = 0;
-  update3D();
+function resetCam(){ applyView(T3 && T3.viewKey || 'all'); }
+
+/* 視点をプリセットへ移す。instant=false なら描画ループで 0.6 秒かけて寄る */
+function applyView(key, instant){
+  if (!T3 || !T3.presets) return;
+  var v = T3.presets[key] || T3.presets.all;
+  if (!T3.presets[key]) key = 'all';
+  T3.viewKey = key;
+  document.querySelectorAll('#segView button').forEach(function(b){ b.classList.toggle('on', b.dataset.v === key); });
+  if (instant){
+    ['tx','ty','tz','az','el','r'].forEach(function(k){ T3.cam[k] = v[k]; });
+    T3.goal = null; T3.place();
+  } else {
+    T3.goal = { from: Object.assign({}, T3.cam), to: v, t0: performance.now(), dur: 600 };
+  }
+}
+
+/* 3D画面右上の運搬パネル。カメラの位置に関係なく、台数と日数を読めるようにする */
+var TRUCK_SVG = '<svg viewBox="0 0 22 12" width="14" height="8" aria-hidden="true"><rect x="0" y="1" width="13" height="7" rx="1" fill="#37474F"/><rect x="13" y="3" width="7" height="5" rx="1" fill="#1F6FB2"/><circle cx="4" cy="10" r="1.8" fill="#111"/><circle cx="16" cy="10" r="1.8" fill="#111"/></svg>';
+function renderHaulHud(){
+  var el = $('haulHud'); if (!el) return;
+  var s = ST, h = s.haul.sur, p = s.p;
+  if (!chk('ck3dSoil') || (s.bal.vSurLoose <= 0.01 && s.bal.vImpLoose <= 0.01)){ el.hidden = true; return; }
+  el.hidden = false;
+  var open = panelOpen('hud');
+  el.classList.toggle('closed', !open);
+  var html = '<div class="hh-t pn-t" data-panel="hud">運搬のようす <small>' + esc(p.haul.truck.name) + ' × ' + p.haul.trucks + '台</small><span>' + (open ? '▾' : '▸') + '</span></div>';
+  if (h.loads > 0){
+    html += '<div class="hh-big"><b>' + f(h.loads,0) + '</b>台<span>延べ</span>' +
+            '<b>' + (isFinite(h.days) ? f(h.days,0) : '—') + '</b>日</div>' +
+            '<div class="hh-s">残土 ' + f(s.bal.vSurLoose,1) + ' m³（ほぐし）/ ' + f(s.bal.massSur,1) + ' t　' +
+            '1台 ' + f(h.per,2) + ' m³（' + h.limit + 'で頭打ち）</div>';
+    if (isFinite(h.days) && h.perDay > 0){
+      var rem = h.loads, rowsH = [], MAXD = 5, MAXI = 14;
+      for (var d = 1; d <= h.days && d <= MAXD; d++){
+        var c = Math.min(h.perDay, rem); rem -= c;
+        var icons = '';
+        for (var i = 0; i < Math.min(c, MAXI); i++) icons += TRUCK_SVG;
+        rowsH.push('<div class="hh-row"><span class="hh-d">' + d + '日目</span><span class="hh-i">' + icons +
+          (c > MAXI ? '<em>+' + (c - MAXI) + '</em>' : '') + '</span><span class="hh-n">' + c + '台</span></div>');
+      }
+      if (h.days > MAXD) rowsH.push('<div class="hh-more">… あと ' + (h.days - MAXD) + ' 日（' + rem + ' 台）</div>');
+      html += '<div class="hh-rows">' + rowsH.join('') + '</div>' +
+              '<div class="hh-s">1日 ' + h.tripsPerDay + ' 回転 × ' + p.haul.trucks + ' 台 ＝ 最大 ' + h.perDay + ' 台/日</div>';
+    } else if (!isFinite(h.days)){
+      html += '<div class="hh-s" style="color:#C0392B">1日の運搬時間内に1往復もできない設定です</div>';
+    }
+  } else {
+    html += '<div class="hh-s">場外搬出する残土はありません</div>';
+  }
+  if (s.bal.vImpLoose > 0.01){
+    html += '<div class="hh-s hh-imp">購入土の搬入 ' + f(s.bal.vImpComp,1) + ' m³（締固め後）→ ' + f(s.haul.imp.loads,0) + ' 台</div>';
+  }
+  el.innerHTML = html;
 }
 
 function renderLegend(){
@@ -1828,9 +2097,29 @@ function renderLegend(){
   if (s.p.site.pipe) rows.push(['#2E7D32', '既設埋設管（透視表示）']);
   rows.push(['#8C6B3F', '残土（ほぐし土量ぶんの山）']);
   rows.push(['#1F6FB2', 'ダンプ（延べ台数）']);
-  $('legend3d').innerHTML = rows.map(function(r){
-    return '<div><i style="background:' + r[0] + '"></i>' + r[1] + '</div>';
-  }).join('');
+  var open = panelOpen('legend');
+  $('legend3d').innerHTML = '<div class="pn-t" data-panel="legend">凡例 <span>' + (open ? '▾' : '▸') + '</span></div>' +
+    (open ? rows.map(function(r){
+      return '<div><i style="background:' + r[0] + '"></i>' + r[1] + '</div>';
+    }).join('') : '');
+}
+
+/* 凡例・運搬パネルの開閉。狭い画面では3Dが隠れないよう凡例を最初から畳む。
+   利用者が一度開け閉めしたら、その選択を覚えておく */
+var PANEL_KEY = 'dodome_panels_v1';
+function panelOpen(name){
+  var st = {};
+  try { st = JSON.parse(localStorage.getItem(PANEL_KEY) || '{}'); } catch(e){}
+  if (st[name] != null) return st[name];
+  var w = ($('cv3d') && $('cv3d').clientWidth) || 1200;
+  return name === 'legend' ? w >= 1000 : true;
+}
+function togglePanel(name){
+  var st = {};
+  try { st = JSON.parse(localStorage.getItem(PANEL_KEY) || '{}'); } catch(e){}
+  st[name] = !panelOpen(name);
+  try { localStorage.setItem(PANEL_KEY, JSON.stringify(st)); } catch(e){}
+  renderLegend(); renderHaulHud();
 }
 
 var stepTouched = false;
@@ -1905,7 +2194,7 @@ var SRC_BADGE = { '一般値':'warn', '要確認':'ng', '要入力':'ng', '自�
 function renderLib(){
   var need = LIB.filter(function(m){ return m.src !== '自分で入力'; }).length;
   $('tblLib').innerHTML =
-    '<thead><tr><th class="l">区分</th><th class="l">名称</th><th>断面係数 Z<br>cm³/m（親杭は cm³/本）</th><th>単位質量<br>kg/m²（親杭は kg/m）</th><th>有効幅 mm</th><th>出典</th><th></th></tr></thead><tbody>' +
+    '<thead><tr><th class="l">区分</th><th class="l">名称</th><th>断面係数 Z<br>cm³/m（親杭は cm³/本）</th><th>単位質量<br>kg/m²（親杭は kg/m）</th><th>有効幅 mm</th><th>出典</th><th class="l">出典メモ（カタログ名・頁など）</th><th></th></tr></thead><tbody>' +
     LIB.map(function(m, i){
       var cat = { simple:'簡易土留め', sheet:'鋼矢板', hpile:'親杭' }[m.cat] || m.cat;
       return '<tr><td class="l">' + cat + '</td>' +
@@ -1914,6 +2203,7 @@ function renderLib(){
         '<td><input type="number" data-lib="' + i + '" data-k="wm" value="' + (m.wm == null ? '' : m.wm) + '" step="0.1"></td>' +
         '<td><input type="number" data-lib="' + i + '" data-k="wid" value="' + (m.wid == null ? '' : m.wid) + '" step="1"></td>' +
         '<td><span class="badge ' + (SRC_BADGE[m.src] || 'warn') + '">' + esc(m.src) + '</span></td>' +
+        '<td class="l"><input class="txt" data-lib="' + i + '" data-k="ref" value="' + esc(m.ref || '') + '" placeholder="例: 〇〇社カタログ p.12"></td>' +
         '<td><button class="btn sm" data-libdel="' + i + '">削除</button></td></tr>';
     }).join('') + '</tbody>';
   $('sumHead').innerHTML = need > 0
@@ -1985,7 +2275,7 @@ function stamp(){
 }
 function exportCSV(){
   var s = ST, p = s.p, rows = [];
-  rows.push(['# 土留め検討ツール v1.0.0 集計']);
+  rows.push(['# 土留め検討ツール v1.1.0 集計']);
   rows.push(['# 出力日時', new Date().toLocaleString('ja-JP')]);
   rows.push(['# この値は検討用の参考値です。正式な設計計算書の代替ではありません。']);
   rows.push([]);
@@ -2009,7 +2299,7 @@ function exportCSV(){
 function exportJSON(){
   var s = ST;
   var out = {
-    tool: '土留め検討ツール', version: '1.0.0',
+    tool: '土留め検討ツール', version: '1.1.0',
     exportedAt: new Date().toISOString(),
     disclaimer: '検討用の参考値です。正式な設計計算書の代替ではありません。',
     input: s.p,
@@ -2097,7 +2387,11 @@ function bump(){ clearTimeout(reTimer); reTimer = setTimeout(recalc, 60); }
 
 function wire(){
   document.querySelectorAll('#segShape button').forEach(function(b){
-    b.addEventListener('click', function(){ shape = b.dataset.v; syncVisibility(); recalc(); });
+    b.addEventListener('click', function(){
+      shape = b.dataset.v;
+      if (T3){ T3.first = true; T3.viewKey = 'all'; }      // 形が変わったら全体を見せ直す
+      syncVisibility(); recalc();
+    });
   });
   document.querySelectorAll('#gridMethod button').forEach(function(b){
     b.addEventListener('click', function(){
@@ -2122,7 +2416,15 @@ function wire(){
     $('stepLabel').textContent = ST.steps[stepIndex].label;
     update3D(); saveState();
   });
-  $('btnCam').addEventListener('click', resetCam);
+  ['legend3d','haulHud'].forEach(function(id){
+    $(id).addEventListener('click', function(e){
+      var t = e.target.closest('[data-panel]');
+      if (t) togglePanel(t.dataset.panel);
+    });
+  });
+  document.querySelectorAll('#segView button').forEach(function(b){
+    b.addEventListener('click', function(){ if (!b.disabled) applyView(b.dataset.v); });
+  });
   $('btnCsv').addEventListener('click', exportCSV);
   $('btnJson').addEventListener('click', exportJSON);
   $('btnPrint').addEventListener('click', function(){
@@ -2148,10 +2450,13 @@ function wire(){
     var t = e.target, i = t.dataset.lib;
     if (i == null) return;
     var k = t.dataset.k, m = LIB[parseInt(i, 10)];
-    if (k === 'name') m.name = t.value;
+    if (k === 'name' || k === 'ref') m[k] = t.value;
     else m[k] = t.value === '' ? null : parseFloat(t.value);
     m.src = '自分で入力';
-    saveLib(); refreshMemberSelect(); bump();
+    saveLib(); refreshMemberSelect();
+    // 選択中の部材を直したら、サイドバーの入力欄（＝計算に使う値）にも反映する
+    if (m.id === $('selMember').value && k !== 'name' && k !== 'ref') applyMember();
+    bump();
   });
   $('tblLib').addEventListener('click', function(e){
     var i = e.target.dataset.libdel;
@@ -2165,6 +2470,66 @@ function wire(){
                Z:null, wm:null, wid:400, src:'自分で入力' });
     saveLib(); renderLib(); refreshMemberSelect();
   });
+  // ② の「この部材にする」「Zを入れる」
+  $('tblFit').addEventListener('click', function(e){
+    var use = e.target.dataset.fituse, edit = e.target.dataset.fitedit;
+    if (use){ $('selMember').value = use; applyMember(); recalc(); }
+    if (edit){
+      switchView('v4');
+      var i = LIB.map(function(m){ return m.id; }).indexOf(edit);
+      setTimeout(function(){
+        var inp = document.querySelector('#tblLib input[data-lib="' + i + '"][data-k="Z"]');
+        if (inp){ inp.scrollIntoView({ block:'center' }); inp.focus(); }
+      }, 60);
+    }
+  });
+  // ライブラリの書き出し・読み込み・貼り付け
+  $('btnLibExport').addEventListener('click', function(){
+    download('土留め部材ライブラリ_' + stamp() + '.json', JSON.stringify({
+      tool:'土留め検討ツール', kind:'library', version:1, exportedAt:new Date().toISOString(),
+      note:'部材の規格値は利用者が入力・確認した値です。使う前にカタログで確認してください。',
+      members:LIB, trucks:TRUCKS }, null, 2), 'application/json');
+  });
+  $('btnLibImport').addEventListener('click', function(){ $('fileLib').value = ''; $('fileLib').click(); });
+  $('fileLib').addEventListener('change', function(){
+    var fl = this.files && this.files[0]; if (!fl) return;
+    var rd = new FileReader();
+    rd.onload = function(){
+      var o; try { o = JSON.parse(rd.result); } catch(e){ return alert('ファイルを読めませんでした（JSONではありません）。'); }
+      if (!o || o.kind !== 'library' || !Array.isArray(o.members)) return alert('土留め検討ツールのライブラリファイルではありません。');
+      var ok = o.members.filter(function(m){ return m && m.name && METHODS_CAT_OK(m.cat); });
+      var r = mergeLibrary(LIB, ok);
+      LIB = r.lib; saveLib();
+      var tMsg = '';
+      if (Array.isArray(o.trucks) && o.trucks.length){
+        var tn = 0;
+        o.trucks.forEach(function(t){
+          if (!t || !t.name || !(t.w > 0) || !(t.v > 0)) return;
+          var hit = TRUCKS.filter(function(x){ return x.name === t.name; })[0];
+          if (hit) Object.assign(hit, { w:t.w, v:t.v, src:t.src || '自分で入力' });
+          else TRUCKS.push({ id:t.id || ('ti' + Date.now().toString(36) + tn), name:t.name, w:t.w, v:t.v, src:t.src || '自分で入力' });
+          tn++;
+        });
+        saveTrucks(); fillSelects(); tMsg = '／車種 ' + tn + ' 件';
+      }
+      refreshMemberSelect(); applyMember(); recalc();
+      alert('読み込みました：部材 上書き ' + r.updated + ' 件・追加 ' + r.added + ' 件' + tMsg);
+    };
+    rd.readAsText(fl);
+  });
+  $('btnLibPaste').addEventListener('click', function(){
+    var r = parseLibraryText($('taLib').value);
+    if (!r.items.length){
+      $('pasteMsg').innerHTML = '<span style="color:#C0392B">取り込める行がありませんでした。' + esc(r.errors.slice(0,3).join(' / ')) + '</span>';
+      return;
+    }
+    var m = mergeLibrary(LIB, r.items, '自分で入力');
+    LIB = m.lib; saveLib(); refreshMemberSelect(); applyMember(); recalc();
+    $('pasteMsg').innerHTML = '<span style="color:var(--ok)">上書き ' + m.updated + ' 件・追加 ' + m.added + ' 件を取り込みました。</span>' +
+      (r.errors.length ? '<br><span style="color:#C0392B">読めなかった行: ' + esc(r.errors.join(' / ')) + '</span>' : '');
+    $('taLib').value = '';
+  });
+
   $('btnLibReset').addEventListener('click', function(){
     if (!confirm('部材ライブラリを初期状態（目安値）に戻します。入力した規格値は消えます。よろしいですか？')) return;
     LIB = JSON.parse(JSON.stringify(MEMBER_LIB_DEFAULT));
@@ -2191,6 +2556,8 @@ function wire(){
     if ($('v2').classList.contains('active')){ drawPressure(); drawMoment(); }
   });
 }
+
+function METHODS_CAT_OK(c){ return c === 'simple' || c === 'sheet' || c === 'hpile'; }
 
 /* ==================== ⑩ 起動 ==================== */
 function init(){
