@@ -1,92 +1,16 @@
 /* ドット絵生成: 姿は hashStr(証券コード) をシードに決定論的に抽選(CLAUDE.md不変条件1)
+   2026-09: 種族は3Dの部品モデル(data/species.js)→ lib/creature3d.js で24ドット前後に描く方式へ刷新。
+   研究ステージで姿そのものが進化する(ST1〜2 / ST3〜4 / ST5)。
    進化装飾(evoPattern)と色違い(shiny)は「抽選結果をstockに永久保存」する方式で
    決定論を維持しつつ上乗せされる。 */
 
 import { CREATURE_LOOK, SPECIES_POOL } from "../data/species.js";
 import { evoPoolFor } from "../data/evolution.js";
 import { calcLevel, stageOf } from "./stock.js";
-import { hashStr, mulberry32, shade, hueShift } from "./util.js";
+import { hashStr, mulberry32, hueShift } from "./util.js";
+import { renderCreature, chain, mirror, S, E } from "./creature3d.js";
 
 const GOLD = "#ffd166", WHITE = "#ffffff";
-
-/* ---- GBA風仕上げ(すべて決定論的な画像処理なので不変条件1は維持される) ----
-   1) EPX/Scale2x で2倍拡大: 斜め線がなめらかにつながり24ドット相当の密度になる
-   2) 3トーン陰影: 左上光源。上面・左面はハイライト、下面・右面と下半身は影
-   3) アウトライン: シルエット外周に暗い縁取り(GBAスプライトの定番) */
-
-const parseCol = (c) => {
-  if (c[0] === "#") {
-    const n = parseInt(c.slice(1), 16);
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  }
-  const m = c.match(/rgb\((\d+),(\d+),(\d+)\)/);
-  return m ? [+m[1], +m[2], +m[3]] : [128, 128, 128];
-};
-const mixCol = (c, target, f) => {
-  const a = parseCol(c);
-  const v = a.map((x, i) => Math.round(x + (target[i] - x) * f));
-  return `rgb(${v[0]},${v[1]},${v[2]})`;
-};
-const lum = (c) => { const [r, g, b] = parseCol(c); return (r * 3 + g * 6 + b) / 2550; };
-
-const epx2 = (g) => {
-  const h = g.length, w = g[0].length;
-  const out = Array.from({ length: h * 2 }, () => new Array(w * 2).fill(null));
-  const at = (y, x) => (y >= 0 && y < h && x >= 0 && x < w ? g[y][x] : null);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const P = g[y][x], A = at(y - 1, x), B = at(y, x + 1), C = at(y, x - 1), D = at(y + 1, x);
-      out[y * 2][x * 2]         = C === A && C !== D && A !== B ? A : P;
-      out[y * 2][x * 2 + 1]     = A === B && A !== C && B !== D ? B : P;
-      out[y * 2 + 1][x * 2]     = D === C && D !== B && C !== A ? C : P;
-      out[y * 2 + 1][x * 2 + 1] = B === D && B !== A && D !== C ? D : P;
-    }
-  }
-  return out;
-};
-
-const shadeGrid = (g) => {
-  const h = g.length, w = g[0].length;
-  const at = (y, x) => (y >= 0 && y < h && x >= 0 && x < w ? g[y][x] : null);
-  let top = h, bot = -1;
-  g.forEach((row, y) => { if (row.some(Boolean)) { if (y < top) top = y; if (y > bot) bot = y; } });
-  const span = Math.max(1, bot - top);
-  const out = g.map((row) => [...row]);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const c = g[y][x];
-      if (!c || lum(c) < 0.16) continue; // 目などの暗色はいじらない(潰れ防止)
-      const openU = !at(y - 1, x), openL = !at(y, x - 1), openD = !at(y + 1, x), openR = !at(y, x + 1);
-      let f = 0;
-      if (openU) f += 0.42;
-      if (openL) f += 0.18;
-      if (openU && openL) f += 0.16; // 左上角のスペキュラ
-      if (f > 0) { out[y][x] = mixCol(c, [255, 255, 255], Math.min(f, 0.62)); continue; }
-      let d = 0;
-      if (openD) d += 0.38;
-      if (openR) d += 0.16;
-      const rel = (y - top) / span;
-      if (rel > 0.55) d += 0.28 * ((rel - 0.55) / 0.45); // 下半身は暗めにして丸みを出す
-      if (d > 0) out[y][x] = mixCol(c, [10, 12, 24], Math.min(d, 0.55));
-    }
-  }
-  return out;
-};
-
-const OUTLINE = "#10131f";
-const outlineGrid = (grid) => {
-  const g = padGrid(grid, 1, 1);
-  const h = g.length, w = g[0].length;
-  const src = g.map((r) => [...r]);
-  const at = (y, x) => (y >= 0 && y < h && x >= 0 && x < w ? src[y][x] : null);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (src[y][x]) continue;
-      if (at(y - 1, x) || at(y + 1, x) || at(y, x - 1) || at(y, x + 1)) g[y][x] = OUTLINE;
-    }
-  }
-  return g;
-};
 
 const put = (g, y, x, col) => {
   if (y >= 0 && y < g.length && x >= 0 && x < g[0].length) g[y][x] = col;
@@ -116,90 +40,34 @@ const rowBounds = (row) => {
   return xs.length ? [xs[0], xs[xs.length - 1]] : null;
 };
 
-/* 進化装飾をグリッドに描く。level: 1(ステージ2) / 2(ステージ3) / 3(ステージ4)
-   ステージが上がるほど同じ系統の装飾が育って大きくなる */
-function applyEvoPattern(grid, kind, level, accent, body) {
-  const g = padGrid(grid, 3 + level, 2 + level);
-  const t = topRow(g), b = bottomRow(g);
-  const tb = rowBounds(g[t]) || [0, g[0].length - 1];
-  const bb = rowBounds(g[b]) || tb;
-  const cx = Math.round((tb[0] + tb[1]) / 2);
-  const midY = Math.round((t + b) / 2);
-  const midL = rowBounds(g[midY]) ? rowBounds(g[midY])[0] : tb[0];
-  const midR = rowBounds(g[midY]) ? rowBounds(g[midY])[1] : tb[1];
-
+/* 進化装飾(evoPattern)を3Dの小物として足す。体のいちばん上(頭)と横・後ろに付ける。
+   段階 t が上がるほど大きく育つ。オーラは仕上げの後に✦で描く(下記) */
+function evoAccessory(kind, parts, t) {
+  let top = null;
+  parts.forEach((p) => { const z = p.c[2] + p.r[2]; if (!top || z > top.z) top = { z, x: p.c[0], y: p.c[1], r: p.r[0] }; });
+  if (!top) return [];
+  const k = 1 + t * 0.35, z = top.z - 0.6, y = top.y, r = Math.max(2, top.r * 0.6);
+  const mids = parts.reduce((m, p) => Math.max(m, Math.abs(p.c[0]) + p.r[0]), 0);
+  const midZ = parts.reduce((a, p) => a + p.c[2], 0) / parts.length;
   switch (kind) {
-    case "horns":
-      for (let i = 1; i <= level; i++) {
-        put(g, t - i, tb[0] + 1 + (i > 1 ? 0 : 0) - (i - 1), accent);
-        put(g, t - i, tb[1] - 1 + (i - 1), accent);
-      }
-      if (level >= 3) { put(g, t - level - 1, tb[0] - level + 1, GOLD); put(g, t - level - 1, tb[1] + level - 1, GOLD); }
-      break;
-    case "antenna":
-      for (let i = 1; i <= level; i++) put(g, t - i, cx, accent);
-      put(g, t - level - 1, cx, GOLD);
-      if (level >= 2) { put(g, t - 1, cx - 2, accent); put(g, t - 2, cx - 2, GOLD); put(g, t - 1, cx + 2, accent); put(g, t - 2, cx + 2, GOLD); }
-      if (level >= 3) { put(g, t - level - 2, cx, WHITE); }
-      break;
-    case "wings":
-      for (let i = 1; i <= level; i++) {
-        for (let dy = 0; dy <= level - i; dy++) {
-          put(g, midY - 1 + dy, midL - i, i === level ? GOLD : body);
-          put(g, midY - 1 + dy, midR + i, i === level ? GOLD : body);
-        }
-      }
-      break;
-    case "tail":
-      for (let i = 1; i <= level + 1; i++) put(g, b - i + 1, bb[1] + i, i === level + 1 ? GOLD : accent);
-      if (level >= 3) put(g, b - level - 1, bb[1] + level + 2, GOLD);
-      break;
-    case "aura": {
-      const spots = [
-        [t - 2, tb[0] - 2], [t - 2, tb[1] + 2], [b + 1, bb[0] - 2], [b + 1, bb[1] + 2],
-        [midY, midL - 3], [midY, midR + 3], [t - 3, cx],
-        [midY - 2, midL - 2], [midY - 2, midR + 2], [b - 1, bb[0] - 3], [b - 1, bb[1] + 3],
-      ];
-      const n = level === 1 ? 4 : level === 2 ? 7 : 11;
-      spots.slice(0, n).forEach(([y, x], i) => put(g, y, x, i % 3 === 0 ? GOLD : i % 3 === 1 ? WHITE : accent));
-      break;
-    }
-    case "spikes":
-      for (let x = tb[0]; x <= tb[1]; x += 2) {
-        for (let i = 1; i <= Math.min(level, 2); i++) put(g, t - i, x, accent);
-        if (level >= 3) put(g, t - 3, x, GOLD);
-      }
-      break;
-    case "ears":
-      for (let i = 1; i <= level; i++) {
-        put(g, t - i, tb[0] + 2, body); put(g, t - i, tb[1] - 2, body);
-        if (i < level) { put(g, t - i, tb[0] + 3, accent); put(g, t - i, tb[1] - 3, accent); }
-      }
-      break;
-    case "crest":
-      for (let i = 1; i <= level + 1; i++) put(g, t - i, cx, i % 2 ? accent : GOLD);
-      if (level >= 2) { put(g, t - 1, cx - 1, accent); put(g, t - 1, cx + 1, accent); }
-      if (level >= 3) { put(g, t - 2, cx - 1, GOLD); put(g, t - 2, cx + 1, GOLD); }
-      break;
-    case "flame":
-      for (let dx = -level + 1; dx <= level - 1; dx++) {
-        const h2 = level - Math.abs(dx);
-        for (let i = 1; i <= h2; i++) {
-          put(g, t - i, cx + dx, (dx + i) % 3 === 0 ? GOLD : (dx + i) % 3 === 1 ? accent : "#f97316");
-        }
-      }
-      put(g, t - level - 1, cx, GOLD);
-      break;
-    case "crystal":
-      put(g, t - 2, cx, GOLD);
-      if (level >= 2) { put(g, t - 3, cx, accent); put(g, t - 2, cx - 1, accent); put(g, t - 2, cx + 1, accent); put(g, t - 1, cx, accent); }
-      if (level >= 3) { put(g, t - 4, cx, WHITE); put(g, t - 3, cx - 1, GOLD); put(g, t - 3, cx + 1, GOLD); }
-      break;
-    default:
-      break;
+    case "horns": return mirror(chain([r, y, z], [r + 2 * k, y - 0.5, z + 3.2 * k], 0.9, 0.3, 4, "white"));
+    case "antenna": return [...chain([0, y, z], [0.6, y - 0.5, z + 3.4 * k], 0.35, 0.35, 4, "dark"), S(0.6, y - 0.5, z + 3.8 * k, 0.9, "gold")];
+    case "crest": return Array.from({ length: 3 }, (_, i) => S(0, y - 1 + i * 1.2, z + 0.8 + (i === 1 ? 0.8 : 0) * k, 1 * k, i === 1 ? "gold" : "accent"));
+    case "ears": return mirror(chain([r * 0.9, y - 0.5, z - 0.5], [r * 0.9 + 1.2, y - 1, z + 2.6 * k], 1.1, 0.4, 3, "body"));
+    case "spikes": return [-1, 0, 1].map((i) => E(i * 1.8, y - 2, z - 0.4, 0.6, 0.6, 1.4 * k, "accent"));
+    case "flame": return [S(0, y - 0.5, z + 0.8, 1.3 * k, "glowpart"), S(0.6, y - 0.8, z + 2.2 * k, 0.8 * k, "glowpart")];
+    case "crystal": return [E(0, y + 0.4, z + 0.6, 0.9 * k, 0.9 * k, 1.8 * k, "gem")];
+    case "wings": return mirror([E(mids + 1.2, -1.5, midZ + 2, 1.6 * k, 0.6, 2.6 * k, "white")]);
+    case "tail": { const back = parts.reduce((m, p) => Math.min(m, p.c[1] - p.r[1]), 0); return chain([0, back + 0.8, midZ - 2], [0, back - 3 * k, midZ + 1.5 * k], 0.9, 0.4, 4, "accent"); }
+    default: return [];
   }
-  return g; // トリミングは呼び出し側で最後に1回(王冠・きらめきの余白を残すため)
 }
+
+const TIER_SCALE = [1.55, 1.75, 1.95]; // ST1〜2で約24ドット幅
+const PAL_FIXED = {
+  dark: "#3b3f5c", white: "#f3f5fa", gold: "#ffd166", metal: "#b6c0cf", glass: "#8fd3f0", gem: "#5eead4",
+  pink: "#ffa3bd", red: "#ef5b5b", orange: "#fb923c", leaf: "#4caf50", wood: "#a0703f", yellow: "#fde047",
+};
 
 function buildPixels(stock, sleeping) {
   const look = CREATURE_LOOK[stock.type] || CREATURE_LOOK.metal;
@@ -211,61 +79,39 @@ function buildPixels(stock, sleeping) {
   const species = pool[Math.floor(rng() * pool.length)];
   let body = look.bodies[Math.floor(rng() * look.bodies.length)];
   let belly = look.belly, accent = look.accent;
-  // 色違い(シャイニー): 当選時にstock.shinyへ永久保存される。配色を150度回した特別カラー
-  const shiny = !!stock.shiny;
-  if (shiny) { body = hueShift(body, 150); belly = hueShift(belly, 150); accent = hueShift(accent, 150); }
-  const pattern = Math.floor(rng() * 3);   // 0なし 1ぶち 2しま
-  const flip = rng() < 0.35;               // 左右反転の個体
-  const darker = shade(body, 0.72);
-  const striped = shade(body, 0.84);
-  const colors = {
-    b: body, s: belly, a: accent, o: "#1f2430",
-    w: "#ffffff", y: "#ffd166", e: sleeping ? "#1f2430" : "#111827",
-  };
-  const w = Math.max(...species.px.map((r) => r.length));
-  let grid = species.px.map((row, y) => {
-    const padded = row.padEnd(w, ".");
-    return [...padded].map((ch, x) => {
-      if (ch === ".") return null;
-      let col = colors[ch] || body;
-      if (ch === "b") {
-        if (pattern === 1 && (x * 7 + y * 5) % 11 === 0) col = darker;
-        if (pattern === 2 && y % 4 === 1) col = striped;
-      }
-      return col;
-    });
-  });
-  if (flip) grid = grid.map((row) => [...row].reverse());
+  const shiny = !!stock.shiny; // 色違い: 当選時にstock.shinyへ永久保存。配色を150度回した特別カラー
+  const pattern = Math.floor(rng() * 3); // 0なし 1ぶち 2しま
+  const flip = rng() < 0.35;             // 左右反転の個体
 
-  // 進化装飾: ステージ2以上で成長。パターンは進化時に抽選されstockに保存済み。
-  // 保存がない(旧データ・インポート)場合はコードから決定論的にフォールバック
+  // 進化: 研究ステージで姿そのものが変わる(ST1〜2 / ST3〜4 / ST5)
   const stageNo = stageOf(calcLevel(stock)).no;
+  const t = stageNo >= 5 ? 2 : stageNo >= 3 ? 1 : 0;
+  const built = species.build(t);
+  let parts = built.parts.filter(Boolean);
+  let glow = built.glow || "#fef08a";
+
+  // 進化装飾(ステージ2から)。パターンは進化時に抽選されstockに保存済み。
+  // 保存がない(旧データ・インポート)場合はコードから決定論的にフォールバック
   let evoKind = null;
   if (stageNo >= 2) {
     const evoPool = evoPoolFor(stock.type);
     evoKind = stock.evoPattern || evoPool[hashStr(seedSrc + ":evo") % evoPool.length];
-    // オーラ系はここでは描かない: 光の粒はGBA仕上げの後に✦で描く(下記)
-    if (evoKind !== "aura") grid = applyEvoPattern(grid, evoKind, Math.min(stageNo - 1, 3), accent, body);
+    if (evoKind !== "aura") parts = [...parts, ...evoAccessory(evoKind, parts, Math.min(stageNo - 2, 2))];
   }
-  // ステージ4は王冠を頭上に(体の中心=最も幅の広い行の中央に載せる)
-  if (stageNo >= 4) {
-    if (grid[0].some(Boolean)) grid = padGrid(grid, 1, 0); // 王冠の余白
-    const gw = grid[0].length;
-    let best = null; // {y, cx} 最も幅広い行
-    grid.forEach((row, y) => {
-      const bnd = rowBounds(row);
-      if (bnd && (!best || bnd[1] - bnd[0] > best.span)) best = { y, cx: Math.round((bnd[0] + bnd[1]) / 2), span: bnd[1] - bnd[0] };
-    });
-    if (best) {
-      const t = topRow(grid);
-      [best.cx - 1, best.cx, best.cx + 1].forEach((xx, i) => {
-        if (xx >= 0 && xx < gw && t >= 1) grid[t - 1][xx] = i === 1 ? "#ffd166" : "#f59e0b";
-      });
-    }
+
+  if (shiny) {
+    body = hueShift(body, 150); belly = hueShift(belly, 150); accent = hueShift(accent, 150); glow = hueShift(glow, 150);
   }
+  const pal = { ...PAL_FIXED, body, belly, accent, glowpart: glow };
+
+  // 大きさ(段階が上がるほど大きい)+左右反転
+  const G = TIER_SCALE[t];
+  const fx = flip ? -1 : 1;
+  parts = parts.map((p) => ({ ...p, c: [p.c[0] * G * fx, p.c[1] * G, p.c[2] * G], r: p.r.map((v) => v * G) }));
+  const faces = (built.faces || []).map((f) => ({ ...f, p: [f.p[0] * G * fx, f.p[1] * G, f.p[2] * G], mirror: flip ? !f.mirror : !!f.mirror }));
+
+  let grid = renderCreature({ parts, faces, pal, pattern, glow, sleeping, blush: !!built.blush });
   grid = trimGrid(grid);
-  // GBA風仕上げ: 2倍拡大 → 陰影 → アウトライン(順序重要: 輪郭は陰影の後)
-  grid = outlineGrid(shadeGrid(epx2(grid)));
 
   // ---- 光の粒(オーラ・色違い)は仕上げの後に✦(ダイヤ型)で描く:
   //      輪郭処理を通さないことで「浮いた四角」ではなく「光」に見える ----

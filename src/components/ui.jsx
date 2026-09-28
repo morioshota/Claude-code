@@ -70,8 +70,10 @@ const GLINT_PATH = "M0,-2.7 L0.7,-0.7 L2.7,0 L0.7,0.7 L0,2.7 L-0.7,0.7 L-2.7,0 L
 function Creature({ stock, size = 64, sleeping = false, shadow = true }) {
   const { grid, w, h, sparkles } = buildPixels(stock, sleeping);
   const glints = sleeping ? [] : (sparkles || []);
+  // 幅だけで大きさを決めると、背の高い種族(長い耳・旗など)でカードが縦に伸びる。高さにも上限を設ける
+  const dispW = h / w > 1.15 ? Math.round(size * 1.15 * (w / h)) : size;
   const svg = (
-    <svg width={size} height={Math.round(size * (h / w))} viewBox={`0 0 ${w} ${h}`}
+    <svg width={dispW} height={Math.round(dispW * (h / w))} viewBox={`0 0 ${w} ${h}`}
       shapeRendering="crispEdges" style={{ display: "block", imageRendering: "pixelated", position: "relative", zIndex: 1, overflow: "visible" }}>
       {grid.map((row, y) => row.map((c, x) => (
         c ? <rect key={`${x}-${y}`} x={x} y={y} width="1.02" height="1.02" fill={c} /> : null

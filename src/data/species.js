@@ -1,11 +1,19 @@
-/* 種族データ: タイプごと3種族×10タイプ=30種族のドット絵(12px幅の文字列グリッド)
-   使える文字は .bsaowye のみ(CLAUDE.md不変条件2) */
+/* 種族データ(2026-09 全面刷新): タイプごと5種族×10タイプ=50種族。
+   各種族は「進化段階 t(0=ST1〜2 / 1=ST3〜4 / 2=ST5)を受け取り、3Dの部品と顔を返す関数」。
+   描画は lib/creature3d.js。ドラクエのモンスターの“丸くて表情豊か”な作風を参考にした
+   オリジナルデザイン(特定の既存モンスターの模写はしない)。
+
+   座標: x=右, y=手前(顔の向き), z=上。地面が z=0。1単位 ≒ 1ドット(段階ごとに sprites.js で拡大)
+   素材: body 体色 / belly 腹 / accent 差し色 / dark / white / gold / metal / glass / gem /
+         pink / red / orange / leaf / wood / yellow / glowpart(陰影なしで光る) */
+
+import { E, S, chain, mirror, onHead, eyes, mouth } from "../lib/creature3d.js";
 
 const CREATURE_LOOK = {
   cosmo:  { bodies: ["#a78bfa", "#8b5cf6", "#c4b5fd"], belly: "#ede9fe", accent: "#f0abfc" },
   metal:  { bodies: ["#94a3b8", "#7d8aa0", "#b3bfce"], belly: "#e2e8f0", accent: "#64748b" },
   spark:  { bodies: ["#facc15", "#fbbf24", "#fde047"], belly: "#fef9c3", accent: "#f97316" },
-  build:  { bodies: ["#fb923c", "#f59e0b", "#fdba74"], belly: "#ffedd5", accent: "#eab308" },
+  build:  { bodies: ["#fb923c", "#f59e0b", "#fdba74"], belly: "#ffedd5", accent: "#b45309" },
   play:   { bodies: ["#f472b6", "#ec4899", "#f9a8d4"], belly: "#fce7f3", accent: "#a855f7" },
   drive:  { bodies: ["#38bdf8", "#0ea5e9", "#7dd3fc"], belly: "#e0f2fe", accent: "#334155" },
   life:   { bodies: ["#4ade80", "#34d399", "#86efac"], belly: "#dcfce7", accent: "#16a34a" },
@@ -14,366 +22,483 @@ const CREATURE_LOOK = {
   market: { bodies: ["#e879f9", "#d946ef", "#f0abfc"], belly: "#fae8ff", accent: "#f472b6" },
 };
 
-/*
- ドット絵の記号:
- . 透明 / b 体色 / s 腹・サブ / a アクセント / o 輪郭・こげ茶
- w 白 / e 目(眠ると閉じる) / y 金色
- タイプごとに3種族=計30種族。シルエットが全員違う。
-*/
+/* よく使う形 */
+const legs2 = (x, y, r = 2.2, h = 3) => mirror([E(x, y, h * 0.55, r, r, h * 0.6, "body")]);
+const feet2 = (x, y, r = 2.4) => mirror([E(x, y + 0.6, 1.1, r, r * 1.3, 1.2, "dark")]);
+const crown = (z, r = 2.6) => [E(0, 0, z, r, r, 0.9, "gold"), ...[-1, 0, 1].map((k) => S(k * r * 0.7, 0, z + 1.4, 0.8, "gold")), S(0, 0.2, z + 1.2, 0.7, "gem")];
+const halo = (z, r = 3.6) => Array.from({ length: 10 }, (_, i) => { const a = (i / 10) * Math.PI * 2; return S(Math.cos(a) * r, Math.sin(a) * r * 0.6, z, 0.75, "gold"); });
+const wingPair = (x, y, z, rx, rz, mat = "accent", tilt = 3) => mirror([E(x, y - 1, z, rx, 0.9, rz, mat), E(x + rx * 0.6, y - 1.2, z + tilt, rx * 0.55, 0.8, rz * 0.6, mat)]);
+const earsPointy = (h, len = 4, mat = "body", spread = 0.55) => mirror(chain([h.c[0] + h.r[0] * spread, h.c[1], h.c[2] + h.r[2] * 0.6], [h.c[0] + h.r[0] * spread + 1, h.c[1] - 0.5, h.c[2] + h.r[2] * 0.6 + len], 1.6, 0.4, 4, mat));
 
 const SPECIES_POOL = {
+  /* ---------------- コスモ(宇宙・防衛) ---------------- */
   cosmo: [
-    { name: "ユーフォん", px: [ // UFO型
-      "............",
-      "....ssss....",
-      "...sweews...",
-      "...ssssss...",
-      ".aaaaaaaaaa.",
-      "bbbbbbbbbbbb",
-      ".b.y.yy.y.b.",
-      "............",
-      "...y....y...",
-      "..y......y..",
-    ]},
-    { name: "そらくらげ", px: [ // 宇宙クラゲ
-      "............",
-      "....bbbb....",
-      "..bbbbbbbb..",
-      ".bbbbbbbbbb.",
-      ".bbebbbbebb.",
-      ".bssssssssb.",
-      "..b.b..b.b..",
-      "..b.b..b.b..",
-      "...b.b..b...",
-      "............",
-    ]},
-    { name: "ほしのこ", px: [ // 星の精
-      "............",
-      ".....bb.....",
-      "....bbbb....",
-      "....bbbb....",
-      "bbbbebbebbbb",
-      ".bbbbwwbbbb.",
-      "..bbbbbbbb..",
-      "..bb.bb.bb..",
-      ".bb..bb..bb.",
-      "............",
-    ]},
+    { name: "ほしぐも", build: (t) => { // ふわふわの雲に星のアンテナ
+      const h = S(0, 0, 10, 6.4, "body");
+      const P = [h, ...mirror([S(5.6, -0.5, 8, 3.6, "body")]), S(0, -2, 13.5, 4, "body"), S(0, 2.5, 6.5, 3.4, "belly")];
+      P.push(...chain([0, 0, 15.5], [1.5, 0, 20 + t], 0.6, 0.5, 5, "accent"), S(1.5, 0, 21 + t, 1.5 + t * 0.3, "gold"));
+      if (t >= 1) P.push(...chain([-3, 0, 15], [-5, 0, 19], 0.5, 0.4, 4, "accent"), S(-5, 0, 19.6, 1.2, "gold"));
+      if (t >= 2) P.push(...halo(18, 6), ...wingPair(6.5, -2, 11, 3, 4, "white"));
+      return { parts: P, faces: [...eyes(h, "big", 0.4, 0.05), mouth(h, "smile", -0.3)], blush: true };
+    } },
+    { name: "ロケットン", build: (t) => { // ロケットの体にひとつ目の窓
+      const b = E(0, 0, 10, 4.6, 4.6, 8.5, "body");
+      const P = [b, ...chain([0, 0, 17], [0, 0, 22 + t], 3.4, 0.8, 5, t >= 2 ? "gold" : "accent"),
+        ...mirror([E(4.6, 0, 4, 1.1, 2.8, 3.8, "accent")]), E(0, -4.4, 4, 1.1, 1.1, 3.6, "accent"),
+        S(0, 3.4, 11.5, 2.6, "glass")];
+      if (t >= 1) P.push(...mirror([E(6.2, -1, 7, 1.6, 1.6, 4.5, "metal"), S(6.2, -1, 2.2, 1.3, "glowpart")]));
+      if (t >= 2) P.push(S(0, 0, 0.4, 2.8, "glowpart"), ...mirror([E(6, 0, 3, 2.2, 3.8, 1, "gold")]));
+      return { parts: P, faces: [{ kind: "eye", style: "cyclops", p: [0, 5.8, 11.8] }], glow: "#ffd166" };
+    } },
+    { name: "つきうさ", build: (t) => { // 長い耳のうさぎ+バイザー
+      const h = S(0, 0.6, 13, 5, "body");
+      const P = [S(0, 0, 6, 5.8, "body"), E(0, 3.2, 5.6, 3.6, 2.5, 3.6, "belly"), h,
+        ...mirror(chain([2.2, 0, 17], [3.2, -1, 24 + t * 1.5], 1.5, 0.9, 6, "body")),
+        E(0, 4.4, 13.6, 4.2, 1.3, 1.7, "glass"), ...feet2(2.8, 1.4)];
+      if (t >= 1) P.push(...chain([0, -3, 15], [0, -5, 20], 0.4, 0.4, 4, "metal"), S(0, -5, 20.5, 1.1, "glowpart"), E(0, -5.2, 8, 3.6, 2.2, 4, "metal"));
+      if (t >= 2) P.push(...chain([-5, -1, 16], [5, -1, 16], 0.9, 0.9, 9, "gold", [0, -1, 23]));
+      return { parts: P, faces: [...eyes(h, "glow", 0.36, 0.18), mouth(h, "cat", -0.36)], glow: "#7dd3fc" };
+    } },
+    { name: "メテオガメ", build: (t) => { // 隕石の甲羅のかめ
+      const sh = E(0, -1, 6, 7.8 + t, 7.8 + t, 5.4 + t * 0.5, "dark");
+      const h = S(0, 7.5 + t, 5.4, 3.4, "body");
+      const P = [sh, h, ...mirror([E(5, 3, 1.6, 2, 2, 1.8, "body"), E(5, -5, 1.6, 2, 2, 1.8, "body")]),
+        S(2, 1, 10.5 + t * 0.5, 1.4, "accent"), S(-3, -2, 10.5 + t * 0.5, 1.1, "accent"), S(3.5, -4, 9, 1, "accent")];
+      if (t >= 1) P.push(...[[-2, 0], [2, -3], [0, -6], [-4, -4]].map(([x, y]) => E(x, y, 11 + t * 0.6, 0.9, 0.9, 2.4, "gem")));
+      if (t >= 2) P.push(S(0, -1, 13.5, 1.6, "glowpart"), E(0, -9, 3, 1.4, 3, 1.2, "body"));
+      return { parts: P, faces: [...eyes(h, "angry", 0.45, 0.25), mouth(h, "line", -0.2)] };
+    } },
+    { name: "コメットン", build: (t) => { // ほうき星の子。光る尾を引く
+      const h = S(0, 0, 9.5, 5.8, "body");
+      const P = [h, ...chain([0, -3, 11], [0, -12, 17], 4.2, 0.8, 7, "glowpart", [0, -9, 9])];
+      if (t >= 1) P.push(...mirror(chain([2.5, -3, 11], [6, -11, 16], 2.4, 0.6, 6, "glowpart", [5, -8, 9])));
+      if (t >= 2) P.push(...crown(15.8, 2.4));
+      return { parts: P, faces: [...eyes(h, "angry", 0.42, 0.12), mouth(h, "fang", -0.3)], glow: "#fef08a" };
+    } },
   ],
+
+  /* ---------------- メタル(重工・素材) ---------------- */
   metal: [
-    { name: "いわゴレム", px: [ // 岩ゴーレム
-      "............",
-      "..oooooooo..",
-      "..obbbbbbo..",
-      "..obebbebo..",
-      "..obbbbbbo..",
-      ".oobssssboo.",
-      ".obbbbbbbbo.",
-      "..obbbbbbo..",
-      "..obb..bbo..",
-      "..oo....oo..",
-    ]},
-    { name: "ネジロボ", px: [ // ロボ
-      "....y.......",
-      "....o.......",
-      "..ssssssss..",
-      "..seessees..",
-      "..ssssssss..",
-      "...bbbbbb...",
-      "..babbbbab..",
-      "...bbbbbb...",
-      "...bb..bb...",
-      "...oo..oo...",
-    ]},
-    { name: "ハグルマガニ", px: [ // 歯車ヤドカリ
-      ".....aa.....",
-      "....aaaa....",
-      "..a.abba.a..",
-      ".bbbbbbbbbb.",
-      "bbbebbbbebbb",
-      ".bbbbbbbbbb.",
-      "ob..bbbb..bo",
-      "oo..b..b..oo",
-    ]},
+    { name: "ボルトン", build: (t) => { // 鉄のゴーレム
+      const h = S(0, 1.5, 19.5, 3.4, "metal");
+      const P = [E(0, 0, 11, 7, 5, 6.5, "metal"), h, ...mirror([S(8, 0, 14.5, 3.8, "metal"),
+        ...chain([8.6, 0.5, 12], [9, 2, 6], 2.2, 2.4, 3, "metal"), S(9, 2.2, 4.4, 2.9, "dark"),
+        E(3.4, 0, 3, 2.8, 2.8, 3.3, "dark")]), E(0, 4.6, 11, 3, 0.8, 3, "accent")];
+      if (t >= 1) P.push(...mirror([S(8, 2.5, 17.2, 0.9, "gold"), S(10.6, 1, 15.5, 0.9, "gold")]));
+      if (t >= 2) P.push(...mirror(chain([2.4, 1, 21.5], [4.5, 0, 26], 1.2, 0.4, 4, "gold")), S(0, 5, 12, 1.8, "gem"));
+      return { parts: P, faces: [...eyes(h, "glow", 0.4, 0.05)], glow: "#ff5a5a" };
+    } },
+    { name: "はがねダンゴ", build: (t) => { // 丸まった鋼のダンゴムシ
+      const b = S(0, 0, 7, 7 + t * 0.5, "metal");
+      const h = S(0, 6.2 + t * 0.5, 4.4, 3.2, "body");
+      const P = [b, h,
+        ...[-4, 0, 4].map((x) => E(x, 0, 7, 0.9, 7.2 + t * 0.5, 7.2 + t * 0.5, "accent")),
+        ...mirror(chain([1.4, 8.4, 6], [3.4, 11, 9], 0.45, 0.35, 4, "dark"))];
+      if (t >= 1) P.push(...[-4, 0, 4].map((x) => E(x, -1, 14.3 + t * 0.5, 1, 1, 2, "metal")));
+      if (t >= 2) P.push(...[-4, 0, 4].map((x) => S(x, -1, 16.6, 0.9, "gold")));
+      return { parts: P, faces: [...eyes(h, "dot", 0.45, 0.2), mouth(h, "line", -0.35)] };
+    } },
+    { name: "クレーンどり", build: (t) => { // 首の長いクレーンの鳥
+      const h = S(0, 6, 21 + t * 2, 3, "body");
+      const P = [E(0, 0, 9, 5, 6, 4.6, "body"), ...chain([0, 2.5, 11], [0, 5.4, 19.5 + t * 2], 2.2, 1.6, 6, "body"),
+        h, ...chain([0, 8.5, 21 + t * 2], [0, 12, 20 + t * 2], 1.1, 0.4, 4, "orange"),
+        ...mirror(chain([2, 0, 5], [2.4, 1, 0.6], 0.7, 0.6, 4, "dark")), E(0, -5.5, 10, 2.5, 3, 1.4, "accent")];
+      if (t >= 1) P.push(...chain([0, 5, 23.5 + t * 2], [0, 2, 27 + t * 2], 0.7, 0.3, 4, "accent"), ...wingPair(4.2, 0, 10, 2.6, 3.4, "metal", 2));
+      if (t >= 2) P.push(...chain([0, 12, 20 + t * 2], [0, 12.4, 16.5 + t * 2], 0.5, 0.5, 3, "gold"));
+      return { parts: P, faces: [...eyes(h, "dot", 0.55, 0.2)] };
+    } },
+    { name: "ギアモグラ", build: (t) => { // ドリルの鼻のもぐら
+      const h = S(0, 4.6, 8.6, 5, "body");
+      const P = [E(0, -1, 7, 7, 7, 6.4, "body"), h, E(0, 7, 6.2, 3.2, 1.6, 2.2, "belly"),
+        ...chain([0, 9, 8], [0, 15 + t * 1.5, 8], 2.6 + t * 0.3, 0.6, 5, t >= 2 ? "gold" : "metal"),
+        ...mirror([E(6, 4, 3, 2.4, 2.8, 1.4, "metal")]), ...feet2(3.6, -1)];
+      if (t >= 1) P.push(...mirror([S(2.2, 7.6, 12.2, 1.6, "glass")]), E(0, 6.8, 12.3, 3.8, 0.6, 0.6, "dark"));
+      if (t >= 2) P.push(...[-4, 0, 4].map((x) => E(x, -3, 13.5, 1, 1, 2.2, "metal")));
+      return { parts: P, faces: [...eyes(h, "sleepyl", 0.42, 0.12), mouth(h, "tongue", -0.48)] };
+    } },
+    { name: "てつかぶと", build: (t) => { // 歩くかぶと。すき間から光る目
+      const h = S(0, 0, 10, 7, "metal");
+      const P = [h, E(0, 5.2, 10, 5, 2.2, 1.1, "dark"), E(0, 0, 4.2, 7.4, 7.4, 1.2, "accent"),
+        ...feet2(3, 0, 2.2), ...chain([0, -1, 16.5], [0, -6, 17], 1.6, 1, 5, "accent", [0, -3, 19])];
+      if (t >= 1) P.push(...mirror(chain([5.5, 0, 13], [9, 1, 18], 1.4, 0.4, 5, t >= 2 ? "gold" : "metal")));
+      if (t >= 2) P.push(E(0, -7, 8, 6.6, 1, 6.6, "red"), S(0, 6.6, 13.2, 1.1, "gem"));
+      return { parts: P, faces: [{ kind: "eye", style: "glow", p: [-2, 7.1, 10.3] }, { kind: "eye", style: "glow", p: [2, 7.1, 10.3], mirror: true }], glow: "#fbbf24" };
+    } },
   ],
+
+  /* ---------------- スパーク(電機・電力) ---------------- */
   spark: [
-    { name: "らいじゅう", px: [ // 雷獣(妖怪)
-      "..b......b..",
-      "..bb....bb..",
-      "..bbbbbbbb..",
-      ".bbebbbbebb.",
-      ".bbbbwwbbbb.",
-      "..bbbbbbbb..",
-      "...bbbbbb..y",
-      "...b..b...yy",
-      "...o..o..yy.",
-    ]},
-    { name: "でんきゅん", px: [ // 電球ゴースト
-      "....ssss....",
-      "...swwwws...",
-      "..sweewews..",
-      "..swwwwws...",
-      "...ssssss...",
-      "....oooo....",
-      "....oooo....",
-      "....a..a....",
-      "............",
-    ]},
-    { name: "ごろつも", px: [ // 雷雲の子
-      "............",
-      "..bbb.bbb...",
-      ".bbbbbbbbbb.",
-      "bbbebbbbebbb",
-      ".bbbbbbbbbb.",
-      "..bbbbbbbb..",
-      "....y..y....",
-      "...yy.yy....",
-      "...y...y....",
-    ]},
+    { name: "ビリたま", build: (t) => { // ぎざぎざ放電の玉
+      const h = S(0, 0, 9, 6.4, "body");
+      const n = 5 + t * 2;
+      const P = [h, ...Array.from({ length: n }, (_, i) => {
+        const a = -Math.PI * 0.9 + (i / (n - 1)) * Math.PI * 0.8 - Math.PI / 10;
+        const dx = Math.cos(a), dz = -Math.sin(a);
+        return chain([dx * 5, -1, 9 + dz * 5], [dx * 9.5, -1.5, 9 + dz * 9.5], 1.3, 0.4, 3, "accent", [dx * 7 + 1.2, -1, 9 + dz * 7 + 0.5]);
+      }).flat()];
+      if (t >= 2) P.push(...halo(3, 7.5).map((p) => ({ ...p, mat: "glowpart" })), ...crown(16.4, 2.2));
+      return { parts: P, faces: [...eyes(h, "big", 0.4, 0.1), mouth(h, "grin", -0.35)] };
+    } },
+    { name: "とぐろウナギ", build: (t) => { // とぐろを巻く電気うなぎ
+      const h = S(0, 3, 14 + t, 4, "body");
+      const P = [...chain([-6, -2, 2.5], [6, -2, 2.5], 2.8, 2.8, 9, "body", [0, 8, 2.5]), ...chain([6, -2, 2.5], [0, 3, 10 + t], 2.8, 3.2, 6, "body", [7, 2, 7]),
+        h, E(0, 6.2, 12.8 + t, 2.4, 1.4, 1.4, "belly"), E(0, -1, 17.5 + t, 0.8, 3, 2.4, "accent")];
+      if (t >= 1) P.push(...mirror(chain([2.4, 6.4, 13 + t], [6, 8, 12 + t], 0.4, 0.3, 4, "yellow")));
+      if (t >= 2) P.push(...mirror([E(4.5, 2, 15.5 + t, 0.8, 2, 2.6, "gold")]), S(0, -1, 20.5 + t, 1.3, "glowpart"));
+      return { parts: P, faces: [...eyes(h, "slit", 0.46, 0.22), mouth(h, "fang", -0.36)], glow: "#fef08a" };
+    } },
+    { name: "ホタルン", build: (t) => { // 光るおしりのほたる
+      const h = S(0, 4.6, 10, 3.6, "dark");
+      const P = [E(0, -3.6, 8.4, 4 + t * 0.5, 5 + t * 0.5, 4 + t * 0.5, "glowpart"), S(0, 1, 9.2, 3.8, "body"), h,
+        ...mirror(chain([1.4, 5.4, 13], [3.6, 7, 17], 0.4, 0.4, 4, "dark")), ...mirror([S(3.6, 7, 17.3, 0.9, "body")]),
+        ...mirror([E(4.4, -0.5, 12.5, 4, 0.6, 2, "glass")]), ...mirror(chain([2.4, 1, 6.5], [3.6, 2, 1], 0.5, 0.5, 3, "dark"))];
+      if (t >= 1) P.push(...mirror([E(4.8, -2.2, 10.2, 3.6, 0.6, 1.6, "glass")]));
+      if (t >= 2) P.push(...crown(13.4, 2));
+      return { parts: P, faces: [...eyes(h, "big", 0.45, 0.1), mouth(h, "smile", -0.4)], glow: "#fef08a" };
+    } },
+    { name: "プラグン", build: (t) => { // コンセントの精
+      const h = E(0, 0, 9, 6, 5, 7, "body");
+      const P = [h, ...mirror([E(2.2, 0, 17, 0.9, 0.9, 3.2, t >= 2 ? "gold" : "metal")]),
+        ...chain([0, -4.6, 5], [5, -9, 3], 1.1, 1, 7, "dark", [0, -10, 9]), ...feet2(2.6, 0.5, 2)];
+      if (t >= 1) P.push(E(0, 0, 17.8, 0.9, 0.9, 3.8, t >= 2 ? "gold" : "metal"), S(5, -9, 3, 1.6, "metal"));
+      if (t >= 2) P.push(...halo(14, 5).map((p) => ({ ...p, mat: "glowpart" })));
+      return { parts: P, faces: [...eyes(h, "oval", 0.4, 0.2), mouth(h, "o", -0.25)] };
+    } },
+    { name: "イナズマどり", build: (t) => { // 稲妻のとさかの小鳥
+      const h = S(0, 3.2, 13, 4.2, "body");
+      const P = [S(0, 0, 8, 5.4, "body"), E(0, 3.2, 7, 3.4, 2.2, 3.6, "belly"), h,
+        ...chain([0, 7, 13], [0, 10, 12.4], 1.2, 0.3, 3, "orange"),
+        ...chain([0, 2, 17], [0, -2, 23 + t * 1.5], 1.2, 0.4, 6, "accent", [2.5, 1, 20]),
+        ...wingPair(5, -1, 9, 2.4 + t * 0.8, 3 + t, "accent"), ...chain([0, -4.5, 6], [0, -10, 8], 1.4, 0.5, 5, "accent"),
+        ...mirror(chain([1.8, 1, 3], [2, 1.5, 0.5], 0.5, 0.5, 3, "orange"))];
+      if (t >= 2) P.push(...chain([0, -10, 8], [0, -14, 13], 1, 0.5, 5, "glowpart", [-3, -12, 10]), ...crown(17.5, 1.8));
+      return { parts: P, faces: [...eyes(h, "angry", 0.5, 0.2)], glow: "#fde047" };
+    } },
   ],
+
+  /* ---------------- ビルド(建設・インフラ) ---------------- */
   build: [
-    { name: "メットもぐ", px: [ // ヘルメットモグラ
-      "....aaaa....",
-      "..aaaaaaaa..",
-      "..abbbbbba..",
-      ".bbebbbbebb.",
-      ".bbbooobbbb.",
-      ".bbbbbbbbbb.",
-      "..bbssssbb..",
-      "..obb..bbo..",
-      "............",
-    ]},
-    { name: "クレーンび", px: [ // クレーン首長
-      "..bb........",
-      ".bebb.......",
-      "..bb........",
-      "...b........",
-      "...b........",
-      "...bbbbbbb..",
-      "..bbbbbbbbb.",
-      "..bbbsssbbb.",
-      "...bb...bb..",
-      "...oo...oo..",
-    ]},
-    { name: "レンガメ", px: [ // レンガガメ
-      "............",
-      "...aaaaaa...",
-      "..abababab..",
-      "..babababa..",
-      "..abababab..",
-      "...bbbbbb.ss",
-      "....o..o..se",
-      "..........s.",
-    ]},
+    { name: "レンガーン", build: (t) => { // レンガの壁のかたまり
+      const h = E(0, 0, 9, 8, 6, 8, "body");
+      const P = [h, ...[[-4, 4.6, 12], [3, 4.8, 13], [-1, 5.2, 6], [5, 4.4, 7], [-5.5, 4, 5]].map(([x, y, z]) => E(x, y, z, 2.4, 1.2, 1.3, "accent")),
+        ...mirror([E(8, 1, 7, 1.8, 1.8, 2.6, "body")]), ...feet2(3.6, 0, 2.6)];
+      if (t >= 1) P.push(E(0, 0, 16.5, 6.2, 5.4, 2.6, "yellow"), E(0, 3.6, 15, 6.4, 3, 0.6, "yellow"));
+      if (t >= 2) P.push(...crown(19.6, 2.8), ...mirror([S(9, 2, 10.5, 2, "metal")]));
+      return { parts: P, faces: [...eyes(h, "dot", 0.36, 0.28), mouth(h, "zigzag", -0.2)] };
+    } },
+    { name: "ヘルモグ", build: (t) => { // ヘルメットのもぐら
+      const h = S(0, 2, 11, 5.4, "body");
+      const P = [E(0, 0, 6, 6, 5.4, 5.6, "body"), E(0, 3.6, 5.8, 3.8, 2.2, 3.6, "belly"), h,
+        E(0, 2, 14.4, 5.8, 5.8, 3, "yellow"), E(0, 4.6, 13, 6, 3.4, 0.7, "yellow"), S(0, 7, 15.2, 1.3, "glowpart"),
+        S(0, 7.2, 10, 1.4, "pink"), ...mirror([E(5.4, 3.5, 4.4, 2, 2.6, 1.4, "white")])];
+      if (t >= 1) P.push(...mirror(chain([6, 1, 9], [9, 2, 13], 1.1, 1, 4, "body")), E(9, 2.4, 15, 0.7, 0.7, 4, "wood"));
+      if (t >= 2) P.push(E(0, 2, 14.5, 6, 6, 3.1, "gold"), ...mirror([S(3, 0, 18, 1, "gem")]));
+      return { parts: P, faces: [...eyes(h, "happy", 0.42, 0.18), mouth(h, "smile", -0.45)], blush: true, glow: "#fef08a" };
+    } },
+    { name: "ショベルガニ", build: (t) => { // 大きなショベルの手のかに
+      const P = [E(0, 0, 6, 7, 5, 4, "body"), E(0, 3, 5, 5, 2.6, 2.6, "belly"),
+        ...mirror(chain([2.4, 3, 9], [3, 4, 13], 0.6, 0.6, 3, "body")), ...mirror([S(3, 4, 13.6, 1.7, "white")]),
+        ...chain([6, 2, 6], [11, 6, 8], 1.6, 1.4, 4, "body"), E(12.5 + t, 7, 8, 3.6 + t, 3.2 + t, 1, t >= 2 ? "gold" : "metal"),
+        ...chain([-6, 2, 6], [-9, 5, 7], 1.3, 1, 3, "body"), S(-9.5, 5.6, 7.2, 1.8, "body"),
+        ...mirror([...chain([5, -1, 4], [8, -2, 0.5], 0.7, 0.5, 3, "dark"), ...chain([4, -3, 4], [6.5, -5, 0.5], 0.7, 0.5, 3, "dark")])];
+      if (t >= 1) P.push(...[-4, 0, 4].map((x) => E(x, -2, 9.8, 1, 1, 1.8, "accent")));
+      return { parts: P, faces: [{ kind: "eye", style: "dot", p: [-3, 5.6, 14] }, { kind: "eye", style: "dot", p: [3, 5.6, 14], mirror: true }, { kind: "mouth", style: "line", p: [0, 5.6, 5.6] }] };
+    } },
+    { name: "ドカタンク", build: (t) => { // 重機のようなかぶと虫
+      const h = S(0, 5.5, 6, 3.6, "dark");
+      const P = [E(0, -1.5, 6.5, 6.2, 7.6, 4.8, "body"), E(0, -1.5, 6.6, 0.5, 7.6, 4.9, "dark"), h,
+        ...chain([0, 8, 7], [0, 11 + t, 14 + t * 1.5], 1.6, 0.5, 6, t >= 2 ? "gold" : "accent", [0, 12, 8]),
+        ...mirror([...chain([4, 2, 3], [6.5, 3, 0.5], 0.7, 0.6, 3, "dark"), ...chain([4.5, -3, 3], [7, -4, 0.5], 0.7, 0.6, 3, "dark")])];
+      if (t >= 1) P.push(...mirror(chain([2, 7, 8.5], [4.5, 9, 11], 0.8, 0.3, 4, "accent")));
+      if (t >= 2) P.push(...mirror([E(6.4, -2, 7.5, 0.8, 4, 2.2, "gold")]));
+      return { parts: P, faces: [...eyes(h, "angry", 0.5, 0.2)] };
+    } },
+    { name: "つみきドラ", build: (t) => { // 小さなドラゴン
+      const h = S(0, 2.5, 14, 4.8, "body");
+      const P = [E(0, -0.5, 7.5, 5.4, 5, 6, "body"), E(0, 3.2, 7, 3.4, 2, 4.2, "belly"), h, E(0, 6.4, 12.8, 2.6, 2.2, 2, "body"),
+        ...legs2(3, 1, 2, 3), ...chain([0, -4, 5], [0, -11, 4 + t], 2.4, 0.7, 6, "body", [0, -9, 1]),
+        ...wingPair(4.2, -2, 12, 2 + t * 1.5, 2.6 + t * 1.4, "accent")];
+      if (t >= 1) P.push(...mirror(chain([2, 1.5, 18], [3.4, -1, 21 + t], 1, 0.3, 4, t >= 2 ? "gold" : "belly")));
+      if (t >= 2) P.push(...[-2, -5, -8].map((y) => E(0, y, 12 - (y + 2) * 0.35, 0.6, 1, 1.6, "accent")));
+      return { parts: P, faces: [...eyes(h, "big", 0.42, 0.25), mouth(h, "fang", -0.35)] };
+    } },
   ],
+
+  /* ---------------- プレイ(ゲーム・エンタメ) ---------------- */
   play: [
-    { name: "ぷにすら", px: [ // スライム
-      "............",
-      "............",
-      "....bbbb....",
-      "..bbbbbbbb..",
-      ".bbbbbbbbbb.",
-      ".bbebbbbebb.",
-      ".bbbbwwbbbb.",
-      ".bbbbbbbbbb.",
-      "............",
-    ]},
-    { name: "からくりん", px: [ // からくり人形
-      "....oooo....",
-      "...oaaaao...",
-      "....ssss....",
-      "...sweews...",
-      "...ssssss...",
-      "..abbbbbba..",
-      "...bbbbbb...",
-      "...b.bb.b...",
-      "...o....o...",
-    ]},
-    { name: "マスにゃ", px: [ // マスコット猫
-      "..b......b..",
-      ".bb......bb.",
-      ".bbbbbbbbbb.",
-      ".bbebbbbebb.",
-      ".bbbbwwbbbb.",
-      ".bbbbbbbbbb.",
-      "..bbssssbb..",
-      "..bb....bb..",
-      "..oo....oo..",
-    ]},
+    { name: "ピエロン", build: (t) => { // とんがり帽子のピエロ
+      const h = S(0, 1, 13, 5, "belly");
+      const P = [S(0, 0, 6, 5.8, "body"), h, S(0, 6, 12.4, 1.5, "red"),
+        ...chain([0, 0, 17], [2.5, -1, 25 + t], 3.6, 0.6, 6, "accent", [0, 0, 22]), S(2.5, -1, 25.6 + t, 1.4, "gold"),
+        ...feet2(3, 0.5, 2.4)];
+      if (t >= 1) P.push(...Array.from({ length: 9 }, (_, i) => { const a = (i / 9) * Math.PI * 2; return S(Math.cos(a) * 5, Math.sin(a) * 5, 9.6, 1.6, "white"); }));
+      if (t >= 2) P.push(S(-8, 2, 16, 1.4, "gold"), S(8, 2, 18, 1.4, "gem"), S(0, 3, 22, 1.2, "red"));
+      return { parts: P, faces: [...eyes(h, "happy", 0.44, 0.22), mouth(h, "big", -0.42)], blush: true };
+    } },
+    { name: "パッドン", build: (t) => { // ゲームパッドの生きもの
+      const h = E(0, 0, 8, 9, 4, 5.5, "body");
+      const P = [h, ...mirror([E(6.4, 0, 5, 3.4, 3.6, 4.4, "body")]),
+        ...[[5, 3.6, 9.6, "accent"], [7, 3.4, 8.2, "gold"], [5, 3.4, 6.8, "red"], [3, 3.6, 8.2, "white"]].map(([x, y, z, m]) => S(x, y, z, 1, t >= 2 ? "glowpart" : m)),
+        E(-5, 3.8, 8.2, 2.4, 0.6, 0.8, "dark"), E(-5, 3.8, 8.2, 0.8, 0.6, 2.4, "dark"), ...feet2(5, 0, 2.2)];
+      if (t >= 1) P.push(...chain([0, -3, 12], [0, -6, 18], 0.6, 0.6, 5, "dark", [0, -6, 13]), S(0, -6, 18.6, 1.3, "accent"));
+      if (t >= 2) P.push(...crown(13.8, 2.4));
+      return { parts: P, faces: [{ kind: "eye", style: "dot", p: [-1.6, 3.9, 10.2] }, { kind: "eye", style: "dot", p: [1.6, 3.9, 10.2], mirror: true }, { kind: "mouth", style: "smile", p: [0, 4, 7.4] }], glow: "#fde047" };
+    } },
+    { name: "おどりタケ", build: (t) => { // 踊るきのこ
+      const st = E(0, 0, 7, 4, 4, 6, "belly");
+      const cap = E(0, 0, 14.5, 8 + t, 8 + t, 4.4 + t * 0.4, "body");
+      const P = [st, cap, ...[[-4, 3, 17], [3, 4, 17.5], [0, -1, 19], [5.5, -1, 15.6], [-6, 0, 15]].map(([x, y, z]) => S(x, y, z, 1.3, t >= 2 ? "glowpart" : "white")),
+        ...mirror(chain([3.6, 0.5, 8], [7, 2, 11], 0.9, 0.8, 4, "belly")), ...feet2(2, 0.5, 2)];
+      if (t >= 1) P.push(...mirror([S(7.4, 2, 11.2, 1.2, "belly")]));
+      return { parts: P, faces: [...eyes(st, "big", 0.38, 0.3), mouth(st, "o", -0.1)], glow: "#fef9c3" };
+    } },
+    { name: "ハートおばけ", build: (t) => { // ハートの尾のおばけ
+      const h = S(0, 0, 12, 6.2, "white");
+      const P = [h, ...chain([0, -1, 8], [0, -7, 2.5], 5, 1.2, 6, "white", [0, -3, 3]),
+        ...mirror([S(1.4, -8, 3.8, 1.8, "red")]), E(0, -8.4, 2.4, 1.6, 1.4, 1.8, "red"),
+        ...mirror([E(6, 1.5, 10, 1.8, 1.6, 1.4, "white")])];
+      if (t >= 1) P.push(...halo(20, 3.4));
+      if (t >= 2) P.push(...wingPair(6.5, -2, 14, 3, 4, "accent"), ...mirror([S(1.2, 6, 10, 1.2, "red")]));
+      return { parts: P, faces: [...eyes(h, "oval", 0.38, 0.12), mouth(h, "tongue", -0.3)], blush: true };
+    } },
+    { name: "ネコまじん", build: (t) => { // けむりの尾のねこの魔人
+      const h = S(0, 1.5, 15, 5, "body");
+      const P = [E(0, 0, 10, 5, 4.2, 4, "accent"), h, ...earsPointy(h, 4, "body", 0.6),
+        ...chain([0, 0, 7], [3, -3, 1], 3.6, 1.2, 6, "white", [4, 1, 3]), ...mirror([S(5.2, 1.4, 12.5, 0.8, "gold")]),
+        ...mirror(chain([4.4, 1, 11], [2, 4.4, 9.6], 1.2, 1.1, 4, "body"))];
+      if (t >= 1) P.push(E(0, 1, 19.4, 4.4, 4.4, 2.2, "belly"), S(0, 5, 19.4, 1.1, "gem"));
+      if (t >= 2) P.push(...chain([0, 0, 21], [0, -2, 25], 1, 0.4, 4, "gold"));
+      return { parts: P, faces: [...eyes(h, "slit", 0.42, 0.2), mouth(h, "cat", -0.38)], glow: "#fde047" };
+    } },
   ],
+
+  /* ---------------- ドライブ(自動車・輸送) ---------------- */
   drive: [
-    { name: "タイヤつむり", px: [ // 車輪カタツムリ
-      "..........be",
-      "....aaaa..b.",
-      "...aaaaaa.b.",
-      "...aaooaa.b.",
-      "...aaaaaa.b.",
-      "....aaaa..b.",
-      ".bbbbbbbbbb.",
-      "............",
-    ]},
-    { name: "ブーカー", px: [ // ミニカー獣
-      "............",
-      "...bbbbbb...",
-      "..bbbbbbbb..",
-      ".bsseesssbb.",
-      "ybbbbbbbbbby",
-      ".oo......oo.",
-      ".oo......oo.",
-      "............",
-    ]},
-    { name: "コロどり", px: [ // 車輪の足の鳥
-      ".....bb.....",
-      "....bbbb....",
-      "...bebbeb...",
-      "...bbbbbb...",
-      "....byyb....",
-      "...bbbbbb...",
-      "..bbbbbbbb..",
-      "....o..o....",
-      "...oo..oo...",
-    ]},
+    { name: "タイヤン", build: (t) => { // 一輪車の子
+      const h = S(0, 0, 12.5, 5.4, "body");
+      const P = [h, E(0, 0, 5, 2.4, 5, 5, "dark"), E(0, 0, 5, 2.6, 2.2, 2.2, t >= 2 ? "gold" : "metal"),
+        ...mirror([E(4.8, 0, 11, 1.4, 1.4, 2, "body")])];
+      if (t >= 1) P.push(E(0, 3.4, 16, 4.6, 1.8, 1.2, "dark"), ...mirror([S(2, 4.8, 16, 1.4, "glass")]));
+      if (t >= 2) P.push(...chain([-3, -4, 13], [-5, -7, 17], 1, 1, 4, "metal"), S(-5, -7, 17.8, 1.4, "glowpart"));
+      return { parts: P, faces: [...eyes(h, "big", 0.42, 0.1), mouth(h, "smile", -0.34)] };
+    } },
+    { name: "つばさウオ", build: (t) => { // 羽のある空飛ぶ魚
+      const h = E(0, 0, 11, 4.4, 8, 4.6, "body");
+      const P = [h, E(0, 2, 9.4, 3, 5, 2.6, "belly"), ...mirror([E(6 + t, -1, 12, 4.6 + t, 3.4, 0.8, t >= 2 ? "gold" : "accent")]),
+        E(0, -9, 11, 0.8, 2.6, 4, "accent"), E(0, -1, 16, 0.7, 3.2, 2, "accent")];
+      if (t >= 1) P.push(...mirror([E(4.6, 1, 8, 2.6, 2, 0.6, "accent")]));
+      return { parts: P, faces: [...eyes({ c: [0, 4, 11.5], r: [4, 4, 4] }, "big", 0.55, 0.15), { kind: "mouth", style: "o", p: [0, 7.9, 10.6] }] };
+    } },
+    { name: "みちヘビ", build: (t) => { // 道路の白線もようのへび
+      const h = S(0, 4, 11 + t, 3.8, "body");
+      const P = [...chain([-7, -3, 2], [5, -4, 2], 2.4, 2.4, 8, "body", [-1, 6, 2]), ...chain([5, -4, 2], [0, 3, 8 + t], 2.4, 2.8, 5, "body", [7, 1, 3]),
+        h, ...[[-4, 1.2], [0, 2.8], [3.6, 1]].map(([x, y]) => E(x, y, 4.1, 1.1, 0.6, 0.4, "white"))];
+      if (t >= 1) P.push(...mirror(chain([1.8, 4, 14 + t], [3, 2, 17 + t], 0.8, 0.3, 3, "accent")));
+      if (t >= 2) P.push(E(0, 1, 11 + t, 5.6, 1, 4.6, "gold"));
+      return { parts: P, faces: [...eyes(h, "slit", 0.45, 0.25), mouth(h, "tongue", -0.4)], glow: "#fde047" };
+    } },
+    { name: "ペリカーゴ", build: (t) => { // 荷物を運ぶペリカン
+      const h = S(0, 2.5, 15, 3.8, "white");
+      const P = [E(0, -0.5, 8.5, 5, 6, 5, "white"), h, E(0, 7.5, 13.5, 1.6, 5, 1, "orange"), E(0, 7, 12, 1.8, 4, 1.6, "yellow"),
+        ...wingPair(4.6, -1, 9, 2.2, 3.4, "body", 1), ...mirror(chain([2, 1, 4], [2.2, 2, 0.5], 0.7, 0.6, 3, "orange"))];
+      if (t >= 1) P.push(E(0, -4, 14, 3.6, 3, 2.8, "wood"), E(0, -4, 14, 3.7, 0.5, 2.9, "dark"));
+      if (t >= 2) P.push(E(0, 2.5, 18.6, 3.2, 3.2, 1.2, "accent"), E(0, 5, 18.3, 3, 2.4, 0.5, "accent"));
+      return { parts: P, faces: [...eyes(h, "dot", 0.5, 0.25)] };
+    } },
+    { name: "ブーストガエル", build: (t) => { // マフラーのかえる
+      const h = E(0, 0.5, 7, 7, 6, 5, "body");
+      const P = [h, E(0, 3.2, 5.4, 5, 3, 3, "belly"), ...mirror([S(3.2, 2, 11.5, 2.4, "white")]),
+        ...mirror(chain([4.5, -3, 6], [5, -8, 9 + t], 1.2, 1.2, 4, "metal")), ...mirror([E(6.2, 3, 1.4, 2.8, 2.6, 1.2, "body")])];
+      if (t >= 1) P.push(...mirror([S(5, -8.5, 10 + t, 1.8, "glowpart")]));
+      if (t >= 2) P.push(...crown(13.6, 2.2));
+      return { parts: P, faces: [{ kind: "eye", style: "dot", p: [-3.2, 4.2, 12] }, { kind: "eye", style: "dot", p: [3.2, 4.2, 12], mirror: true }, mouth(h, "big", -0.12)], glow: "#ff8f3d" };
+    } },
   ],
+
+  /* ---------------- ライフ(生活・ヘルスケア) ---------------- */
   life: [
-    { name: "はっぱみみ", px: [ // 葉っぱウサギ
-      "...a....a...",
-      "...ab..ba...",
-      "...b....b...",
-      "...bbbbbb...",
-      "..bbebbebb..",
-      "..bbbwwbbb..",
-      "..bbbbbbbb..",
-      "...bb..bb...",
-      "............",
-    ]},
-    { name: "きのこびと", px: [ // キノコの子
-      "............",
-      "...aaaaaa...",
-      "..aawaawaa..",
-      ".aaaaaaaaaa.",
-      "...ssssss...",
-      "...sesses...",
-      "...ssssss...",
-      "....s..s....",
-      "............",
-    ]},
-    { name: "めばえん", px: [ // 豆の芽
-      "............",
-      "..aa....aa..",
-      ".aaaa..aaaa.",
-      "..aaa..aaa..",
-      ".....bb.....",
-      "....bbbb....",
-      "...bebbeb...",
-      "...bbbbbb...",
-      "....b..b....",
-      "............",
-    ]},
+    { name: "はっぱっぱ", build: (t) => { // 葉っぱが生えた球根
+      const h = E(0, 0, 6.5, 5.4, 5, 6.2, "belly");
+      const P = [h, ...mirror(chain([0.5, 0, 12], [5, 0, 17 + t], 1.6, 0.6, 5, "leaf", [1, 0, 17])), ...feet2(2.4, 0.5, 1.8)];
+      if (t >= 1) P.push(...chain([0, 0, 12], [0, 0, 18 + t], 0.6, 0.6, 4, "leaf"), S(0, 0, 19 + t, 1.6, "pink"));
+      if (t >= 2) P.push(...Array.from({ length: 6 }, (_, i) => { const a = (i / 6) * Math.PI * 2; return S(Math.cos(a) * 2.2, Math.sin(a) * 2.2, 21, 1.6, "pink"); }), S(0, 0, 21.4, 1.3, "yellow"));
+      return { parts: P, faces: [...eyes(h, "happy", 0.38, 0.12), mouth(h, "smile", -0.24)], blush: true };
+    } },
+    { name: "ミルクうし", build: (t) => { // ぶちの子うし
+      const h = S(0, 5, 11, 4.2, "white");
+      const P = [E(0, -1, 8, 5.6, 7, 5, "white"), ...[[-3, -3, 12], [4, 1, 11], [2, -5, 7]].map(([x, y, z]) => E(x, y, z, 2.4, 2.4, 1.6, "body")),
+        h, E(0, 8.2, 9.6, 2.8, 1.4, 1.8, "pink"), ...mirror([E(4.8, 5, 12.2, 1.8, 0.8, 1, "white")]),
+        ...mirror(chain([2.2, 5, 14.5], [3, 4.6, 16 + t], 0.7, 0.4, 3, "belly")),
+        ...legs2(3.2, 3, 1.8, 3.4), ...legs2(3.2, -4.5, 1.8, 3.4), S(0, 6.2, 6.4, 1.2, "gold")];
+      if (t >= 2) P.push(...crown(15.2, 2));
+      return { parts: P, faces: [...eyes(h, "dot", 0.45, 0.28), mouth({ c: [0, 8.2, 9.6], r: [2.8, 1.4, 1.8] }, "line", -0.1)] };
+    } },
+    { name: "くすりクラゲ", build: (t) => { // 看護のくらげ
+      const h = E(0, 0, 13, 7, 7, 5.2, "body");
+      const P = [h, E(0, 0, 10.5, 6.4, 6.4, 1.4, "belly"), ...[-4.5, -1.5, 1.5, 4.5].flatMap((x) => chain([x, 1, 9.5], [x * 1.1, 2, 2], 0.9, 0.5, 5, "belly", [x + 1.5, 2.5, 6])),
+        E(0, 5, 16.4, 1.8, 0.6, 0.6, "red"), E(0, 5, 16.4, 0.6, 0.6, 1.8, "red")];
+      if (t >= 1) P.push(E(0, 0, 18, 4.4, 4.4, 1.6, "white"));
+      if (t >= 2) P.push(...halo(21, 4));
+      return { parts: P, faces: [...eyes(h, "happy", 0.4, -0.05), mouth(h, "smile", -0.32)], blush: true };
+    } },
+    { name: "こもりグマ", build: (t) => { // 子ぐま
+      const h = S(0, 1.5, 13, 5.2, "body");
+      const P = [E(0, 0, 6.5, 5.6, 5, 6, "body"), E(0, 3.4, 6, 3.6, 2, 4, "belly"), h, E(0, 6, 11.8, 2.4, 1.6, 1.8, "belly"),
+        S(0, 7.4, 12.4, 0.8, "dark"), ...mirror([S(4, 0.6, 17.4, 2, "body")]),
+        ...mirror(chain([5, 1.5, 9], [6, 3.5, 5.6], 1.6, 1.5, 3, "body")), ...feet2(3, 0.5, 2.4)];
+      if (t >= 1) P.push(E(0, 1.2, 9, 5.4, 4.6, 1.1, "red"), E(3, 4.6, 7.6, 1, 1, 2.4, "red"));
+      if (t >= 2) P.push(...Array.from({ length: 5 }, (_, i) => E(-4 + i * 2, 0, 18.6 - Math.abs(i - 2) * 0.4, 1.4, 1, 0.7, "leaf")));
+      return { parts: P, faces: [...eyes(h, "dot", 0.4, 0.2), mouth({ c: [0, 6, 11.8], r: [2.4, 1.6, 1.8] }, "cat", -0.3)], blush: true };
+    } },
+    { name: "たまごドリ", build: (t) => { // 殻から顔を出したひな
+      const h = S(0, 0.5, 11 + t * 1.5, 4.4, "yellow");
+      const P = [h, E(0, 0, 6, 5.6, 5.6, 5.6 - t, "white"), ...[-4, -1.3, 1.3, 4].map((x, i) => E(x, 2.4, 10.2 - t * 0.8 + (i % 2) * 0.8, 1.2, 1.2, 1.4, "white")),
+        E(0, 5, 10.4 + t * 1.5, 1.4, 1.4, 0.9, "orange")];
+      if (t >= 1) P.push(...mirror([E(4.6, 0, 9 + t, 1, 2, 2.4, "yellow")]), ...mirror(chain([2, 0, 1.6], [2.4, 1.6, 0.4], 0.5, 0.5, 3, "orange")));
+      if (t >= 2) P.push(...chain([0, 0, 15.5], [0, -2, 20], 1.1, 0.3, 5, "red", [0, 2, 18]), ...wingPair(5, -1, 11, 2.6, 3, "yellow"));
+      return { parts: P, faces: [...eyes(h, "big", 0.42, 0.2)] };
+    } },
   ],
+
+  /* ---------------- テック(IT・半導体) ---------------- */
   tech: [
-    { name: "ピクセロ", px: [ // ピクセルゴースト
-      "............",
-      "...bbbbbb...",
-      "..bbbbbbbb..",
-      ".bbebbbbebb.",
-      ".bbbbbbbbbb.",
-      ".bbbbbbbbbb.",
-      ".bb.bb.bb.b.",
-      "............",
-    ]},
-    { name: "チップむし", px: [ // チップ虫
-      "..o......o..",
-      "...o....o...",
-      "..ssssssss..",
-      ".sseesseess.",
-      "..ssssssss..",
-      ".b.bbbbbb.b.",
-      "b..b....b..b",
-      "............",
-    ]},
-    { name: "モニたん", px: [ // モニター頭
-      "..oooooooo..",
-      "..obbbbbbo..",
-      "..obebbebo..",
-      "..obbwwbbo..",
-      "..oooooooo..",
-      "....o..o....",
-      "...ssssss...",
-      "...o....o...",
-      "............",
-    ]},
+    { name: "チップガニ", build: (t) => { // ICチップの足のかに
+      const h = E(0, 0, 5, 7, 6, 2.6, "dark");
+      const P = [h, ...mirror([...[-3, 0, 3].map((y) => E(7.6, y, 3, 1.8, 0.5, 0.5, t >= 2 ? "gold" : "metal"))]),
+        ...[-3.5, 0, 3.5].map((x) => E(x, 6.6, 3, 0.5, 1.6, 0.5, t >= 2 ? "gold" : "metal")), E(0, 0, 7.4, 3, 3, 0.6, "body")];
+      if (t >= 1) P.push(...[-2.4, -0.8, 0.8, 2.4].map((x) => E(x, -1, 9.2, 0.5, 2.6, 1.8, "metal")));
+      if (t >= 2) P.push(S(0, 2, 8.4, 1.4, "glowpart"));
+      return { parts: P, faces: [{ kind: "eye", style: "glow", p: [-2.6, 4.6, 7] }, { kind: "eye", style: "glow", p: [2.6, 4.6, 7], mirror: true }], glow: "#22d3ee" };
+    } },
+    { name: "ドローンバチ", build: (t) => { // プロペラの蜂
+      const h = S(0, 3.6, 10, 3.6, "body");
+      const P = [E(0, -3, 9, 3.4, 4.2, 3.4, "yellow"), E(0, -3, 9, 3.5, 0.7, 3.5, "dark"), E(0, -5, 9, 3.2, 0.6, 3.2, "dark"), S(0, 0.8, 9.6, 3, "dark"), h,
+        ...chain([0, -7, 8], [0, -9, 6.5], 0.8, 0.2, 3, "dark"),
+        ...mirror([E(4.8, 2, 14.5, 3.4, 3.4, 0.4, "glass"), E(4.8, -3, 14.5, 3.4, 3.4, 0.4, "glass"), E(4.8, 2, 13, 0.4, 0.4, 1.6, "metal"), E(4.8, -3, 13, 0.4, 0.4, 1.6, "metal")])];
+      if (t >= 1) P.push(S(0, 5.6, 6.6, 1.4, "glass"), E(0, 4.4, 6.6, 1.6, 1.4, 1.4, "metal"));
+      if (t >= 2) P.push(...crown(13.8, 1.8));
+      return { parts: P, faces: [...eyes(h, "big", 0.45, 0.12), mouth(h, "line", -0.4)] };
+    } },
+    { name: "ドットおばけ", build: (t) => { // カクカクのドットおばけ
+      const P = [];
+      const block = (x, z, m = "body") => P.push(E(x, 0, z, 1.6, 2.4, 1.6, m));
+      for (let z = 0; z < 5; z++) for (let x = -2; x <= 2; x++) if (!(z === 4 && Math.abs(x) === 2)) block(x * 2.8, 5 + z * 2.8);
+      [-2, 0, 2].forEach((x) => block(x * 2.8, 2.2));
+      if (t >= 1) [[-3, 3], [3, 3]].forEach(([x, z]) => block(x * 2.8, 5 + z * 2.8, "accent"));
+      if (t >= 2) [-1, 0, 1].forEach((x) => block(x * 2.8, 5 + 5 * 2.8, "gold"));
+      return { parts: P, faces: [{ kind: "eye", style: "glow", p: [-2.8, 2.6, 13.4] }, { kind: "eye", style: "glow", p: [2.8, 2.6, 13.4], mirror: true }, { kind: "mouth", style: "zigzag", p: [0, 2.6, 8.4] }], glow: "#f0abfc" };
+    } },
+    { name: "ロボわん", build: (t) => { // ロボットの犬
+      const h = E(0, 4.5, 11, 4, 3.6, 3.6, "metal");
+      const P = [E(0, -1, 7.5, 4.2, 6.4, 3.6, "body"), h, E(0, 7.6, 10.2, 2.4, 1.6, 1.8, "metal"), S(0, 9.2, 10.8, 0.9, "dark"),
+        E(0, 7.4, 12, 3.8, 0.6, 1, "glowpart"), ...mirror([E(3, 3.6, 15, 1, 1.6, 2.6, "body")]),
+        ...legs2(2.6, 2.5, 1.4, 4), ...legs2(2.6, -4.5, 1.4, 4), ...chain([0, -7, 9], [0, -9, 14], 0.4, 0.4, 4, "metal"), S(0, -9, 14.6, 1.1, "glowpart")];
+      if (t >= 1) P.push(...mirror([E(3.2, -3, 11.5, 1.4, 2.4, 2.6, "metal"), S(3.2, -5.4, 11, 1.1, "glowpart")]));
+      if (t >= 2) P.push(E(0, -1, 10.4, 4.4, 5.6, 1.4, "gold"));
+      return { parts: P, faces: [], glow: "#22d3ee" };
+    } },
+    { name: "データフクロウ", build: (t) => { // 大きな目のふくろう
+      const h = S(0, 0.6, 13, 5.4, "body");
+      const P = [E(0, 0, 7.5, 5.4, 5, 6.4, "body"), E(0, 3.4, 7, 3.6, 2, 4.4, "belly"), h,
+        ...mirror([E(2.4, 5, 13.4, 2.4, 0.8, 2.4, "white")]), E(0, 5.8, 11.6, 0.9, 1, 1.4, "orange"),
+        ...mirror(chain([3.4, 0, 17], [4.6, -0.5, 20 + t], 1.1, 0.3, 3, "body")), ...wingPair(5, -1, 8, 1.8, 4, "accent", 1), ...feet2(2, 1, 1.6)];
+      if (t >= 1) P.push(E(0, 5.8, 14, 5.2, 0.5, 0.5, "dark"), ...mirror([E(2.4, 5.6, 13.4, 2.7, 0.3, 2.7, "glass")]));
+      if (t >= 2) P.push(E(0, 0.6, 18.4, 4.6, 4.6, 0.8, "dark"), E(0, 0.6, 19.2, 3.6, 3.6, 0.4, "dark"), ...chain([3, 0.6, 19.2], [4.4, 2, 16], 0.3, 0.3, 4, "gold"), S(4.4, 2, 15.6, 0.8, "gold"));
+      return { parts: P, faces: [{ kind: "eye", style: "big", p: [-2.4, 5.9, 13.4] }, { kind: "eye", style: "big", p: [2.4, 5.9, 13.4], mirror: true }] };
+    } },
   ],
+
+  /* ---------------- マネー(金融) ---------------- */
   money: [
-    { name: "まねきち", px: [ // 招き猫風
-      "..b......bb.",
-      ".bb......bb.",
-      ".bbbbbbbbbb.",
-      ".bbebbbbebb.",
-      ".bbbboobbbb.",
-      ".bbbbbbbbbb.",
-      "..bbyyyybb..",
-      "..bb.yy.bb..",
-      "..oo....oo..",
-    ]},
-    { name: "コバンがめ", px: [ // 小判ガメ
-      "............",
-      "...yyyyyy...",
-      "..yyyyyyyy..",
-      "..yyooooyy..",
-      "..yyyyyyyy..",
-      "...yyyyyy.ss",
-      "....o..o..se",
-      "..........s.",
-    ]},
-    { name: "がまぐっち", px: [ // がま口モンスター
-      "....o..o....",
-      "...oyyyyo...",
-      "..bbbbbbbb..",
-      ".bbbbbbbbbb.",
-      ".bbebbbbebb.",
-      ".bbbbbbbbbb.",
-      ".bbwwwwwwbb.",
-      "..bbbbbbbb..",
-      "...oo..oo...",
-    ]},
+    { name: "こばんネコ", build: (t) => { // 小判を抱いたまねきねこ風
+      const h = S(0, 1, 13, 5.2, "white");
+      const P = [E(0, 0, 6.5, 5.4, 4.6, 6, "white"), h, ...earsPointy(h, 3.2, "white", 0.6), ...mirror([E(3.6, 4, 16.6, 0.9, 0.3, 1.2, "pink")]),
+        ...chain([-5, 1.5, 9], [-6, 3, 15], 1.5, 1.6, 4, "white"), E(0, 4.6, 7.4, 3.4 + t * 0.6, 0.8, 4.4 + t * 0.6, "gold"), E(0, 1, 9.6, 5.2, 4.4, 0.8, "red")];
+      if (t >= 1) P.push(S(0, 5, 9.4, 1.2, "gold"));
+      if (t >= 2) P.push(...crown(18.4, 2.2));
+      return { parts: P, faces: [...eyes(h, "happy", 0.4, 0.15), mouth(h, "cat", -0.36)], blush: true };
+    } },
+    { name: "がまぐちガエル", build: (t) => { // がま口財布のかえる
+      const h = E(0, 0, 8, 7.4, 5.6, 6.4, "body");
+      const P = [h, E(0, 0, 13.8, 6.4, 1.2, 1, t >= 1 ? "gold" : "metal"), ...mirror([S(1.4, 0.4, 15.4, 1.2, "gold")]),
+        ...mirror([S(3.6, 1.6, 15, 2.2, "white")]), ...mirror([E(6, 2.4, 1.4, 2.6, 2.6, 1.2, "body")])];
+      if (t >= 1) P.push(...[-5, 5].map((x) => E(x, 4, 2, 1.8, 0.6, 1.8, "gold")));
+      if (t >= 2) P.push(...crown(18.4, 2.4));
+      return { parts: P, faces: [{ kind: "eye", style: "dot", p: [-3.6, 3.6, 15.4] }, { kind: "eye", style: "dot", p: [3.6, 3.6, 15.4], mirror: true }, mouth(h, "grin", -0.05)] };
+    } },
+    { name: "ツボまじん", build: (t) => { // つぼから出てくる魔人
+      const h = S(0, 1.5, 15.5, 4.4, "body");
+      const P = [E(0, 0, 5, 6, 6, 5, "wood"), E(0, 0, 9.6, 3.6, 3.6, 1.2, "wood"), E(0, 0, 4.6, 6.1, 6.1, 1, "accent"),
+        ...chain([0, 0, 10], [0, 1, 13], 3, 3.4, 3, "body"), h, ...mirror(chain([3.4, 1, 13], [5.5, 3, 17 + t], 1.2, 1, 4, "body"))];
+      if (t >= 1) P.push(E(0, 1.2, 19.2, 4.4, 4.2, 2.2, "white"), S(0, 5, 19.2, 1, "gem"));
+      if (t >= 2) P.push(...chain([0, 1, 21], [0, 0, 25], 1.2, 0.3, 4, "gold"), E(0, 0, 4.6, 6.2, 6.2, 1.1, "gold"));
+      return { parts: P, faces: [...eyes(h, "angry", 0.42, 0.2), mouth(h, "mustache", -0.3)] };
+    } },
+    { name: "ほうせきトカゲ", build: (t) => { // 背中に宝石のとかげ
+      const h = S(0, 6.5, 6, 3.4, "body");
+      const P = [E(0, 0, 4.4, 4.2, 7, 3.4, "body"), h, E(0, 9, 5.2, 2, 2, 1.6, "body"),
+        ...chain([0, -6, 3.6], [3, -13, 2], 2.2, 0.5, 7, "body", [0, -11, 2.4]),
+        ...legs2(3.6, 3, 1.3, 2.4), ...legs2(3.6, -3.5, 1.3, 2.4),
+        ...[2, -1, -4].slice(0, 1 + t).map((y) => E(0, y, 8, 1.2, 1.2, 2, "gem"))];
+      if (t >= 2) P.push(...crown(9.8, 1.8).map((p) => ({ ...p, c: [p.c[0], p.c[1] + 6.5, p.c[2]] })));
+      return { parts: P, faces: [...eyes(h, "slit", 0.55, 0.3), mouth({ c: [0, 9, 5.2], r: [2, 2, 1.6] }, "line", -0.2)], glow: "#fde047" };
+    } },
+    { name: "ぶたちょきん", build: (t) => { // 貯金箱のぶた
+      const h = E(0, 0, 7.5, 6.6, 7.6, 5.8, "pink");
+      const P = [h, E(0, 7.4, 8, 2.4, 1.2, 2, "pink"), ...mirror([S(0.8, 8.4, 8, 0.5, "dark")]), E(0, -1, 13.2, 2.6, 0.5, 0.4, "dark"),
+        ...mirror([E(3.6, 3.6, 12.8, 1.8, 1, 1.8, "pink")]), ...legs2(3.4, 3.5, 1.5, 2.6), ...legs2(3.4, -3.5, 1.5, 2.6)];
+      if (t >= 1) P.push(E(0, -1, 15, 2.2, 0.5, 2.2, "gold"));
+      if (t >= 2) P.push(...wingPair(6, -1, 10, 3, 3, "white"));
+      return { parts: P, faces: [{ kind: "eye", style: "dot", p: [-2.4, 6.2, 10.6] }, { kind: "eye", style: "dot", p: [2.4, 6.2, 10.6], mirror: true }, { kind: "mouth", style: "smile", p: [0, 7.8, 6] }], blush: true };
+    } },
   ],
+
+  /* ---------------- マーケット(小売・サービス) ---------------- */
   market: [
-    { name: "ちょうちん", px: [ // 提灯お化け
-      ".....oo.....",
-      "....o..o....",
-      "...bbbbbb...",
-      ".obbbbbbbbo.",
-      ".obbebbebbo.",
-      ".obbbwwbbbo.",
-      ".obbbbbbbbo.",
-      "..bbbbbbbb..",
-      "....oooo....",
-      "............",
-    ]},
-    { name: "はたペン", px: [ // 旗持ちペンギン
-      ".........ayy",
-      "....bbbb..y.",
-      "...bbbbbb.y.",
-      "...bebbeb.y.",
-      "...bsyysb.y.",
-      "..bbssssbb..",
-      "..bbssssbb..",
-      "...bssssb...",
-      "....y..y....",
-    ]},
-    { name: "カゴかに", px: [ // 買い物かごガニ
-      "............",
-      "...aaaaaa...",
-      "..aoaoaoaa..",
-      "..aaaaaaaa..",
-      ".bbbbbbbbbb.",
-      "bbebbbbbebbb",
-      "ob..b..b..bo",
-      "oo........oo",
-    ]},
+    { name: "ちょうちんオバケ", build: (t) => { // ひとつ目のちょうちん
+      const h = E(0, 0, 10, 5.6, 5.6, 7, "body");
+      const P = [h, ...[7, 10, 13].map((z) => E(0, 0, z, 5.8, 5.8, 0.4, "accent")), E(0, 0, 3.4, 3.6, 3.6, 1, "dark"), E(0, 0, 16.8, 3.6, 3.6, 1, "dark"),
+        ...chain([0, -1, 17.6], [0, -3, 21], 0.4, 0.4, 3, "dark")];
+      if (t >= 1) P.push(...mirror(chain([5, 0, 9], [7.5, 2, 11], 1, 0.8, 3, "body")));
+      if (t >= 2) P.push(S(0, 0, 0.4, 2.6, "glowpart"), ...crown(18.6, 2));
+      return { parts: P, faces: [{ kind: "eye", style: "cyclops", p: [0, 5.7, 11.4] }, mouth(h, "tongue", -0.5)] };
+    } },
+    { name: "はたペンギン", build: (t) => { // 旗を持つペンギン
+      const h = S(0, 0.8, 13, 4.2, "dark");
+      const P = [E(0, 0, 7.5, 5, 4.6, 6.4, "dark"), E(0, 2.6, 7, 3.6, 2.4, 5.2, "white"), h, E(0, 4.6, 12.2, 1.4, 1.6, 0.8, "orange"),
+        ...mirror([E(5, 0, 8, 1, 2, 3.6, "dark")]), ...feet2(2, 1.4, 1.8).map((p) => ({ ...p, mat: "orange" })),
+        E(6.2, 1, 12, 0.4, 0.4, 7.5, "wood"), E(8.6, 1, 17.2, 2.4, 0.3, 1.8, "accent")];
+      if (t >= 1) P.push(E(0, 0.8, 9.6, 4.8, 4.4, 1, "red"), E(-3, 3.4, 7.6, 1, 0.8, 2.6, "red"));
+      if (t >= 2) P.push(...crown(16.8, 2));
+      return { parts: P, faces: [...eyes(h, "dot", 0.4, 0.2)] };
+    } },
+    { name: "カゴヤドカリ", build: (t) => { // 買い物かごのやどかり
+      const P = [E(0, -2, 8.5, 6.4, 5.4, 5, "wood"), E(0, -2, 13.2, 6.6, 5.6, 0.8, "wood"), ...[-3, 0, 3].map((x) => E(x, 3.4, 8.5, 0.5, 0.4, 4.6, "dark")),
+        E(0, -2, 17, 5, 0.6, 0.6, "accent"), ...mirror([E(5, -2, 15, 0.6, 0.6, 2.4, "accent")]),
+        ...[[-2, -2, 14.4, "red"], [2, -3, 14.6, "yellow"], [0, -1, 15, "leaf"]].map(([x, y, z, m]) => S(x, y, z, 1.6, m)),
+        S(0, 4.6, 5, 3, "body"), ...mirror(chain([1.6, 5.6, 7], [2, 6.4, 10], 0.5, 0.5, 3, "body")), ...mirror([S(2, 6.4, 10.4, 1.3, "white")]),
+        ...mirror(chain([3.4, 6, 4], [6, 8.5, 5], 1.2, 1.4, 3, "body")), ...mirror([...chain([4, 2, 3], [6.5, 3, 0.5], 0.6, 0.5, 3, "body")])];
+      if (t >= 1) P.push(...mirror([S(6.4, 9, 5.4, 1.9, "body")]));
+      if (t >= 2) P.push(S(0, -2, 17.2, 2, "gold"), S(-3.5, -3, 15.6, 1.4, "gem"));
+      return { parts: P, faces: [{ kind: "eye", style: "dot", p: [-2, 7.6, 10.6] }, { kind: "eye", style: "dot", p: [2, 7.6, 10.6], mirror: true }, { kind: "mouth", style: "smile", p: [0, 7.4, 4.8] }] };
+    } },
+    { name: "ふうせんウサ", build: (t) => { // 風船を持ったうさぎ
+      const h = S(0, 1, 11.5, 4.6, "belly");
+      const P = [E(0, 0, 5.5, 4.6, 4.2, 5, "belly"), h, ...mirror(chain([1.8, 0, 15], [2.6, 0.5, 21], 1.3, 0.8, 5, "belly")), ...mirror([E(2.6, 1.2, 18, 0.5, 0.3, 2.4, "pink")]),
+        ...chain([4.4, 2, 7], [7, 2, 18], 0.25, 0.25, 6, "dark"), S(7, 2, 20.5, 3, "body"), ...feet2(2.4, 1, 1.8)];
+      if (t >= 1) P.push(...chain([5, 2, 7], [10, 0, 16], 0.25, 0.25, 5, "dark"), S(10.5, 0, 18.4, 2.6, "yellow"));
+      if (t >= 2) P.push(...chain([4, 2, 7], [4, -2, 21], 0.25, 0.25, 6, "dark"), S(4, -2, 23.6, 2.8, "accent"), ...crown(16.2, 1.8));
+      return { parts: P, faces: [...eyes(h, "dot", 0.4, 0.15), mouth(h, "cat", -0.36)], blush: true };
+    } },
+    { name: "レジまじん", build: (t) => { // レジの箱の魔人
+      const h = E(0, 0, 8.5, 7, 6, 6.6, t >= 2 ? "gold" : "metal");
+      const P = [h, E(0, -1, 16.5, 5, 3.6, 2.2, "accent"), E(0, 1.5, 17.6, 3.6, 0.6, 1, "dark"),
+        ...[[-3, 5.6, 12], [0, 5.6, 12], [3, 5.6, 12]].map(([x, y, z]) => S(x, y, z, 0.9, "accent")), ...feet2(3.6, 0, 2.2)];
+      if (t >= 1) P.push(...chain([0, 6.4, 5], [0, 9.5, 1], 1.2, 1, 4, "white"));
+      if (t >= 2) P.push(...mirror(chain([6.6, 0, 11], [9, 2, 15], 1.4, 1, 4, "body")), ...crown(19, 2.4));
+      return { parts: P, faces: [{ kind: "eye", style: "angry", p: [-2.6, 5.8, 9.6] }, { kind: "eye", style: "angry", p: [2.6, 5.8, 9.6], mirror: true }, { kind: "mouth", style: "zigzag", p: [0, 6, 5.6] }] };
+    } },
   ],
 };
-
-/* 銘柄→ドット絵グリッド(色配列)。姿はIDシードで固定 */
 
 export { CREATURE_LOOK, SPECIES_POOL };
