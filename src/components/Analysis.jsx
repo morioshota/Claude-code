@@ -224,7 +224,7 @@ function PriceChart({ stock, color, reload }) {
 }
 
 /* きりのいい目盛り(例: 1,000 / 1,200 / 1,400…)。表示範囲も目盛りに合わせて少し広げる */
-function niceTicks(lo, hi, want = 4) {
+export function niceTicks(lo, hi, want = 4) {
   if (!(hi > lo)) { const d = Math.abs(hi) * 0.02 || 1; lo -= d; hi += d; }
   const raw = (hi - lo) / want;
   const mag = Math.pow(10, Math.floor(Math.log10(raw)));

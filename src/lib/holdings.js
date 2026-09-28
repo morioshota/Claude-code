@@ -87,7 +87,8 @@ export const marginToStopLoss = (stock, quote) => {
 /* 通貨ごとの表示(為替換算はしない=事実のみ) */export const fmtMoney = (v, currency, signed = false) => {
   const sign = signed && v > 0 ? "+" : ""; // マイナスはtoLocaleStringが付ける
   if (currency === "JPY") return `${sign}${Math.round(v).toLocaleString("ja-JP")}円`;
-  return `${sign}$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  // マイナスは$の前に置く(以前は「$-91」になっていた)
+  return `${v < 0 ? "-" : sign}$${Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 };
 export const fmtPct = (pct) => `${pct > 0 ? "+" : ""}${pct.toFixed(1)}%`;
 

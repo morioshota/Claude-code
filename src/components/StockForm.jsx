@@ -4,6 +4,7 @@ import { useState } from "react";
 import { btnStyle, Overlay } from "./ui.jsx";
 import { TYPES, STATUSES } from "../data/constants.js";
 import { DEFAULT_STOP_LOSS_PCT, stopLossPctOf, stopLossPriceOf } from "../lib/holdings.js";
+import { SaleFields, TradeSummary } from "./Album.jsx";
 
 function StockForm({ initial, onSave, onCancel }) {
   const [f, setF] = useState(initial || {
@@ -82,6 +83,8 @@ function StockForm({ initial, onSave, onCancel }) {
                   onChange={(e) => { const v = parseFloat(e.target.value); set("avgPrice", Number.isFinite(v) ? v : null); }} />
               </div>
             </div>
+            <label style={{ ...label, marginTop: 10 }}>購入日（任意・売却後の振り返りで保有期間に使います）</label>
+            <input style={input} type="date" value={f.buyDate || ""} onChange={(e) => set("buyDate", e.target.value || "")} />
             <div style={{ fontSize: 10, color: "#5b6284", marginTop: 6, lineHeight: 1.6 }}>
               日本株は円・米国株はドルで入力。時価と含み損益は事実として表示されるだけで、売買判断の指標ではありません
             </div>
@@ -151,6 +154,15 @@ function StockForm({ initial, onSave, onCancel }) {
               空欄＝共通の初期値（{DEFAULT_STOP_LOSS_PCT}%）。マイナスは自動で付くので数字だけ入れてください。
               あなた自身が決めるルールで、アプリが売買を勧めるものではありません
             </div>
+          </div>
+        )}
+
+        {/* リリース済み: 売買の記録(実現損益の事実表示に使う)。新規にリリースする場合は卒業式で入力する */}
+        {f.status === "sold" && initial && initial.status === "sold" && (
+          <div style={{ background: "#10142a", border: "1px solid #262d4d", borderRadius: 10, padding: "4px 12px 12px", marginTop: 12 }}>
+            <label style={label}>売却の記録（任意）</label>
+            <SaleFields f={f} set={set} jp={/^[0-9]/.test(String(f.code || ""))} />
+            <div style={{ marginTop: 10 }}><TradeSummary stock={f} compact /></div>
           </div>
         )}
 

@@ -32,6 +32,14 @@ import { fetchHeldQuotes, stopLossStateOf, stopLossPctOf } from "./lib/holdings.
 import { calcLevel, stageOf, freshInfo, evalAchievements } from "./lib/stock.js";
 import { today, uid, daysSince } from "./lib/util.js";
 
+/* 売却の記録から空欄を落とす(保存データを汚さない) */
+const SALE_KEYS = ["buyDate", "soldAt", "avgPrice", "shares", "sellShares", "sellPrice", "sellReason"];
+const cleanSale = (sale) => {
+  const out = {};
+  SALE_KEYS.forEach((k) => { if (sale[k] !== undefined && sale[k] !== "" && sale[k] !== null) out[k] = sale[k]; });
+  return out;
+};
+
 export default function KabuDex() {
   const [stocks, setStocks] = useState(null);
   const [notesCache, setNotesCache] = useState({});
@@ -182,16 +190,26 @@ export default function KabuDex() {
   };
 
   /* 卒業式の確定: 学んだこと(lesson)と卒業日を保存してアルバム入り */
-  const confirmGraduation = (lesson) => {
+  const confirmGraduation = ({ lesson, ...sale }) => {
     const g = graduating;
     setGraduating(null);
     setSelectedId(null);
-    persist(stocks.map((s) => (s.id === g.id ? { ...s, status: "sold", soldAt: today(), lesson } : s)));
+    persist(stocks.map((s) => (s.id === g.id ? { ...s, ...cleanSale(sale), status: "sold", soldAt: sale.soldAt || today(), lesson } : s)));
     sfx("fanfare");
     burstConfetti(50);
     recordActivity().then(setActivity); // 振り返りも研究行動として草に記録
     setGetFlash({ icon: "🕊️", text: `${g.name} が卒業しました。おもいでは🎓アルバムに` });
     setTimeout(() => setGetFlash(null), 2600);
+  };
+
+  /* 売買の記録(アルバムから編集)。空欄はフィールドごと消す */
+  const saveTrade = (id, sale) => {
+    persist(stocks.map((s) => {
+      if (s.id !== id) return s;
+      const ns = { ...s, ...cleanSale(sale) };
+      Object.keys(sale).forEach((k) => { if (sale[k] === "" || sale[k] == null) delete ns[k]; });
+      return ns;
+    }));
   };
 
   const saveLesson = (id, text) => {
@@ -562,6 +580,10 @@ export default function KabuDex() {
         @keyframes kzGlint { 0%,100%{ transform: scale(.28) rotate(0deg); opacity:.35 } 50%{ transform: scale(1) rotate(45deg); opacity:1 } }
         @keyframes kzGlintGlow { 0%,100%{ transform: scale(.5) rotate(0deg); opacity:.18 } 50%{ transform: scale(1.55) rotate(45deg); opacity:.65 } }
 
+        /* ---- ガラス調のパネル(数値のまとめ等)。HD-2D試作と同じ質感 ---- */
+        .kzGlassPanel { border-radius: 12px; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015));
+          border: 1px solid rgba(255,255,255,.09); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 8px 24px rgba(0,0,0,.28);
+          backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
         /* ---- 株価チャートの器(ガラス調のパネル) ----
            ⚠ 横paddingを付けないこと。SVGはこの箱の clientWidth ちょうどで描く */
         .kzChartGlass { position: relative; border-radius: 12px; padding: 4px 0 0;
@@ -756,7 +778,7 @@ export default function KabuDex() {
 
         {view === "ranch" && <RanchView stocks={stocks} activity={activity} quotes={quotes} onSelect={openDetail} />}
         {view === "analysis" && <AnalysisView stocks={stocks} onSelect={openDetail} />}
-        {view === "album" && <AlbumView stocks={stocks} onSelect={openDetail} onSaveLesson={saveLesson} />}
+        {view === "album" && <AlbumView stocks={stocks} onSelect={openDetail} onSaveLesson={saveLesson} onSaveTrade={saveTrade} />}
 
         {view === "dex" && (<>
         {/* 操作列。副ボタンは4つなので2列×2行にすると必ず埋まる
@@ -842,7 +864,7 @@ export default function KabuDex() {
       {panel === "badges" && <BadgeModal stocks={stocks} onClose={() => setPanel(null)} />}
       {panel === "data" && <DataPortModal stocks={stocks} onExport={exportAll} onImport={importAll} onBackupDone={markBackupDone} onClose={() => setPanel(null)} />}
       {panel === "check" && <TriggerCheckModal due={due} onAnswer={answerTriggerCheck} onClose={() => setPanel(null)} />}
-      {graduating && <GraduationModal stock={graduating} onConfirm={confirmGraduation} onCancel={() => setGraduating(null)} />}
+      {graduating && <GraduationModal stock={graduating} quote={quotes[graduating.id]} onConfirm={confirmGraduation} onCancel={() => setGraduating(null)} />}
     </div>
   );
 }

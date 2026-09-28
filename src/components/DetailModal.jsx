@@ -1,6 +1,7 @@
 /* 銘柄詳細モーダル */
 
 import { useState, useEffect, useRef } from "react";
+import { TradeSummary } from "./Album.jsx";
 import { AnalysisPanel } from "./Analysis.jsx";
 import { NoteItem } from "./notes.jsx";
 import { Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay } from "./ui.jsx";
@@ -194,6 +195,13 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           )}
 
           {tab === "research" && (<>
+          {/* リリース済みなら売買の記録(事実)を先頭に */}
+          {stock.status === "sold" && (
+            <div style={{ marginBottom: 12 }}>
+              <TradeSummary stock={stock} />
+              <div style={{ fontSize: 10, color: "#5b6284", marginTop: 4 }}>編集は「✏️ カードを編集」か🎓アルバムから</div>
+            </div>
+          )}
           {/* ステータス */}
           <SectionFx rank={rank} color={t.color} style={section}>
             <div style={h}>STATUS ─ {stage.desc}</div>
