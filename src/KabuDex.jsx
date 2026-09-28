@@ -562,6 +562,16 @@ export default function KabuDex() {
         @keyframes kzGlint { 0%,100%{ transform: scale(.28) rotate(0deg); opacity:.35 } 50%{ transform: scale(1) rotate(45deg); opacity:1 } }
         @keyframes kzGlintGlow { 0%,100%{ transform: scale(.5) rotate(0deg); opacity:.18 } 50%{ transform: scale(1.55) rotate(45deg); opacity:.65 } }
 
+        /* ---- 株価チャートの器(ガラス調のパネル) ----
+           ⚠ 横paddingを付けないこと。SVGはこの箱の clientWidth ちょうどで描く */
+        .kzChartGlass { position: relative; border-radius: 12px; padding: 4px 0 0;
+          background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.01)),
+            radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--kzChartCol,#8b93b8) 12%, transparent), transparent 70%);
+          border: 1px solid rgba(255,255,255,.08);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 10px 30px rgba(0,0,0,.35); }
+        .kzChartPulse { transform-box: fill-box; transform-origin: center; animation: kzChartPulse 2.2s ease-out infinite; }
+        @keyframes kzChartPulse { 0%{ transform: scale(.6); opacity:.9 } 100%{ transform: scale(1.9); opacity:0 } }
+
         /* ---- 押し込めるボタン ----
            土台の影(kzBtnShadow)で浮かせ、押すと沈む。選択中(kzBtnOn)は沈んだ姿勢で固定し、
            内側に影を入れて「押し込まれている」と分かるようにする。

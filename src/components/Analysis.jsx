@@ -23,6 +23,20 @@ function PriceChart({ stock, color, reload }) {
   const [hover, setHover] = useState(null);
   const svgRef = useRef(null);
   const forcedRef = useRef(0); // 「更新」1回につき1度だけキャッシュを無視する
+  const boxRef = useRef(null);
+  const [boxW, setBoxW] = useState(340);
+
+  // 表示幅に合わせて実寸で描く(縮小表示だと文字が潰れるため)
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const measure = () => setBoxW(Math.floor(el.clientWidth));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [state]);
 
   useEffect(() => {
     let alive = true;
@@ -65,73 +79,160 @@ function PriceChart({ stock, color, reload }) {
     );
   }
 
+  /* ⚠ 以前は viewBox(600幅) を width:100% に縮めていたため、スマホでは文字が約5pxまで
+     潰れて読めなかった。いまは実際の表示幅(ResizeObserver)で、そのままのピクセル寸法で描く */
   const pts = data.points;
-  const W = 600, H = 150, PADL = 46, PADR = 8, PADT = 10, PADB = 20;
+  const W = Math.max(260, boxW), H = 210, PADL = 8, PADR = 58, PADT = 16, PADB = 26;
   const vals = pts.map((p) => p[1]);
-  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const lo0 = Math.min(...vals), hi0 = Math.max(...vals);
+  const iLo = vals.indexOf(lo0), iHi = vals.indexOf(hi0);
+  // 平均取得単価(保有時)。表示範囲の近くにあるときだけ範囲に含めて線を引く(遠いと線が潰れるため)
+  const avg = stock.status === "hold" && Number(stock.avgPrice) > 0 ? Number(stock.avgPrice) : null;
+  const span0 = hi0 - lo0 || hi0 * 0.02 || 1;
+  const showAvg = avg !== null && avg > lo0 - span0 * 0.35 && avg < hi0 + span0 * 0.35;
+  const lo1 = showAvg ? Math.min(lo0, avg) : lo0, hi1 = showAvg ? Math.max(hi0, avg) : hi0;
+  const { ticks, lo, hi } = niceTicks(lo1, hi1, 4);
   const span = hi - lo || 1;
-  const x = (i) => PADL + (i / (pts.length - 1)) * (W - PADL - PADR);
-  const y = (v) => PADT + (1 - (v - lo) / span) * (H - PADT - PADB);
+  const plotR = W - PADR, plotB = H - PADB;
+  const x = (i) => PADL + (i / Math.max(1, pts.length - 1)) * (plotR - PADL);
+  const y = (v) => PADT + (1 - (v - lo) / span) * (plotB - PADT);
   const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
-  const area = `${line} L${x(pts.length - 1).toFixed(1)},${H - PADB} L${x(0).toFixed(1)},${H - PADB} Z`;
-  const fmtAxis = (v) => (data.currency === "JPY"
-    ? Math.round(v).toLocaleString("ja-JP")
-    : v.toLocaleString("en-US", { maximumFractionDigits: 1 }));
-  const fmtVal = (v) => (data.currency === "JPY" ? `${Math.round(v).toLocaleString("ja-JP")}円` : `$${v.toFixed(2)}`);
-  const gridVals = [lo, lo + span / 2, hi];
+  const area = `${line} L${x(pts.length - 1).toFixed(1)},${plotB} L${x(0).toFixed(1)},${plotB} Z`;
+  const jpy = data.currency === "JPY";
+  const fmtAxis = (v) => (jpy ? Math.round(v).toLocaleString("ja-JP") : v.toLocaleString("en-US", { maximumFractionDigits: v < 10 ? 2 : 1 }));
+  const fmtVal = (v) => (jpy ? `${Math.round(v).toLocaleString("ja-JP")}円` : `$${v.toFixed(2)}`);
+  const long = range === "3y" || range === "5y";
+  const fmtDate = (d, full) => {
+    const [yy, mm, dd] = String(d).split("-");
+    if (full) return `${yy}/${Number(mm)}/${Number(dd)}`;
+    return long ? `${yy}/${Number(mm)}` : `${Number(mm)}/${Number(dd)}`;
+  };
+  const dateTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(f * (pts.length - 1)));
+  const last = pts[pts.length - 1];
 
   const onPointer = (e) => {
     const svg = svgRef.current;
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
-    const rel = ((e.clientX - rect.left) / rect.width) * W;
-    const i = Math.round(((rel - PADL) / (W - PADL - PADR)) * (pts.length - 1));
-    if (i >= 0 && i < pts.length) setHover(i);
+    const rel = e.clientX - rect.left;
+    const i = Math.round(((rel - PADL) / (plotR - PADL)) * (pts.length - 1));
+    setHover(Math.max(0, Math.min(pts.length - 1, i)));
   };
 
   const h = hover !== null ? pts[hover] : null;
+  const shown = h || last;
+  // なぞっている点の吹き出し。端では内側へ寄せる
+  const tipW = 118, hx = h ? x(hover) : 0;
+  const tipX = Math.max(PADL, Math.min(plotR - tipW, hx - tipW / 2));
+  const mono = "'DotGothic16', ui-monospace, monospace";
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-        <span style={{ fontFamily: "'DotGothic16', monospace", fontSize: 12, color: "#8b93b8", letterSpacing: 2 }}>
-          株価推移
-          {h && <span style={{ color: "#dfe4ff", marginLeft: 10, letterSpacing: 0 }}>{h[0]}　{fmtVal(h[1])}</span>}
-        </span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+        <div>
+          <div style={{ fontFamily: mono, fontSize: 11, color: "#8b93b8", letterSpacing: 2 }}>
+            株価推移 <span style={{ letterSpacing: 0, color: "#5b6284" }}>{h ? fmtDate(h[0], true) : `${fmtDate(last[0], true)} 時点`}</span>
+          </div>
+          <div style={{ fontFamily: mono, fontSize: 22, color: "#f2f4ff", lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>
+            {fmtVal(shown[1])}
+          </div>
+        </div>
         {rangeBar}
       </div>
-      <svg
-        ref={svgRef} viewBox={`0 0 ${W} ${H}`} width="100%" height={H}
-        style={{ display: "block", touchAction: "pan-y" }}
-        onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={() => setHover(null)}
-      >
-        <defs>
-          <linearGradient id={`kzChart-${stock.id}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.28" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {gridVals.map((v, k) => (
-          <g key={k}>
-            <line x1={PADL} y1={y(v)} x2={W - PADR} y2={y(v)} stroke="#262d4d" strokeWidth="1" strokeDasharray="3 4" />
-            <text x={PADL - 6} y={y(v) + 3.5} textAnchor="end" fontSize="9.5" fill="#5b6284">{fmtAxis(v)}</text>
-          </g>
-        ))}
-        <path d={area} fill={`url(#kzChart-${stock.id})`} />
-        <path d={line} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
-        {h && (
-          <g>
-            <line x1={x(hover)} y1={PADT} x2={x(hover)} y2={H - PADB} stroke="#8b93b8" strokeWidth="1" />
-            <circle cx={x(hover)} cy={y(h[1])} r="3" fill="#fff" stroke={color} strokeWidth="1.5" />
-          </g>
-        )}
-        <text x={PADL} y={H - 6} fontSize="9.5" fill="#5b6284">{pts[0][0]}</text>
-        <text x={W - PADR} y={H - 6} textAnchor="end" fontSize="9.5" fill="#5b6284">{pts[pts.length - 1][0]}</text>
-      </svg>
-      <div style={{ fontSize: 10, color: "#5b6284", marginTop: 2 }}>
-        {data.source}・終値ベース。グラフは事実の推移で、値上がり/値下がりの判定はしていません
+      <div ref={boxRef} className="kzChartGlass" style={{ "--kzChartCol": color }}>
+        <svg
+          ref={svgRef} width={W} height={H} viewBox={`0 0 ${W} ${H}`}
+          style={{ display: "block", touchAction: "pan-y", maxWidth: "100%" }}
+          onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={() => setHover(null)}
+        >
+          <defs>
+            <linearGradient id={`kzChart-${stock.id}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity="0.34" />
+              <stop offset="70%" stopColor={color} stopOpacity="0.06" />
+              <stop offset="100%" stopColor={color} stopOpacity="0" />
+            </linearGradient>
+            <filter id={`kzGlow-${stock.id}`} x="-5%" y="-20%" width="110%" height="140%">
+              <feGaussianBlur stdDeviation="3" />
+            </filter>
+          </defs>
+          {/* 横の目盛り(きりのいい値)。値は右側に出す */}
+          {ticks.map((v) => (
+            <g key={v}>
+              <line x1={PADL} y1={y(v)} x2={plotR} y2={y(v)} stroke="#ffffff" strokeOpacity="0.07" strokeWidth="1" />
+              {/* 最新値のラベルと重なる目盛りの数字は出さない */}
+              {Math.abs(y(v) - y(last[1])) > 18 && (
+                <text x={plotR + 8} y={y(v) + 4} fontSize="11" fill="#7c84a8" style={{ fontVariantNumeric: "tabular-nums" }}>{fmtAxis(v)}</text>
+              )}
+            </g>
+          ))}
+          {/* 縦の目盛り(日付) */}
+          {dateTicks.map((i, k) => (
+            <g key={k}>
+              <line x1={x(i)} y1={PADT} x2={x(i)} y2={plotB} stroke="#ffffff" strokeOpacity="0.04" strokeWidth="1" />
+              <text x={x(i)} y={H - 8} fontSize="11" fill="#7c84a8"
+                textAnchor={k === 0 ? "start" : k === dateTicks.length - 1 ? "end" : "middle"}>{fmtDate(pts[i][0])}</text>
+            </g>
+          ))}
+          {/* 平均取得単価(自分の記録=事実)。判定はせず、線と数値を置くだけ */}
+          {showAvg && (
+            <g>
+              <line x1={PADL} y1={y(avg)} x2={plotR} y2={y(avg)} stroke="#c7cdec" strokeOpacity="0.55" strokeWidth="1" strokeDasharray="5 4" />
+            </g>
+          )}
+          <path d={area} fill={`url(#kzChart-${stock.id})`} />
+          {/* 線の下に同じ色のにじみを敷いて発光して見せる(単一色のまま) */}
+          <path d={line} fill="none" stroke={color} strokeWidth="4" strokeOpacity="0.45" filter={`url(#kzGlow-${stock.id})`} />
+          <path d={line} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+          {/* 期間の最高値・最安値(事実)。色は同じで、上下の区別は位置だけ */}
+          {[[iHi, hi0, "高"], [iLo, lo0, "安"]].map(([i, v, lb]) => (
+            <g key={lb}>
+              <circle cx={x(i)} cy={y(v)} r="3" fill="#0e1122" stroke="#dfe4ff" strokeWidth="1.3" />
+              <text x={Math.max(PADL + 30, Math.min(plotR - 30, x(i)))} y={lb === "高" ? y(v) - 8 : y(v) + 16}
+                textAnchor="middle" fontSize="10.5" fill="#dfe4ff"
+                stroke="#0e1122" strokeWidth="3" strokeLinejoin="round" style={{ paintOrder: "stroke" }}>{lb} {fmtAxis(v)}</text>
+            </g>
+          ))}
+          {/* 平均取得単価のラベルは線より手前に置く(折れ線が文字を横切って読めなくなるため) */}
+          {showAvg && (
+            <text x={PADL + 4} y={y(avg) - 5} fontSize="10.5" fill="#c7cdec"
+              stroke="#0e1122" strokeWidth="3.5" strokeLinejoin="round" style={{ paintOrder: "stroke" }}>平均取得単価 {fmtAxis(avg)}</text>
+          )}
+          {/* 最新値: 右端のラベル */}
+          <circle cx={x(pts.length - 1)} cy={y(last[1])} r="4" fill={color} />
+          <circle cx={x(pts.length - 1)} cy={y(last[1])} r="8" fill={color} fillOpacity="0.22" className="kzChartPulse" />
+          <rect x={plotR + 3} y={y(last[1]) - 10} width={PADR - 5} height="20" rx="5" fill={color} />
+          <text x={plotR + 3 + (PADR - 5) / 2} y={y(last[1]) + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="#0b0e1d">
+            {fmtAxis(last[1])}
+          </text>
+          {h && (
+            <g pointerEvents="none">
+              <line x1={hx} y1={PADT} x2={hx} y2={plotB} stroke="#dfe4ff" strokeOpacity="0.5" strokeWidth="1" strokeDasharray="3 3" />
+              <line x1={PADL} y1={y(h[1])} x2={plotR} y2={y(h[1])} stroke="#dfe4ff" strokeOpacity="0.25" strokeWidth="1" strokeDasharray="3 3" />
+              <circle cx={hx} cy={y(h[1])} r="5" fill="#fff" stroke={color} strokeWidth="2" />
+              <rect x={tipX} y={2} width={tipW} height="34" rx="8" fill="#0b0e1d" fillOpacity="0.9" stroke={color} strokeOpacity="0.6" />
+              <text x={tipX + tipW / 2} y={15} textAnchor="middle" fontSize="10.5" fill="#8b93b8">{fmtDate(h[0], true)}</text>
+              <text x={tipX + tipW / 2} y={30} textAnchor="middle" fontSize="12.5" fontWeight="700" fill="#f2f4ff">{fmtVal(h[1])}</text>
+            </g>
+          )}
+        </svg>
+      </div>
+      <div style={{ fontSize: 10, color: "#5b6284", marginTop: 4, lineHeight: 1.6 }}>
+        {data.source}・終値ベース。なぞると日付と終値が出ます。
+        グラフは事実の推移で、値上がり/値下がりの判定はしていません
       </div>
     </div>
   );
+}
+
+/* きりのいい目盛り(例: 1,000 / 1,200 / 1,400…)。表示範囲も目盛りに合わせて少し広げる */
+function niceTicks(lo, hi, want = 4) {
+  if (!(hi > lo)) { const d = Math.abs(hi) * 0.02 || 1; lo -= d; hi += d; }
+  const raw = (hi - lo) / want;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) || 10 * mag;
+  const a = Math.floor(lo / step) * step, b = Math.ceil(hi / step) * step;
+  const ticks = [];
+  for (let v = a; v <= b + step / 2; v += step) ticks.push(Number(v.toFixed(6)));
+  return { ticks, lo: a, hi: b };
 }
 
 /* ---- 指標カード ---- */
