@@ -21,6 +21,7 @@ import {
 import { upcomingEvents } from "../lib/events.js";
 import { streaks } from "../lib/activity.js";
 import { dueForCheck } from "./TriggerCheck.jsx";
+import { renderBuilding } from "./buildArt.js";
 import { createCinema, drawCallouts, cinemaSaved, saveCinema } from "./ranchCinema.js";
 
 /* ---- 実時間の演出パラメータ ---- */
@@ -105,11 +106,12 @@ const boostOf = (pnl) => {
 /* ---- 研究所の描画(高精細)。ステージで形・boostで大きさが変わる ---- */
 
 const BUILD_DIMS = [null,
-  { hw: 18, wall: 8,  roof: 16 },  // ST1 テント
-  { hw: 22, wall: 16, roof: 14 },  // ST2 小屋
-  { hw: 26, wall: 20, roof: 16 },  // ST3 ラボ
-  { hw: 28, wall: 26, roof: 14 },  // ST4 御殿
-  { hw: 32, wall: 30, roof: 16 },  // ST5 大御殿(両翼+三本旗)
+  // hw は敷地の広さを決めるための目安(見た目は buildArt.js が3Dから描く)
+  { hw: 24, wall: 8,  roof: 16 },  // ST1 テント
+  { hw: 32, wall: 16, roof: 14 },  // ST2 小屋
+  { hw: 40, wall: 20, roof: 16 },  // ST3 ラボ(別館つき)
+  { hw: 42, wall: 26, roof: 14 },  // ST4 御殿
+  { hw: 50, wall: 30, roof: 16 },  // ST5 大御殿(塔2本+金のドーム)
 ];
 
 const scaledDims = (stage, f) => {
@@ -128,6 +130,27 @@ const plotSizeOf = (stage, f) => {
 };
 
 function buildingCanvas(stock, phase, season, f, condition = "normal") {
+  /* 2026-09: 3Dの立体から描く新方式(buildArt.js)。型崩れしない・陰影と影つき */
+  const stage0 = stageOf(calcLevel(stock)).no;
+  const t0 = TYPES[stock.type] || TYPES.metal;
+  const r = renderBuilding({ stage: stage0, accentHex: t0.color, phase, season, f, condition, code: stock.code || stock.id });
+  if (stock.shiny) { // 色違い持ちの研究所は✨つき
+    const g = r.g;
+    const sp = (x, y) => {
+      g.fillStyle = "#ffffff"; g.fillRect(x, y, 2, 2);
+      g.fillStyle = "#ffd166";
+      g.fillRect(x - 1, y, 1, 2); g.fillRect(x + 2, y, 1, 2);
+      g.fillRect(x, y - 1, 2, 1); g.fillRect(x, y + 2, 2, 1);
+    };
+    sp(r.anchorX + Math.round(r.hw * 0.5), r.topY + 6);
+    sp(r.anchorX - Math.round(r.hw * 0.6), r.topY + Math.round((r.anchorY - r.topY) * 0.45));
+  }
+  return { cv: r.cv, anchorX: r.anchorX, anchorY: r.anchorY, topY: r.topY, fireY: r.fireY, hw: r.hw };
+}
+
+/* 旧方式(手描きピクセル)。比較用に残す——使っていない */
+// eslint-disable-next-line no-unused-vars
+function buildingCanvasLegacy(stock, phase, season, f, condition = "normal") {
   const stage = stageOf(calcLevel(stock)).no;
   const { hw, wall, roof } = scaledDims(stage, f);
   const t = TYPES[stock.type] || TYPES.metal;
@@ -865,6 +888,12 @@ function RanchKairo({ stocks, quotes, onSelect }) {
     /* ---- ビューポート ---- */
     let cw = 0, chh = 0, dpr = 1;
     const pan = { x: worldW / 2 - TW * 2, y: oy + (Math.min(j0, N) * TH) / 2 };
+    // 最初の視点は研究所たちの真ん中に合わせる(以前は空の芝生が画面の大半を占めていた)
+    if (plots.size > 0) {
+      let sx = 0, sy = 0;
+      plots.forEach((p) => { const ci = p.i0 + p.footTiles / 2, cj = p.j0 + p.footTiles / 2; sx += ox + isoX(ci, cj); sy += oy + isoY(ci, cj) - 30; });
+      pan.x = sx / plots.size; pan.y = sy / plots.size;
+    }
     const clampPan = () => {
       const z = zoomRef.current;
       pan.x = Math.max(cw / (2 * z) - 60, Math.min(worldW - cw / (2 * z) + 60, pan.x));
@@ -1036,7 +1065,7 @@ function RanchKairo({ stocks, quotes, onSelect }) {
         const b = buildingFor(s, phase);
         const anchorI = p.i0 + p.footTiles / 2 + 0.3, anchorJ = p.j0 + p.footTiles / 2 + 0.3;
         sprites.push({
-          depth: anchorI + anchorJ, cv: b.cv, ax: b.anchorX, ay: b.anchorY, topY: b.topY,
+          depth: anchorI + anchorJ, cv: b.cv, ax: b.anchorX, ay: b.anchorY, topY: b.topY, fireY: b.fireY ?? b.topY,
           wi: anchorI, wj: anchorJ, kind: "bld", id: s.id,
           burning: !reduced && condOf(s) === "burning", hw: b.hw,
           seed: (hashStr(String(s.code || s.id)) % 100) / 16,
@@ -1102,7 +1131,7 @@ function RanchKairo({ stocks, quotes, onSelect }) {
             }
             // にげるライン超過の家は燃えている(炎と煙は毎フレーム描く)
             if (sp.burning) {
-              const roofTop = scr.y - (sp.ay - sp.topY) * z;
+              const roofTop = scr.y - (sp.ay - sp.fireY) * z;
               drawFire(ctx, scr.x, roofTop + 6 * z, sp.hw * 1.7 * z, z, now, sp.seed);
               burning.push({ x: scr.x, y: roofTop, z });
             }
