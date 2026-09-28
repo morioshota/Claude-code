@@ -79,8 +79,38 @@ const octCone = (cx, cy, r, z0, h, mat, extra = {}) => {
   return { planes: P, aabb: [cx - r, cy - r, z0, cx + r, cy + r, z0 + h], mat, roof: { cone: true }, round: { cx, cy }, ...extra };
 };
 
+/* 丸い塊(葉のかたまり等)。26方向の平面で球を近似した多面体 */
+const BALL_DIRS = (() => {
+  const out = [];
+  for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) {
+    if (x || y || z) out.push(norm([x, y, z]));
+  }
+  return out;
+})();
+export const ball = (cx, cy, cz, r, mat, extra = {}) => ({
+  planes: BALL_DIRS.map((d) => plane(d, r + d[0] * cx + d[1] * cy + d[2] * cz)),
+  aabb: [cx - r, cy - r, cz - r, cx + r, cy + r, cz + r], mat, blob: { cx, cy, cz, r }, ...extra,
+});
+/* 本物の球(輪郭がなめらか)。葉の塊に使う。平面の多面体だと角ばって箱に見えた */
+export const sphere = (cx, cy, cz, r, mat, extra = {}) => ({
+  sphere: { c: [cx, cy, cz], r }, planes: [],
+  aabb: [cx - r, cy - r, cz - r, cx + r, cy + r, cz + r], mat, blob: { cx, cy, cz, r }, ...extra,
+});
+
 /* 視線と凸多面体の交差。戻り値 {t, n}(tが大きいほど手前) */
 const hitConvex = (prim, p0, v, tMinLimit = -1e9) => {
+  if (prim.sphere) { // 球は解析的に解く(手前側=大きいほうの解)
+    const c = prim.sphere.c, r = prim.sphere.r;
+    const oc = [p0[0] - c[0], p0[1] - c[1], p0[2] - c[2]];
+    const a = dot(v, v), b = 2 * dot(oc, v), cc = dot(oc, oc) - r * r;
+    const disc = b * b - 4 * a * cc;
+    if (disc < 0) return null;
+    const sq = Math.sqrt(disc);
+    const t1 = (-b - sq) / (2 * a), t2 = (-b + sq) / (2 * a);
+    if (t2 < tMinLimit) return null;
+    const p = [p0[0] + v[0] * t2, p0[1] + v[1] * t2, p0[2] + v[2] * t2];
+    return { t: t2, n: [(p[0] - c[0]) / r, (p[1] - c[1]) / r, (p[2] - c[2]) / r], tmin: t1 };
+  }
   let tmin = -1e9, tmax = 1e9, nOut = null;
   for (const pl of prim.planes) {
     const den = dot(pl.n, v), num = pl.d - dot(pl.n, p0);
@@ -238,6 +268,21 @@ function baseColor(prim, p, n, env) {
       return mul(WOOD, 0.8);
     }
     case "lamp": return env.lit ? GLASS_NIGHT : hex("#e8d9a8");
+    case "leaf": { // 葉: 小さな房ごとに明暗をつけ、光の側にハイライト
+      const cell = h2(Math.floor(p[0] / 2.3) + Math.floor(p[2] / 2.3) * 7, Math.floor(p[1] / 2.3));
+      let c = mix(env.leafD, env.leaf, 0.35 + 0.65 * cell);
+      const lit2 = dot(n, LIGHT);
+      if (cell > 0.78 && lit2 > 0.45) c = env.leafHi;
+      else if (lit2 < 0.05) c = mix(c, env.leafD, 0.5); // 光の裏側は深い緑
+      if (env.snow && n[2] > 0.55 && cell > 0.25) c = mix(c, SNOW, 0.8);
+      if (env.blossom && h2(Math.floor(p[0] * 1.1), Math.floor(p[2] * 1.1 + p[1])) > 0.9) c = hex("#fff1f6");
+      return c;
+    }
+    case "bark": return mul(env.bark, Math.floor(p[2] / 1.6) % 2 ? 0.86 : 1);
+    case "fence": { // 柵の木: 木目の筋と節
+      const grain = h2(Math.floor((p[0] + p[1]) * 1.5), Math.floor(p[2] * 0.7)) > 0.8;
+      return mul(hex("#a8784a"), grain ? 0.8 : 0.96 + 0.08 * h2(Math.floor(p[2]), 3));
+    }
     default: return hex("#ff00ff");
   }
 }
@@ -393,34 +438,10 @@ function design(stage, S, rng) {
   return { prims: P, top };
 }
 
-/* ---------- 描画 ---------- */
-export function renderBuilding({ stage, accentHex, phase, season, f = 1, condition = "normal", code = "" }) {
-  const S = 1.45 * f; // ⚠ 全体の大きさ。模様の細かさは据え置きなので大きいほど描き込みが増える
-  const rng = mulberry32(hashStr(String(code) + ":bld"));
-  const { prims, top } = design(stage, S, rng);
-  const damaged = condition !== "normal";
-  const lit = phase !== "day";
-  const dmg = mulberry32(hashStr(String(code) + ":dmg"));
-
-  // 屋根にいたみ(穴・当て木)を仕込む。位置は証券コードで決まる=見るたびに同じ
-  if (damaged) {
-    prims.filter((p) => p.mat === "roof" || p.mat === "cloth").forEach((p) => {
-      const a = p.aabb;
-      const spanA = (p.roof && p.roof.axis === "y") ? [a[1], a[4]] : [a[0], a[3]];
-      const zs = [a[2] + (a[5] - a[2]) * 0.25, a[2] + (a[5] - a[2]) * 0.65];
-      p.holes = Array.from({ length: stage >= 3 ? 2 : 1 }, () => ({
-        a: spanA[0] + (spanA[1] - spanA[0]) * (0.2 + dmg() * 0.6), s: zs[0] + (zs[1] - zs[0]) * dmg(), r: 1.4 + dmg() * 1.2,
-      }));
-      p.patches = Array.from({ length: 2 }, () => ({ a: spanA[0] + (spanA[1] - spanA[0]) * (0.15 + dmg() * 0.7), s: zs[0] + (zs[1] - zs[0]) * dmg(), w: 2.2 + dmg() * 1.6 }));
-    });
-  }
-
-  const faded = (h, f2) => (damaged ? mix(hex(h), hex("#6f6657"), f2) : hex(h));
-  const env = {
-    roof: faded(accentHex, 0.55), accent: faded(accentHex, 0.35), wood: faded("#caa672", 0.45), plaster: faded("#efe2c4", 0.5),
-    stone: faded("#b9b1a2", 0.35), lit, boarded: damaged, damaged, snow: season && season.key === "winter",
-  };
-
+/* ---------- 共通の描画エンジン ----------
+   立体の配列を、1pxずつ視線を飛ばしてドット絵にする。建物・木・柵で共用。
+   戻り値の ox,oy は「ワールド原点(0,0,0)がキャンバスのどこに来るか」 */
+export function rasterize(prims, env, { top = 20, groundShadow = true } = {}) {
   // 画面上の範囲(各立体のAABBの角を投影)
   let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
   prims.forEach((p) => {
@@ -454,6 +475,7 @@ export function renderBuilding({ stage, accentHex, phase, season, f = 1, conditi
 
   const shadowed = (pt, selfIdx) => {
     for (let i = 0; i < prims.length; i++) {
+      if (!shadowReach(prims[i], pt)) continue;
       const h = hitConvex(prims[i], pt, LIGHT, 0.05);
       if (h && h.t > 0.05) return true;
     }
@@ -474,7 +496,7 @@ export function renderBuilding({ stage, accentHex, phase, season, f = 1, conditi
       const k = py * Wd + px;
       if (!best) {
         // 地面(z=0)に落ちる影
-        if (shadowed(p0, -1)) shadowMask[k] = 1;
+        if (groundShadow && shadowed(p0, -1)) shadowMask[k] = 1;
         continue;
       }
       const pt = [p0[0] + best.t, p0[1] + best.t, best.t];
@@ -491,8 +513,8 @@ export function renderBuilding({ stage, accentHex, phase, season, f = 1, conditi
         if (hit !== undefined && pt[2] >= d0.v0 && pt[2] <= d0.v1) {
           const top2 = d0.v1 - 0.8;
           const inner = Math.abs(a - hit) < 0.13 && pt[2] < top2 && pt[2] > d0.v0 + 0.7;
-          c = inner ? (lit && !damaged ? GLASS_NIGHT : damaged ? hex("#3a3228") : GLASS_DAY) : WOOD_D;
-          if (inner && lit && !damaged) env._lit = true;
+          c = inner ? (env.lit && !env.damaged ? GLASS_NIGHT : env.damaged ? hex("#3a3228") : GLASS_DAY) : WOOD_D;
+          if (inner && env.lit && !env.damaged) env._lit = true;
         } else c = baseColor({ ...prim, decals: null, towerWin: false }, pt, n, env);
       }
       // 陰影: 環境光+光の向き。影の中は環境光だけ
@@ -507,7 +529,7 @@ export function renderBuilding({ stage, accentHex, phase, season, f = 1, conditi
   }
 
   // 夜: 窓のあかりが周りの壁をほんのり照らす
-  if (lit && !damaged) {
+  if (env.lit && !env.damaged) {
     const add = new Float32Array(N);
     for (let py = 0; py < Hd; py++) for (let px = 0; px < Wd; px++) {
       if (!glowMask[py * Wd + px]) continue;
@@ -553,6 +575,53 @@ export function renderBuilding({ stage, accentHex, phase, season, f = 1, conditi
   }
   g.putImageData(img, 0, 0);
 
+  return { cv, g, ox, oy, id, Wd, Hd, minX, maxX, minY, maxY };
+}
+
+/* 影レイが立体のAABBに届きうるかの早見(届かない立体は交差計算を省く)。
+   柵のように立体が多く、画面の大半が地面の場面で効く */
+const shadowReach = (prim, pt) => {
+  const a = prim.aabb;
+  if (a[5] <= pt[2]) return false;
+  const t0 = Math.max(0, (a[2] - pt[2]) / LIGHT[2]), t1 = (a[5] - pt[2]) / LIGHT[2];
+  const xa = pt[0] + LIGHT[0] * t0, xb = pt[0] + LIGHT[0] * t1;
+  if (Math.max(xa, xb) < a[0] || Math.min(xa, xb) > a[3]) return false;
+  const ya = pt[1] + LIGHT[1] * t0, yb = pt[1] + LIGHT[1] * t1;
+  if (Math.max(ya, yb) < a[1] || Math.min(ya, yb) > a[4]) return false;
+  return true;
+};
+
+/* ---------- 建物 ---------- */
+export function renderBuilding({ stage, accentHex, phase, season, f = 1, condition = "normal", code = "" }) {
+  const S = 1.45 * f; // ⚠ 全体の大きさ。模様の細かさは据え置きなので大きいほど描き込みが増える
+  const rng = mulberry32(hashStr(String(code) + ":bld"));
+  const { prims, top } = design(stage, S, rng);
+  const damaged = condition !== "normal";
+  const lit = phase !== "day";
+  const dmg = mulberry32(hashStr(String(code) + ":dmg"));
+
+  // 屋根にいたみ(穴・当て木)を仕込む。位置は証券コードで決まる=見るたびに同じ
+  if (damaged) {
+    prims.filter((p) => p.mat === "roof" || p.mat === "cloth").forEach((p) => {
+      const a = p.aabb;
+      const spanA = (p.roof && p.roof.axis === "y") ? [a[1], a[4]] : [a[0], a[3]];
+      const zs = [a[2] + (a[5] - a[2]) * 0.25, a[2] + (a[5] - a[2]) * 0.65];
+      p.holes = Array.from({ length: stage >= 3 ? 2 : 1 }, () => ({
+        a: spanA[0] + (spanA[1] - spanA[0]) * (0.2 + dmg() * 0.6), s: zs[0] + (zs[1] - zs[0]) * dmg(), r: 1.4 + dmg() * 1.2,
+      }));
+      p.patches = Array.from({ length: 2 }, () => ({ a: spanA[0] + (spanA[1] - spanA[0]) * (0.15 + dmg() * 0.7), s: zs[0] + (zs[1] - zs[0]) * dmg(), w: 2.2 + dmg() * 1.6 }));
+    });
+  }
+
+  const faded = (h, f2) => (damaged ? mix(hex(h), hex("#6f6657"), f2) : hex(h));
+  const env = {
+    roof: faded(accentHex, 0.55), accent: faded(accentHex, 0.35), wood: faded("#caa672", 0.45), plaster: faded("#efe2c4", 0.5),
+    stone: faded("#b9b1a2", 0.35), lit, boarded: damaged, damaged, snow: season && season.key === "winter",
+  };
+
+  const R = rasterize(prims, env, { top });
+  const { cv, g, ox, oy, id, Wd, Hd, minX, maxX } = R;
+
   // 足もとの雑草(ボロ家)。2Dで足す
   if (damaged) {
     const foot = prims[0].aabb;
@@ -577,4 +646,92 @@ export function renderBuilding({ stage, accentHex, phase, season, f = 1, conditi
   // 半幅(炎・あかりの広がり用)
   const hw = Math.round((maxX - minX) / 2 * 0.7);
   return { cv, anchorX: ax, anchorY: ay, topY, fireY, hw, g };
+}
+
+
+/* ---------- 木(研究所と同じ3D方式) ----------
+   kind: round=広葉樹(葉の塊を3〜5個) / pine=針葉樹(円すいを3段) / bush=低木
+   見た目の揺らぎは variant(整数)で決まる=何度描いても同じ */
+const treeCache = new Map();
+export function renderTree(season, kind, variant, big = false) {
+  const key = `${season.key}:${kind}:${variant}:${big ? 1 : 0}`;
+  if (treeCache.has(key)) return treeCache.get(key);
+  const rng = mulberry32(hashStr(key));
+  const S = big ? 1.35 : 1;
+  const P = [];
+  const leaf = hex(kind === "pine" ? (season.key === "autumn" ? "#3f6b3a" : season.key === "spring" ? "#3f7a45" : season.leaf) : season.leaf);
+  const env = {
+    leaf, leafD: mul(leaf, 0.62), leafHi: hex(kind === "pine" ? "#7fae6a" : season.leafHi), bark: hex(season.trunk),
+    snow: season.key === "winter", blossom: season.key === "spring" && kind === "round", stone: hex("#b9b1a2"),
+  };
+  let top = 0;
+  if (kind === "pine") {
+    P.push(octPrism(0, 0, 1.4 * S, 0, 7 * S, "bark"));
+    const tiers = 3 + (variant % 2);
+    for (let k = 0; k < tiers; k++) {
+      const r = (8.5 - k * 1.9) * S, z0 = (5 + k * 6) * S;
+      P.push(octCone(0, 0, r, z0, 9 * S, "leaf"));
+      top = z0 + 9 * S;
+    }
+  } else if (kind === "bush") {
+    const n = 2 + (variant % 2);
+    for (let k = 0; k < n + 2; k++) P.push(sphere((rng() - 0.5) * 7 * S, (rng() - 0.5) * 7 * S, (3.8 + rng() * 2) * S, (3.4 + rng() * 1.6) * S, "leaf"));
+    top = 11 * S;
+  } else {
+    const trunkH = (9 + rng() * 3) * S;
+    P.push(octPrism(0, 0, 1.6 * S, 0, trunkH + 2, "bark"));
+    P.push(box(0, -0.6, trunkH - 3 * S, 4 * S, 0.6, trunkH - 1.8 * S, "bark")); // 枝
+    // 真ん中の大きな塊+まわりの小さな塊(もこもこの輪郭)
+    P.push(sphere(0, 0, trunkH + 6 * S, 7 * S, "leaf"));
+    const blobs = 6 + (variant % 3);
+    for (let k = 0; k < blobs; k++) {
+      const a = (k / blobs) * Math.PI * 2 + rng() * 0.6;
+      const rr = (5 + rng() * 1.6) * S;
+      const r = (3.6 + rng() * 1.4) * S;
+      const cz = trunkH + (3.5 + rng() * 5) * S;
+      P.push(sphere(Math.cos(a) * rr, Math.sin(a) * rr, cz, r, "leaf"));
+      top = Math.max(top, cz + r);
+    }
+    P.push(sphere((rng() - 0.5) * 3 * S, (rng() - 0.5) * 3 * S, trunkH + 11 * S, 4.2 * S, "leaf"));
+    top = Math.max(top, trunkH + 15.2 * S);
+  }
+  const R = rasterize(P, env, { top: top * 0.6, groundShadow: true });
+  const out = { cv: R.cv, anchorX: Math.round(R.ox), anchorY: Math.round(R.oy) };
+  treeCache.set(key, out);
+  return out;
+}
+
+/* ---------- 柵 ----------
+   一辺 L=size×24(1タイル=24ワールド単位)の四角い囲い。手前左の辺(y=L)の gateX にゲート。
+   ポスト(頭にとんがりの笠)+2段の横木。ゲートの両脇は太い門柱に玉飾り */
+export function renderFence(sizeTiles, gateTile) {
+  const L = sizeTiles * 24;
+  const P = [];
+  const post = (x, y, tall = false) => {
+    const w = tall ? 1.8 : 1.3, h = tall ? 14 : 11;
+    P.push(box(x - w, y - w, 0, x + w, y + w, h, "fence"));
+    if (tall) P.push(ball(x, y, h + 1.6, 1.9, "fence"));
+    else P.push(hip(x - w - 0.4, y - w - 0.4, x + w + 0.4, y + w + 0.4, h, 1.1, "fence"));
+  };
+  const gx = gateTile === null || gateTile === undefined ? null : gateTile * 24;
+  const gapHalf = 26;
+  for (let k = 0; k <= sizeTiles; k++) {
+    const t = k * 24;
+    post(t, 0); post(0, t); post(L, t);
+    if (gx === null || Math.abs(t - gx) > gapHalf) post(t, L);
+  }
+  const rails = (x0, y0, x1, y1) => {
+    for (const z of [4, 8.2]) {
+      if (x0 === x1) P.push(box(x0 - 0.45, Math.min(y0, y1), z, x0 + 0.45, Math.max(y0, y1), z + 1.3, "fence"));
+      else P.push(box(Math.min(x0, x1), y0 - 0.45, z, Math.max(x0, x1), y0 + 0.45, z + 1.3, "fence"));
+    }
+  };
+  rails(0, 0, L, 0); rails(0, 0, 0, L); rails(L, 0, L, L);
+  if (gx === null) rails(0, L, L, L);
+  else {
+    rails(0, L, gx - gapHalf, L); rails(gx + gapHalf, L, L, L);
+    post(gx - gapHalf, L, true); post(gx + gapHalf, L, true);
+  }
+  const R = rasterize(P, { stone: hex("#b9b1a2") }, { top: 14, groundShadow: true });
+  return { cv: R.cv, ox: R.ox, oy: R.oy };
 }

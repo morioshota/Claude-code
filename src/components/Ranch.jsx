@@ -21,7 +21,7 @@ import {
 import { upcomingEvents } from "../lib/events.js";
 import { streaks } from "../lib/activity.js";
 import { dueForCheck } from "./TriggerCheck.jsx";
-import { renderBuilding } from "./buildArt.js";
+import { renderBuilding, renderTree, renderFence } from "./buildArt.js";
 import { createCinema, drawCallouts, cinemaSaved, saveCinema } from "./ranchCinema.js";
 
 /* ---- 実時間の演出パラメータ ---- */
@@ -770,10 +770,10 @@ function RanchKairo({ stocks, quotes, onSelect }) {
         }
       };
       const bI = p.i0 - 0.5, bJ = p.j0 - 0.5, sz = p.size;
-      drawRailEdge(bI, bJ, true, sz, null);
-      drawRailEdge(bI, bJ, false, sz, null);
-      drawRailEdge(bI, bJ + sz, true, sz, p.bi);
-      drawRailEdge(bI + sz, bJ, false, sz, null);
+      // 2026-09: 柵も研究所と同じ3D方式で描く(ポスト+笠+2段の横木+門柱。影つき)
+      const F = renderFence(sz, p.bi - bI);
+      g.drawImage(F.cv, Math.round(ox + isoX(bI, bJ) - F.ox), Math.round(oy + isoY(bI, bJ) - F.oy));
+      void drawRailEdge; // 旧方式(1pxの線)。比較用に残す
     });
     pond.forEach(([i, j]) => fillTile(g, i, j, ox, oy, "#c9b98c", "#d4c498"));
     pond.forEach(([i, j]) => {
@@ -805,7 +805,14 @@ function RanchKairo({ stocks, quotes, onSelect }) {
       return buildCache.get(key);
     };
     const rngTree = mulberry32(hashStr("kabu-tree-detail"));
-    const treeSprites = trees.map((tr) => ({ ...treeCanvas(season, tr.big, rngTree), i: tr.i, j: tr.j }));
+    // 2026-09: 木も3D方式。種類(広葉樹/針葉樹/低木)と形の揺らぎは位置のハッシュで決まる
+    void rngTree;
+    const treeSprites = trees.map((tr) => {
+      const hsh = hashStr(`tree:${tr.i.toFixed(2)}:${tr.j.toFixed(2)}`);
+      const r = (hsh % 100) / 100;
+      const kind = r < 0.36 ? "pine" : r < 0.5 && !tr.big ? "bush" : "round";
+      return { ...renderTree(season, kind, (hsh >> 8) % 6, tr.big), i: tr.i, j: tr.j };
+    });
     let signSprite = null;
     if (unlocked >= 6) {
       const cv = document.createElement("canvas");
