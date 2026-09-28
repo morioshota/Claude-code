@@ -21,6 +21,7 @@ import {
 import { upcomingEvents } from "../lib/events.js";
 import { streaks } from "../lib/activity.js";
 import { dueForCheck } from "./TriggerCheck.jsx";
+import { createCinema, drawCallouts, cinemaSaved, saveCinema } from "./ranchCinema.js";
 
 /* ---- 実時間の演出パラメータ ---- */
 
@@ -523,6 +524,9 @@ function RanchKairo({ stocks, quotes, onSelect }) {
   const onSelectRef = useRef(onSelect); onSelectRef.current = onSelect;
   const zoomRef = useRef(typeof window !== "undefined" && window.innerWidth >= 900 ? 2 : 1);
   const [, setZoomTick] = useState(0);
+  // HD-2D風の仕上げ(被写界深度・ブルーム・光の筋・注釈ラベル)。重い端末向けにOFFにできる
+  const cinemaRef = useRef(cinemaSaved());
+  const [cinemaOn, setCinemaOn] = useState(cinemaRef.current);
   const reduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const actives = stocks.filter((s) => s.status !== "sold");
@@ -535,6 +539,7 @@ function RanchKairo({ stocks, quotes, onSelect }) {
     if (!wrap || !canvas) return;
     const ctx = canvas.getContext("2d");
     let raf = 0;
+    const cinema = createCinema();
 
     const season = seasonOf(new Date().getMonth() + 1);
     const rainy = isRainyToday();
@@ -1048,6 +1053,9 @@ function RanchKairo({ stocks, quotes, onSelect }) {
 
       const hitRects = [];
       const burning = []; // 炎のあかり(夜のグロー用)
+      const callouts = []; // 注釈ラベル(研究所・森)
+      const lamps = []; // 夜に窓のあかりが地面を照らす位置(シネマ時)
+      const nameTags = []; // クリーチャーの名札(最後に描く)
       sprites.forEach((sp) => {
         if (sp.kind === "crit") {
           const { c, s, id } = sp;
@@ -1071,15 +1079,11 @@ function RanchKairo({ stocks, quotes, onSelect }) {
             ctx.font = `${Math.round(11 * z)}px sans-serif`;
             ctx.fillText("💤", scr.x + w * 0.3, scr.y - h);
           }
+          // 名札はシネマ仕上げ(ぼかし・夜の暗さ)の後に描く=いつもくっきり読める
           const nm = (s.shiny ? "✨" : "") + clip(s.name, 8);
           ctx.font = "bold 10px sans-serif";
           const tw2 = ctx.measureText(nm).width + 8;
-          ctx.fillStyle = "rgba(14,17,34,.72)";
-          ctx.fillRect(Math.round(scr.x - tw2 / 2), Math.round(scr.y + 4), Math.round(tw2), 13);
-          ctx.fillStyle = "#fff";
-          ctx.textAlign = "center";
-          ctx.fillText(nm, Math.round(scr.x), Math.round(scr.y + 14));
-          ctx.textAlign = "start";
+          nameTags.push({ nm, x: scr.x, y: scr.y, tw2 });
           hitRects.push({ x: scr.x - Math.max(w, tw2) / 2, y: scr.y - h - 4, w: Math.max(w, tw2), h: h + 22, id });
           c.scr = { x: scr.x, y: scr.y - h - bob - workBob };
         } else {
@@ -1088,6 +1092,14 @@ function RanchKairo({ stocks, quotes, onSelect }) {
           ctx.drawImage(sp.cv, Math.round(scr.x - sp.ax * z), Math.round(scr.y - sp.ay * z), dw, dh);
           if (sp.kind === "bld") {
             hitRects.push({ x: scr.x - sp.ax * z, y: scr.y - sp.ay * z, w: dw, h: dh, id: sp.id, low: true });
+            {
+              const bs = stocksRef.current.find((x) => x.id === sp.id);
+              if (bs) {
+                const st = stageOf(calcLevel(bs));
+                callouts.push({ x: scr.x, y: scr.y - (sp.ay - sp.topY) * z, title: clip(bs.name, 9), sub: `ST${st.no} ${st.name}`, accent: (TYPES[bs.type] || TYPES.metal).color });
+                lamps.push({ x: scr.x, y: scr.y - (sp.ay - sp.topY) * z * 0.45, r: Math.max(40, sp.hw * 2.4 * z) });
+              }
+            }
             // にげるライン超過の家は燃えている(炎と煙は毎フレーム描く)
             if (sp.burning) {
               const roofTop = scr.y - (sp.ay - sp.topY) * z;
@@ -1132,6 +1144,14 @@ function RanchKairo({ stocks, quotes, onSelect }) {
           ctx.fillStyle = gr3;
           ctx.fillRect(bp.x - 46 * bp.z, bp.y - 46 * bp.z, 92 * bp.z, 92 * bp.z);
         });
+        // シネマ: 研究所のまどのあかりが周りを照らす(明かりは株価と無関係。時間帯だけ)
+        if (phase !== "day" && cinemaRef.current) lamps.forEach((lp) => {
+          const gl = ctx.createRadialGradient(lp.x, lp.y, 2, lp.x, lp.y, lp.r);
+          gl.addColorStop(0, phase === "night" ? "rgba(255,196,110,.42)" : "rgba(255,196,110,.22)");
+          gl.addColorStop(1, "rgba(255,196,110,0)");
+          ctx.fillStyle = gl;
+          ctx.fillRect(lp.x - lp.r, lp.y - lp.r, lp.r * 2, lp.r * 2);
+        });
         if (phase !== "day") torchPos.forEach((tp) => {
           const scr = toScreen(ox + isoX(tp.i, tp.j), oy + isoY(tp.i, tp.j));
           const gr2 = ctx.createRadialGradient(scr.x, scr.y - 24 * z, 2, scr.x, scr.y - 24 * z, 52 * z);
@@ -1142,6 +1162,25 @@ function RanchKairo({ stocks, quotes, onSelect }) {
         });
         ctx.globalCompositeOperation = "source-over";
       }
+
+      /* HD-2D風の仕上げ。天気のつぶや吹き出しより前(=それらはぼかさない) */
+      if (cinemaRef.current) {
+        cinema.apply(ctx, canvas, { cw, chh, dpr, phase, rainy, now, reduced, skyHex: P.sky[1] });
+        if (watchers.length > 0) {
+          const f = toScreen(ox + isoX((forest.i0 + forest.i1) / 2, forest.j0 + 1), oy + isoY((forest.i0 + forest.i1) / 2, forest.j0 + 1));
+          callouts.push({ x: f.x, y: f.y, title: "やせいの森", sub: `ウォッチ ${watchers.length}匹`, accent: "#86efac" });
+        }
+        drawCallouts(ctx, callouts, cw, chh);
+      }
+      nameTags.forEach((t) => {
+        ctx.font = "bold 10px sans-serif";
+        ctx.fillStyle = "rgba(14,17,34,.72)";
+        ctx.fillRect(Math.round(t.x - t.tw2 / 2), Math.round(t.y + 4), Math.round(t.tw2), 13);
+        ctx.fillStyle = "#fff";
+        ctx.textAlign = "center";
+        ctx.fillText(t.nm, Math.round(t.x), Math.round(t.y + 14));
+        ctx.textAlign = "start";
+      });
 
       if (parts.length > 0) {
         parts.forEach((p) => {
@@ -1272,6 +1311,14 @@ function RanchKairo({ stocks, quotes, onSelect }) {
     <div ref={wrapRef} style={{ position: "relative", width: "100%", height: "min(66vh, 560px)", borderRadius: 18, overflow: "hidden", border: "2px solid #8a6a3a", background: "#0d1230" }}>
       <canvas ref={canvasRef} style={{ display: "block", imageRendering: "pixelated" }} />
       <div style={{ position: "absolute", right: 10, bottom: 10, display: "flex", gap: 6 }}>
+        <button onClick={() => { const v = !cinemaRef.current; cinemaRef.current = v; saveCinema(v); setCinemaOn(v); }}
+          title="HD-2D風の仕上げ(ぼかし・光・ラベル)のON/OFF"
+          style={{
+            all: "unset", cursor: "pointer", height: 34, padding: "0 10px", lineHeight: "34px", fontSize: 12, fontWeight: 800,
+            background: cinemaOn ? "rgba(10,14,30,.72)" : "#f4e7c8", color: cinemaOn ? "#e6f0ff" : "#4a3a1a",
+            border: cinemaOn ? "1px solid rgba(255,255,255,.3)" : "2px solid #8a6a3a", borderRadius: 8,
+            boxShadow: cinemaOn ? "inset 0 1px 0 rgba(255,255,255,.12)" : "0 2px 0 #6b5228",
+          }}>🎬 {cinemaOn ? "シネマ" : "ふつう"}</button>
         {[["−", -1], ["＋", 1]].map(([lbl, dir]) => (
           <button key={lbl} onClick={() => zoomBtn(dir)} style={{
             all: "unset", cursor: "pointer", width: 34, height: 34, textAlign: "center", lineHeight: "34px",

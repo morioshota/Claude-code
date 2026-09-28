@@ -42,6 +42,7 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 - `src/lib/sprites.js` — ドット絵のピクセル生成（決定論的抽選＋進化装飾＋色違い＋GBA風仕上げ: EPX2倍拡大→3トーン陰影→アウトライン。すべて決定論的な画像処理）
 - `src/lib/cardfx.js` — 図鑑カードのホロ演出ドライバ（スクロール/指/ジャイロ→CSS変数。1つのrAFループに集約）
 - `src/lib/sound.js` — レトロ効果音（Web Audioで自前生成。`kabu-sound` キーでミュート永続化）
+- `src/lib/trade.js` — リリース銘柄の売買の記録・実現損益・振り返り用の事実（事実のみ・評価なし）
 - `src/lib/activity.js` — 研究活動の記録（草カレンダー用。`kabu-activity-v1` キー）
 - `src/data/evolution.js` — 進化パターンのタイプ別プールと演出ガチャの確率
 - `src/components/` — UI部品（`ui.jsx` 共通部品 / `DexCard` / `DetailModal` / `StockForm` / `notes` / `AiAssistant` / `modals`（パーティ・実績・バックアップ）/ `Ranch`（カイロ風2Dアイソメ牧場）/ `Analysis`（銘柄分析: 指標カード・株価チャート・見比べ表）/ `Album`（卒業アルバム）/ `Heatmap`（草カレンダー）/ `TriggerCheck`（トリガー点検）/ `fx`（演出レイヤー・セレモニー））
@@ -62,7 +63,7 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
   "evoPattern": "進化装飾のkind(初進化時に抽選し永久保存。evolution.js参照)",
   "evoFxBest": "normal|rare|ultra (引いた進化演出の最高レア。実績用)",
   "lastTriggerCheck": "YYYY-MM-DD (トリガー点検の最終実施日)",
-  "soldAt": "YYYY-MM-DD (卒業=リリース日)", "lesson": "この銘柄から学んだこと(卒業アルバム用)",
+  "soldAt": "YYYY-MM-DD (卒業=リリース日=売却日)", "buyDate": "YYYY-MM-DD (購入日)", "sellPrice": 1780, "sellShares": 100, "sellReason": "trigger|stoploss|target|swap|need|other", "lesson": "この銘柄から学んだこと(卒業アルバム用)",
   "shares": 633, "avgPrice": 3952, "stopLossPct": -8,
   "fundamentals": { "per": 10.2, "roe": 0.102, "...": "分析タブの手入力指標(自動取得より優先)" }
 } ] }
@@ -204,6 +205,8 @@ npm run build    # 本番ビルド(dist/)
   - **説明欄の枠を走る光**（詳細画面）: `DetailModal.jsx` の `SectionFx` が各節を包み、`.kzSecFx{2..5}` で強さが変わる。枠だけを光らせるのは `mask-composite: xor/exclude` の2枚重ね。位置は`--hp`（cardfxのrAFが書き込む）
   - **⚠ 要素のscrollイベントはバブリングしない**。モーダル(Overlay)は自前のスクロール枠なので `window` のscrollだけでは光が動かない——`cardfx.js` は `document` に **capture** でも張っている
   - **✦のまたたき**: `sprites.js`の`buildPixels`が✦を打った座標を`sparkles`で返し、`ui.jsx`の`Creature`がそこにSVGの光を重ねる（オーラ進化・色違い）。padGrid/trimGridで座標がずれるので`trimGridInfo`で削り量を追って補正している
+- **牧場のシネマ仕上げ（HD-2D風・2026-09試作）**: `components/ranchCinema.js`。世界を描き終えたあとに ①ティルトシフト（画面の上下だけぼかす）②ブルーム（明るい所だけにじむ）③遠景のもや・光の筋（昼/夕の晴れのみ）・浮遊する光の粒（夜はホタル）・周辺減光 を重ね、最後に ④注釈ラベル（細い線＋ガラス調の札。研究所に「名前・ST」、森に「ウォッチN匹」）とクリーチャーの名札をくっきり描く。夜・夕方は世界を一段沈めて、研究所のまどのあかり（`lamps`）とブルームで光を戻す。🎬ボタンでON/OFF（`kabu-ranch-cinema`、既定ON）。⚠ ぼかしは「縮小→拡大」で作る（`ctx.filter`はiOS Safariで効かない端末がある）。⚠ ブルームは明るさを何度も掛け合わせて暗部を消すこと——足りないと画面全体が白っぽく持ち上がる（試作1回目で踏んだ）。⚠ 名札・吹き出し・ラベルはシネマの後に描く（先に描くとぼけて読めない）。演出は時間帯・季節・天気だけで決まり、株価は絡めない（不変条件5）
+- **卒業アルバムの売買の記録**（`lib/trade.js`）: `buyDate`（購入日）/`soldAt`（売却日＝従来の卒業日）/`sellPrice`/`sellShares`/`sellReason` を任意で保存。実現損益＝(売却単価−平均取得単価)×株数、保有期間、売却理由、にげるラインとの位置、買ったときの仮説、振り返りチャート（保有期間の帯・買/売の印・保有中の値幅・売却後の株価）、全体の実現損益合計（通貨ごと）と平均保有期間。**事実の表示のみ**——色分け・「売らなければ良かった」等の評価文言は出さない。売却単価の初期値は参考株価（遅延）なので、実際の約定単価に直してもらう旨を併記
 - **PWA**: `public/manifest.webmanifest`＋`public/sw.js`。SW登録は本番のみ。ページはネットワーク優先・アセットはSWR・`/api/`は非キャッシュ。キャッシュ照合は`ignoreVary`必須(CORSモジュールとVaryで外れる)
 
 ## バックログ（優先度順の提案）
