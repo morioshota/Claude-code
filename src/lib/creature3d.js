@@ -183,7 +183,7 @@ const HD_EYES = {
   // カッコいい: まぶたの太い線+軽い眉。白目と瞳と光はちゃんと残す(にらみすぎない)
   cool: ["kk......", "..kkk...", "........", "..kkkkkk", ".kwwdhdk", ".kwiddik", ".kwwiiik", "..kkkkk."],
   // ボス(竜・魔王・悪役): 上まぶた自体が内側へ下がる鋭い目(眉は描かない。眉を足すとまつ毛に見えた)。笑わせない
-  boss: ["kkk.....", "kwwkkk..", "kwwiddkk", "kwidhdik", ".kkiddik", "...kkkk."],
+  boss: ["kk....", "kwkk..", "kwidkk", "kwdhik", ".kkkk."],
   sleep: ["........", ".k....k.", "..kkkk.."],
 };
 const HD_EYE_OF = {
