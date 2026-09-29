@@ -160,7 +160,7 @@ function buildPixelsRaw(stock, sleeping, opts = {}) {
   parts = parts.map((p) => ({ ...p, c: [p.c[0] * GW * fx, p.c[1] * GW, p.c[2] * GT], r: [p.r[0] * GW, p.r[1] * GW, p.r[2] * GT], a: p.a ? p.a * fx : 0 }));
   const faces = (built.faces || []).map((f) => ({ ...f, p: [f.p[0] * GW * fx, f.p[1] * GW, f.p[2] * GT], mirror: flip ? !f.mirror : !!f.mirror }));
 
-  let grid = renderCreature({ parts, faces, pal, pattern, glow, sleeping, blush: !!built.blush, hd });
+  let grid = renderCreature({ parts, faces, pal, pattern, glow, sleeping, blush: !!built.blush, hd, mood: built.mood || null });
   grid = trimGrid(grid);
 
   // ---- 光の粒(オーラ・色違い)は仕上げの後に✦(ダイヤ型)で描く:

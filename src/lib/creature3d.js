@@ -182,6 +182,8 @@ const HD_EYES = {
   small: [".kkk.", "khhdk", "khddk", "kdiik", ".kkk."],
   // カッコいい: まぶたの太い線+軽い眉。白目と瞳と光はちゃんと残す(にらみすぎない)
   cool: ["kk......", "..kkk...", "........", "..kkkkkk", ".kwwdhdk", ".kwiddik", ".kwwiiik", "..kkkkk."],
+  // ボス(竜・魔王・悪役): 上まぶた自体が内側へ下がる鋭い目(眉は描かない。眉を足すとまつ毛に見えた)。笑わせない
+  boss: ["kkk.....", "kwwkkk..", "kwwiddkk", "kwidhdik", ".kkiddik", "...kkkk."],
   sleep: ["........", ".k....k.", "..kkkk.."],
 };
 const HD_EYE_OF = {
@@ -198,11 +200,13 @@ const HD_MOUTHS = {
   o: [".kk.", "kppk", ".kk."],
   line: ["kkkk"],
   tongue: ["k....k", ".kkkk.", "..pp.."],
+  sneer: [".kkkkkk.", "k.w..w.k"],           // 口角の下がった牙口(ボス)
 };
 const HD_MOUTH_OF = { snarl: "smirk", grin: "smirk", zigzag: "smirk", fangs: "smirk", fang: "smirk", big: "smile", smile: "smile", cat: "cat", o: "o", line: "line", tongue: "tongue", mustache: "smile" };
 
 /* 部品の配列 → 色の格子。faces=[{p, kind:"eye"|"mouth", style, mirror}] */
-export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#ff5a5a", sleeping = false, blush = false, hd = 0 }) {
+export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#ff5a5a", sleeping = false, blush = false, hd = 0, mood = null }) {
+  // mood="boss": 竜・魔王など。hdの目と口をボス顔にそろえる(かわいい顔にしない)
   // hd = 高精細モードの倍率(0=従来の3段陰影)。部品はすでに倍率ぶん大きくして渡される
   const U = hd || 1; // 奥行きのしきい値などはワールド単位なので倍率で合わせる
   // 画面上の範囲
@@ -314,7 +318,7 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
     const ey = faces.filter((f) => f.kind === "eye" && HD_EYES[HD_EYE_OF[f.style]])
       .map((f) => ({ f, x: project(f.p)[0], y: project(f.p)[1] })).sort((a, b) => a.x - b.x);
     if (ey.length === 2 && Math.abs(ey[0].y - ey[1].y) < 4) {
-      const need = Math.max(...HD_EYES[HD_EYE_OF[ey[0].f.style]].map((r) => r.length)) + 2;
+      const need = Math.max(...HD_EYES[mood === "boss" ? "boss" : HD_EYE_OF[ey[0].f.style]].map((r) => r.length)) + 2;
       const gap = ey[1].x - ey[0].x;
       if (gap < need) { const d = Math.ceil((need - gap) / 2); eyeShift.set(ey[0].f, -d); eyeShift.set(ey[1].f, d); }
     }
@@ -329,8 +333,10 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
     if (f.kind === "eye" && sleeping && style !== "glow") style = "closed";
     const big = hd >= 1.6;
     let stamp = (STAMPS[f.kind] || {})[style];
-    if (big && f.kind === "eye" && HD_EYES[HD_EYE_OF[style]]) stamp = HD_EYES[HD_EYE_OF[style]];
-    else if (big && f.kind === "mouth" && HD_MOUTHS[HD_MOUTH_OF[style]]) stamp = HD_MOUTHS[HD_MOUTH_OF[style]];
+    const eyeKey = mood === "boss" && HD_EYE_OF[style] && HD_EYE_OF[style] !== "sleep" ? "boss" : HD_EYE_OF[style];
+    const mouthKey = mood === "boss" ? "sneer" : HD_MOUTH_OF[style];
+    if (big && f.kind === "eye" && HD_EYES[eyeKey]) stamp = HD_EYES[eyeKey];
+    else if (big && f.kind === "mouth" && HD_MOUTHS[mouthKey]) stamp = HD_MOUTHS[mouthKey];
     else if (!stamp) return;
     else if (big && stamp.length) stamp = scale2x(stamp);
     const sh = stamp.length, sw = Math.max(...stamp.map((r) => r.length));
