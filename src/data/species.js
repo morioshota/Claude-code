@@ -4,7 +4,7 @@
    並びは「旧30種族を偶数番目(0,2,4)・新30種族を奇数番目(1,3,5)」——抽選は
    pool[floor(rng*6)] なので、旧 pool[floor(rng*3)] の個体の半分がちょうど元の姿に戻る。
    ⚠ 並び順・数を変えると全員の姿が変わる(CLAUDE.md不変条件2)。変えるならオーナーに確認
-   使える文字は .bsaowye のみ */
+   使える文字は .bsaowyencgr のみ */
 
 const CREATURE_LOOK = {
   cosmo:  { bodies: ["#a78bfa", "#8b5cf6", "#c4b5fd"], belly: "#ede9fe", accent: "#f0abfc" },
@@ -23,6 +23,7 @@ const CREATURE_LOOK = {
  ドット絵の記号:
  . 透明 / b 体色 / s 腹・サブ / a アクセント / o 輪郭・こげ茶
  w 白 / e 目(眠ると閉じる) / y 金色
+ n 茶色・c クリーム・g 濃い金・r れんが色(固定色。属性色だと何の動物か分からなくなる動物用。たぬき等)
 */
 
 const SPECIES_POOL = {
@@ -290,13 +291,14 @@ const SPECIES_POOL = {
     ]},
     { name: "レンガメ", px: [ // レンガガメ
       "............",
-      "...aaaaaa...",
-      "..abababab..",
-      "..babababa..",
-      "..abababab..",
-      "...bbbbbb.ss",
-      "....o..o..se",
-      "..........s.",
+      "...rrcrr.nn.",
+      "..rrrcrrrnen",
+      ".ccccccccnnn",
+      ".rrcrrrcrrn.",
+      "nrrcrrrcrr..",
+      ".sssssssss..",
+      "..nn...nn...",
+      "..oo...oo...",
     ]},
     { name: "ゾウさん", px: [ // 力持ちのゾウ
       "............",
@@ -383,14 +385,15 @@ const SPECIES_POOL = {
   ],
   drive: [
     { name: "タイヤつむり", px: [ // 車輪カタツムリ
-      "..........be",
-      "....aaaa..b.",
-      "...aaaaaa.b.",
-      "...aaooaa.b.",
-      "...aaaaaa.b.",
-      "....aaaa..b.",
-      ".bbbbbbbbbb.",
-      "............",
+      ".........e.e",
+      ".........b.b",
+      "...oooo..bb.",
+      "..oossoo.bb.",
+      ".oosyysoobb.",
+      ".oosyysoobb.",
+      "..oossoo.bb.",
+      "...oooo..bb.",
+      "bbbbbbbbbbbb",
     ]},
     { name: "そらりゅう", px: [ // 空の竜(カッコいい)
       "a..........a",
@@ -482,15 +485,15 @@ const SPECIES_POOL = {
       "............",
     ]},
     { name: "ひつじ", px: [ // もこもこひつじ
-      "............",
-      "..wwwwwwww..",
-      ".wwwwwwwwww.",
-      "wwoowwwwwwww",
-      "woeowwwwwwww",
-      "wooowwwwwwww",
-      ".wwwwwwwwww.",
-      "..o.o..o.o..",
-      "..o.o..o.o..",
+      "....w.ww.ww.",
+      "...wwwwwwwww",
+      ".oowwwwwwwww",
+      "oooowwwwwwww",
+      ".weowwwwwwww",
+      ".ooowwwwwwww",
+      "..oowwwwwww.",
+      "....o.o..o.o",
+      "....o.o..o.o",
     ]},
     { name: "めばえん", px: [ // 豆の芽
       "............",
@@ -611,13 +614,14 @@ const SPECIES_POOL = {
     ]},
     { name: "コバンがめ", px: [ // 小判ガメ
       "............",
-      "...yyyyyy...",
-      "..yyyyyyyy..",
-      "..yyooooyy..",
-      "..yyyyyyyy..",
-      "...yyyyyy.ss",
-      "....o..o..se",
-      "..........s.",
+      "...yyyyy.bb.",
+      "..yywyyyybeb",
+      ".ggggggggbbb",
+      ".yyygyyyyyb.",
+      "bggggggggg..",
+      ".sssssssss..",
+      "..bb...bb...",
+      "..oo...oo...",
     ]},
     { name: "ぶたちょきん", px: [ // ぶたの貯金箱
       "......yyyy..",
@@ -669,17 +673,18 @@ const SPECIES_POOL = {
       "............",
     ]},
     { name: "かいぞくせんちょう", px: [ // 海賊の船長(カッコいい)
-      "..oooooooo..",
-      ".oooowoooo..",
+      "...oooooo...",
+      ".oooowwoooo.",
+      "oooooooooooo",
       "...ssssss...",
-      "...soesss...",
-      "...ooooos...",
+      "...oosses...",
+      "...ssssss..w",
       "...oooooo..w",
-      "..aaaaaaaa.w",
-      ".aaayyaaaaww",
-      "..aaaaaaa..o",
-      "...bb..bb...",
-      "...oo..oo...",
+      "..bbbbbbbb.w",
+      ".bbybbbbyby.",
+      "..bbbbbbbb..",
+      "...bb..w....",
+      "...oo..w....",
     ]},
     { name: "はたペン", px: [ // 旗持ちペンギン
       ".........ayy",
@@ -693,15 +698,15 @@ const SPECIES_POOL = {
       "....y..y....",
     ]},
     { name: "たぬき", px: [ // はっぱのたぬき
-      "....a.......",
-      "..bbaabb....",
-      ".bbbbbbbb...",
-      ".booboobb...",
-      ".boeboebb...",
-      ".bbssssbb...",
-      "..bssssb..bb",
-      ".bbssssbbbob",
-      ".bbssssbb.bb",
+      "..nn....nn..",
+      ".nonnnnnnon.",
+      ".nnnnnnnnnn.",
+      ".nooonnooon.",
+      ".nowonnowon.",
+      "..nnnoonn.nn",
+      ".nnccccnn.oo",
+      ".ncccccccnnn",
+      ".nccccccnnn.",
       "..oo..oo....",
     ]},
     { name: "カゴかに", px: [ // 買い物かごガニ

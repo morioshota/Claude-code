@@ -258,6 +258,7 @@ function buildPixelsRaw(stock, sleeping) {
   const colors = {
     b: body, s: belly, a: accent, o: "#1f2430",
     w: "#ffffff", y: "#ffd166", e: sleeping ? "#1f2430" : "#111827",
+    n: "#a0703f", c: "#f3dfb8", g: "#c8962e", r: "#b8553a", // 固定色(たぬき等、自然な色で分かる動物用)
   };
   const w = Math.max(...species.px.map((r) => r.length));
   let grid = species.px.map((row, y) => {
