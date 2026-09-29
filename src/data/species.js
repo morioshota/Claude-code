@@ -418,14 +418,14 @@ const SPECIES_POOL = {
     ]},
     { name: "チーター", px: [ // はしるチーター
       "............",
-      "..........bb",
-      ".........bbe",
-      "..bbbbbbbbbb",
-      ".bbobbbobbb.",
-      "b.bbbobbbb..",
-      "b..sssssss..",
-      "...b.b..b.b.",
-      "...o.o..o.o.",
+      ".........yy.",
+      "........yeyy",
+      "..yoyyoyyoyo",
+      ".oyyyoyyyyy.",
+      "o.cccccccc..",
+      "o.y.y...y.y.",
+      ".oy.y...y.y.",
+      "..o.o...o.o.",
     ]},
     { name: "コロどり", px: [ // 車輪の足の鳥
       ".....bb.....",
@@ -532,16 +532,15 @@ const SPECIES_POOL = {
       "............",
     ]},
     { name: "メカドラゴン", px: [ // 機械の竜(カッコいい)
-      ".o........o.",
-      ".oo......oo.",
-      "..obbbbbbo..",
-      "..bebbbbeb..",
-      "..bbwbbwbb..",
-      "a..bssssb..a",
-      "aa.bssssb.aa",
-      "aaabbbbbbaaa",
-      "...bb..bb...",
-      "...oo..oo...",
+      "........o...",
+      ".a......bbbb",
+      "aaa....bybbb",
+      "aaaa...bbww.",
+      ".aaao.bb....",
+      "..obbbbbo...",
+      "..bbsssbb...",
+      "bbbbbbbbb...",
+      "..oo..oo....",
     ]},
     { name: "チップむし", px: [ // チップ虫
       "..o......o..",
@@ -576,16 +575,18 @@ const SPECIES_POOL = {
       "............",
     ]},
     { name: "ヤモリ", px: [ // かべのヤモリ
-      "............",
-      ".b.......b..",
-      "..b.bbb.b...",
-      "...bebeb....",
-      "...bbbbb....",
-      "..bbbbbbb...",
-      ".b.bbbbb.b..",
-      "....bbb.....",
-      "....b.b.....",
-      ".....b......",
+      "....bbbb....",
+      "...ebbbbe...",
+      "....bbbb....",
+      ".o...bb...o.",
+      ".bb.bbbb.bb.",
+      "...bbssbb...",
+      "....bbbb....",
+      ".bb.bbbb.bb.",
+      ".o...bb...o.",
+      ".....bb.....",
+      "......b.....",
+      ".......b....",
     ]},
   ],
   money: [
@@ -732,4 +733,35 @@ const SPECIES_POOL = {
   ],
 };
 
-export { CREATURE_LOOK, SPECIES_POOL };
+/* ---- 特別キャラ(2026-09末・オーナー要望) ----
+   種族・タイプと関係なく、調査記録の保存ごとに低確率で当選する超レアキャラ(色違いと同じ仕組み)。
+   当選したら stock.special にキーを永久保存する(不変条件6)。今後リクエストで追加していく。
+   px は自由な幅・固有の配色(pal の文字→色)。個体差の色・左右反転・進化装飾はかけない(姿を崩さない)。
+   ⚠ フレデリックはレオ・レオニの絵本のキャラクター(オーナーが大好きなキャラとして個人の図鑑に追加) */
+const SPECIAL_POOL = [
+  { key: "frederick", name: "フレデリック", px: [ // 灰色のねずみ・大きな薄緑の耳・眠たげな目・赤いポピー
+    "..........llll..",
+    ".rrr.....llllll.",
+    "rrkrr.ll.llllll.",
+    "rrrrrllll.lllll.",
+    ".rrrllllll.lll..",
+    "...t.lllgggll...",
+    "...t..ggggggg...",
+    "....tgggggggg...",
+    "....tglllgllgg..",
+    "....tgwwkgwkgg..",
+    "....tgggggkgggg.",
+    "...lllgkggggggg.",
+    "...llttgkkggggg.",
+    "..l..tggggggglg.",
+    ".l...ggggggggglg",
+    ".l..gggggggggglg",
+    "..l.gggggggggg..",
+    "...llggggggggg..",
+  ], pal: { g: "#56565e", l: "#b8c29b", w: "#f4efe2", k: "#15151a", r: "#ef5a2c", t: "#5aa872" } },
+];
+
+/* 特別キャラの当選確率(調査記録の保存1回ごと)。色違い(5%)よりずっとレア */
+const SPECIAL_RATE = 0.01;
+
+export { CREATURE_LOOK, SPECIES_POOL, SPECIAL_POOL, SPECIAL_RATE };

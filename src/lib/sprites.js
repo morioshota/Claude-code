@@ -3,7 +3,7 @@
    進化装飾(evoPattern)と色違い(shiny)は「抽選結果をstockに永久保存」する方式で
    決定論を維持しつつ上乗せされる。 */
 
-import { CREATURE_LOOK, SPECIES_POOL } from "../data/species.js";
+import { CREATURE_LOOK, SPECIES_POOL, SPECIAL_POOL } from "../data/species.js";
 import { evoPoolFor } from "../data/evolution.js";
 import { calcLevel, stageOf } from "./stock.js";
 import { hashStr, mulberry32, shade, hueShift } from "./util.js";
@@ -226,7 +226,7 @@ function individualOf(seedSrc) {
    (opts.lowres は3D方式の名残で、いまはどちらでも同じ絵) */
 const PIX_CACHE = new Map();
 function buildPixels(stock, sleeping, opts = {}) {
-  const key = [stock.code, stock.name, stock.type, calcLevel(stock), !!stock.shiny, stock.evoPattern || "", !!sleeping].join("|");
+  const key = [stock.code, stock.name, stock.type, calcLevel(stock), !!stock.shiny, stock.evoPattern || "", stock.special || "", !!sleeping].join("|");
   const hit = PIX_CACHE.get(key);
   if (hit) return hit;
   const res = buildPixelsRaw(stock, sleeping, opts);
@@ -260,8 +260,15 @@ function buildPixelsRaw(stock, sleeping) {
     w: "#ffffff", y: "#ffd166", e: sleeping ? "#1f2430" : "#111827",
     n: "#a0703f", c: "#f3dfb8", g: "#c8962e", r: "#b8553a", // 固定色(たぬき等、自然な色で分かる動物用)
   };
-  const w = Math.max(...species.px.map((r) => r.length));
-  let grid = species.px.map((row, y) => {
+  // 特別キャラ(当選してstock.specialに保存済み)は種族の代わりにその姿で描く。
+  // 固有の配色のまま(色違いのときだけ色相を回す)、左右反転・進化装飾はしない
+  const special = stock.special ? SPECIAL_POOL.find((x) => x.key === stock.special) : null;
+  const w = Math.max(...(special || species).px.map((r) => r.length));
+  let grid = special ? special.px.map((row) => [...row.padEnd(w, ".")].map((ch) => {
+    if (ch === ".") return null;
+    const c = special.pal[ch] || "#888888";
+    return shiny ? hueShift(c, 150) : c;
+  })) : species.px.map((row, y) => {
     const padded = row.padEnd(w, ".");
     return [...padded].map((ch, x) => {
       if (ch === ".") return null;
@@ -273,13 +280,13 @@ function buildPixelsRaw(stock, sleeping) {
       return col;
     });
   });
-  if (flip) grid = grid.map((row) => [...row].reverse());
+  if (flip && !special) grid = grid.map((row) => [...row].reverse());
 
   // 進化装飾: ステージ2以上で成長。パターンは進化時に抽選されstockに保存済み。
   // 保存がない(旧データ・インポート)場合はコードから決定論的にフォールバック
   const stageNo = stageOf(calcLevel(stock)).no;
   let evoKind = null;
-  if (stageNo >= 2) {
+  if (stageNo >= 2 && !special) {
     const evoPool = evoPoolFor(stock.type);
     evoKind = stock.evoPattern || evoPool[hashStr(seedSrc + ":evo") % evoPool.length];
     // オーラ系はここでは描かない: 光の粒はGBA仕上げの後に✦で描く(下記)
@@ -346,7 +353,7 @@ function buildPixelsRaw(stock, sleeping) {
     marks.push({ x: bb[0] - 1, y: b2 - 2, kind: "shiny" });
     const ts = trimGridInfo(grid); grid = ts.grid; shiftMarks(-ts.dx, -ts.dy);
   }
-  return { grid, w: grid[0].length, h: grid.length, speciesName: species.name, sparkles: marks };
+  return { grid, w: grid[0].length, h: grid.length, speciesName: special ? special.name : species.name, special: !!special, sparkles: marks };
 }
 
 /* 図鑑・詳細用: SVGでドットを描く(カクカク保持) */

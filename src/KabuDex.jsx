@@ -19,12 +19,13 @@ import { Heatmap } from "./components/Heatmap.jsx";
 import { RanchView } from "./components/Ranch.jsx";
 import { StockForm } from "./components/StockForm.jsx";
 import { TriggerCheckModal, dueForCheck } from "./components/TriggerCheck.jsx";
-import { FxLayer, EvoCeremony, ShinyCeremony, burstConfetti } from "./components/fx.jsx";
+import { FxLayer, EvoCeremony, ShinyCeremony, SpecialCeremony, burstConfetti } from "./components/fx.jsx";
 import { PartyModal, BadgeModal, DataPortModal } from "./components/modals.jsx";
 import { NoteEditor } from "./components/notes.jsx";
 import { btnStyle, PressButton, FilterChip, pageStyle } from "./components/ui.jsx";
 import { STORAGE_KEY, noteKey, TYPES, STATUSES, ACHIEVEMENTS, SEED, BACKUP_FORMAT } from "./data/constants.js";
 import { evoPoolFor, rollEvoFx } from "./data/evolution.js";
+import { SPECIAL_POOL, SPECIAL_RATE } from "./data/species.js";
 import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/activity.js";
 import { sfx, soundEnabled, setSoundEnabled } from "./lib/sound.js";
 import { enableTilt, disableTilt, restoreTilt, tiltOn, tiltSupported, onTiltChange } from "./lib/cardfx.js";
@@ -54,6 +55,7 @@ export default function KabuDex() {
   const [getFlash, setGetFlash] = useState(null);
   const [evoFlash, setEvoFlash] = useState(null); // {stock, stage, tier} 進化セレモニー
   const [shinyFlash, setShinyFlash] = useState(null); // 色違い当選セレモニー(進化と重なったら後で表示)
+  const [specialFlash, setSpecialFlash] = useState(null); // 特別キャラ当選セレモニー
   const [view, setView] = useState("dex"); // 'dex'|'ranch'|'analysis'|'album'
   const [graduating, setGraduating] = useState(null); // 卒業式モーダル対象のstock
   const [activity, setActivity] = useState(null); // 草カレンダー用 {days, seeded}
@@ -285,7 +287,8 @@ export default function KabuDex() {
     }
     // touch=true(記録の追加)のときだけ鮮度(最終調査日)を更新。削除では更新しない
     // 色違い抽選: 記録の追加ごとに5%。当選は永久保存(削除では抽選しない)
-    let wonShiny = false;
+    // 特別キャラ抽選: 記録の追加ごとに SPECIAL_RATE(1%)。種族・タイプと無関係に全キャラから抽選し、当選は永久保存
+    let wonShiny = false, wonSpecial = false;
     const next = stocks.map((s) => {
       if (s.id !== stockId) return s;
       let ns = { ...s, noteCount: notes.length, lastResearch: touch ? today() : s.lastResearch };
@@ -293,12 +296,17 @@ export default function KabuDex() {
         ns = { ...ns, shiny: true, shinyAt: today() };
         wonShiny = true;
       }
+      if (touch && !s.special && SPECIAL_POOL.length && Math.random() < SPECIAL_RATE) {
+        ns = { ...ns, special: SPECIAL_POOL[Math.floor(Math.random() * SPECIAL_POOL.length)].key, specialAt: today() };
+        wonSpecial = true;
+      }
       return ns;
     });
     persistWithEvoCheck(next, stockId);
     if (touch) {
       recordActivity().then(setActivity);
-      if (wonShiny) setShinyFlash(next.find((s) => s.id === stockId));
+      if (wonSpecial) setSpecialFlash(next.find((s) => s.id === stockId));
+      else if (wonShiny) setShinyFlash(next.find((s) => s.id === stockId));
     }
     return true;
   };
@@ -648,6 +656,7 @@ export default function KabuDex() {
       {evoFlash && <EvoCeremony evo={evoFlash} onDone={() => setEvoFlash(null)} />}
       {/* 色違いセレモニー(進化と重なった場合は進化のあとに表示) */}
       {shinyFlash && !evoFlash && <ShinyCeremony stock={shinyFlash} onDone={() => setShinyFlash(null)} />}
+      {specialFlash && !evoFlash && <SpecialCeremony stock={specialFlash} onDone={() => setSpecialFlash(null)} />}
 
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "20px 14px 60px" }}>
         {/* ヘッダー */}

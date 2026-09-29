@@ -10,6 +10,7 @@
 
 import { useEffect, useRef } from "react";
 import { Creature, RarityBadge, TypeChip, StatusBadge } from "./ui.jsx";
+import { SPECIAL_POOL } from "../data/species.js";
 import { TYPES, RARITIES } from "../data/constants.js";
 import { calcLevel, stageOf, rarityOf, urFxOf, freshInfo } from "../lib/stock.js";
 import { registerCard, setPointer, clearPointer } from "../lib/cardfx.js";
@@ -45,6 +46,7 @@ function DexCard({ stock, onClick, stopLossState }) {
   const r = RARITIES.find((x) => x.key === rank) || RARITIES[0];
   const lv = calcLevel(stock);
   const stage = stageOf(lv);
+  const special = stock.special ? SPECIAL_POOL.find((x) => x.key === stock.special) : null; // 特別キャラ(当選で永久保存)
   const fresh = freshInfo(stock);
   const sold = stock.status === "sold";
   const over = stopLossState === "over";
@@ -172,6 +174,11 @@ function DexCard({ stock, onClick, stopLossState }) {
             }}>
               {stage.no >= 4 ? "👑 " : ""}S{stage.no} {stage.name}
             </span>
+            {special && (
+              <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 9.5, color: "#ffd166", marginTop: 3, textShadow: "0 0 8px rgba(255,209,102,.6)" }}>
+                🌟 とくべつ: {special.name}
+              </div>
+            )}
           </div>
           <div style={{ textAlign: "center", fontWeight: 800, fontSize: 14, color: "#eef1ff", lineHeight: 1.3, minHeight: 36 }}>
             {stock.name}
