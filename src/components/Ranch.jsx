@@ -500,7 +500,7 @@ function drawFire(ctx, cx, baseY, w, z, now, seed) {
 
 /* クリーチャーのドット絵(1セル=1px)。牧場では整数倍で拡大 */
 function creatureArt(stock, sleeping) {
-  const { grid, w, h } = buildPixels(stock, sleeping);
+  const { grid, w, h } = buildPixels(stock, sleeping, { lowres: true });
   const cv = document.createElement("canvas");
   cv.width = w; cv.height = h;
   const ctx = cv.getContext("2d");

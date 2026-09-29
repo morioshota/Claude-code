@@ -65,6 +65,21 @@ function MdView({ text }) {
 
 /* きらめき(✦)1つぶんの光。ドット絵の✦の上にこれを重ねると
    「置いてある模様」ではなく「またたく光」に見える */
+/* 色の格子→画像(dataURL)。1ドット=1要素のSVGより軽い(高精細の種族は格子が約4倍) */
+const IMG_CACHE = new WeakMap();
+function gridImage(grid) {
+  let url = IMG_CACHE.get(grid);
+  if (url) return url;
+  const h = grid.length, w = grid[0].length;
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d");
+  grid.forEach((row, y) => row.forEach((c, x) => { if (c) { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); } }));
+  url = cv.toDataURL();
+  IMG_CACHE.set(grid, url);
+  return url;
+}
+
 const GLINT_PATH = "M0,-2.7 L0.7,-0.7 L2.7,0 L0.7,0.7 L0,2.7 L-0.7,0.7 L-2.7,0 L-0.7,-0.7 Z";
 
 function Creature({ stock, size = 64, sleeping = false, shadow = true }) {
@@ -75,9 +90,7 @@ function Creature({ stock, size = 64, sleeping = false, shadow = true }) {
   const svg = (
     <svg width={dispW} height={Math.round(dispW * (h / w))} viewBox={`0 0 ${w} ${h}`}
       shapeRendering="crispEdges" style={{ display: "block", imageRendering: "pixelated", position: "relative", zIndex: 1, overflow: "visible" }}>
-      {grid.map((row, y) => row.map((c, x) => (
-        c ? <rect key={`${x}-${y}`} x={x} y={y} width="1.02" height="1.02" fill={c} /> : null
-      )))}
+      <image href={gridImage(grid)} x="0" y="0" width={w} height={h} style={{ imageRendering: "pixelated" }} />
       {/* ✦の位置でまたたく光(オーラ進化・色違い)。位置はsprites.jsが返す */}
       {glints.map((s, i) => (
         <g key={`gl${i}`} transform={`translate(${s.x + 0.5} ${s.y + 0.5})`}>

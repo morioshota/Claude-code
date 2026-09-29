@@ -174,7 +174,7 @@ export function dragon(o = {}) {
     { kind: "eye", style: eyeStyle, p: [-1.35, 6.3, 17.7], iris },
     { kind: "eye", style: eyeStyle, p: [1.35, 6.3, 17.7], iris, mirror: true },
   ];
-  return turn(P, faces, heading);
+  return { ...turn(P, faces, heading), hd: true }; // 高精細モードの試作対象
 }
 
 /* ---------- 人型(騎士・魔王・忍者・海賊) ---------- */

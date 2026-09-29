@@ -96,7 +96,23 @@ function individualOf(seedSrc) {
 }
 const GEAR_MATS = ["skin", "bronze", "amber", "stripe"];
 
-function buildPixels(stock, sleeping) {
+/* 高精細モード(試作・2026-09): 種族が hd:true を返したら約2倍の解像度+5段陰影で描く。
+   牧場は1セル=1pxで描くので、大きさが変わらないよう lowres で従来の解像度に戻す */
+const HD_SCALE = 2;
+
+/* 同じ個体・同じ段階なら描き直さない(高精細は計算が重い)。姿に効く値だけをキーにする */
+const PIX_CACHE = new Map();
+function buildPixels(stock, sleeping, opts = {}) {
+  const key = [stock.code, stock.name, stock.type, calcLevel(stock), !!stock.shiny, stock.evoPattern || "", !!sleeping, !!opts.lowres].join("|");
+  const hit = PIX_CACHE.get(key);
+  if (hit) return hit;
+  const res = buildPixelsRaw(stock, sleeping, opts);
+  if (PIX_CACHE.size > 600) PIX_CACHE.clear();
+  PIX_CACHE.set(key, res);
+  return res;
+}
+
+function buildPixelsRaw(stock, sleeping, opts = {}) {
   const look = CREATURE_LOOK[stock.type] || CREATURE_LOOK.metal;
   const pool = SPECIES_POOL[stock.type] || SPECIES_POOL.metal;
   // シードは証券コード(なければ銘柄名)。内部IDは使わない:
@@ -138,12 +154,13 @@ function buildPixels(stock, sleeping) {
 
   // 大きさ(段階が上がるほど大きい)+個体差の体つき+左右反転
   // (向きaはz軸まわりの回転なので、x・yを同じ倍率にしておけば形は崩れない)
-  const G = TIER_SCALE[t], GW = G * ind.wide, GT = G * ind.tall;
+  const hd = built.hd && !opts.lowres ? HD_SCALE : 0;
+  const G = TIER_SCALE[t] * (hd || 1), GW = G * ind.wide, GT = G * ind.tall;
   const fx = flip ? -1 : 1;
   parts = parts.map((p) => ({ ...p, c: [p.c[0] * GW * fx, p.c[1] * GW, p.c[2] * GT], r: [p.r[0] * GW, p.r[1] * GW, p.r[2] * GT], a: p.a ? p.a * fx : 0 }));
   const faces = (built.faces || []).map((f) => ({ ...f, p: [f.p[0] * GW * fx, f.p[1] * GW, f.p[2] * GT], mirror: flip ? !f.mirror : !!f.mirror }));
 
-  let grid = renderCreature({ parts, faces, pal, pattern, glow, sleeping, blush: !!built.blush });
+  let grid = renderCreature({ parts, faces, pal, pattern, glow, sleeping, blush: !!built.blush, hd });
   grid = trimGrid(grid);
 
   // ---- 光の粒(オーラ・色違い)は仕上げの後に✦(ダイヤ型)で描く:
@@ -187,7 +204,7 @@ function buildPixels(stock, sleeping) {
     marks.push({ x: bb[0] - 1, y: b2 - 2, kind: "shiny" });
     const ts = trimGridInfo(grid); grid = ts.grid; shiftMarks(-ts.dx, -ts.dy);
   }
-  return { grid, w: grid[0].length, h: grid.length, speciesName: species.name, sparkles: marks };
+  return { grid, w: grid[0].length, h: grid.length, speciesName: species.name, sparkles: marks, hd: !!hd };
 }
 
 /* 図鑑・詳細用: SVGでドットを描く(カクカク保持) */

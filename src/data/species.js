@@ -540,7 +540,7 @@ function steelDemon(t) {
     { kind: "eye", style: "demon", p: onHead(head, -0.42, 0.18) }, { kind: "eye", style: "demon", p: onHead(head, 0.42, 0.18), mirror: true },
     { kind: "mouth", style: "snarl", p: [0, 3.1, 13.2] },
   ];
-  return { ...turn(P, faces, R(12)), glow: "#ef4444" };
+  return { ...turn(P, faces, R(12)), glow: "#ef4444", hd: true };
 }
 
 /* だいまどうおう: ローブの魔導王。高くとがった襟、青白い顔、赤い宝石の首飾り、曲がった杖 */
@@ -568,7 +568,7 @@ function sorcererDemon(t) {
     { kind: "eye", style: "sharp", p: onHead(head, -0.42, 0.14), iris: "#fde047" }, { kind: "eye", style: "sharp", p: onHead(head, 0.42, 0.14), iris: "#fde047", mirror: true },
     { kind: "mouth", style: "grin", p: onHead(head, 0, -0.42) },
   ];
-  return { ...turn(P, faces, R(16)), glow: "#c084fc" };
+  return { ...turn(P, faces, R(16)), glow: "#c084fc", hd: true };
 }
 
 /* へんげのまおう: 翼をもつ大蛇の魔王。節のある長い下半身にトゲ、広げた爪の腕、
@@ -596,7 +596,7 @@ function serpentDemon(t) {
     { kind: "eye", style: "glow", p: onHead(head, 0, 0.5) },
     { kind: "mouth", style: "fangs", p: [0, 5.1, 12.9] },
   ];
-  return { ...turn(P, faces, R(20)), glow: "#ef4444" };
+  return { ...turn(P, faces, R(20)), glow: "#ef4444", hd: true };
 }
 
 const SPECIES_POOL = {

@@ -91,6 +91,34 @@ const tone = (base, lam, shiny) => {
   return mixc(mixc(base, [20, 24, 60], 0.36), base, 0.1);
 };
 
+/* 高精細モード(hd)の陰影: 5段+境目のディザ。明部は暖色、暗部は寒色へ寄せる(手描きドットの色の置き方) */
+const WARM = [255, 248, 222], COOL = [34, 30, 84];
+const BAYER = [[0, 0.5], [0.75, 0.25]];
+const toneHD = (base, v, shiny) => {
+  if (v > 0.86) return mixc(base, WARM, shiny ? 0.55 : 0.34);
+  if (v > 0.6) return mixc(base, WARM, shiny ? 0.24 : 0.13);
+  if (v > 0.32) return base;
+  if (v > 0.12) return mixc(base, COOL, 0.27);
+  return mixc(base, COOL, 0.5);
+};
+
+/* 判子をなめらかに2倍にする(Scale2x/EPX)。ただの2倍よりドットの角が丸く、手描きらしく見える */
+const scale2x = (rows) => {
+  const H = rows.length, W = Math.max(...rows.map((r) => r.length));
+  const at = (y, x) => (y < 0 || x < 0 || y >= H || x >= W ? "." : rows[y][x] || ".");
+  const out = Array.from({ length: H * 2 }, () => new Array(W * 2).fill("."));
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const P = at(y, x), A = at(y - 1, x), B = at(y, x + 1), C = at(y, x - 1), D = at(y + 1, x);
+    let e0 = P, e1 = P, e2 = P, e3 = P;
+    if (C === A && C !== D && A !== B) e0 = A;
+    if (A === B && A !== C && B !== D) e1 = B;
+    if (D === C && D !== B && C !== A) e2 = C;
+    if (B === D && B !== A && D !== C) e3 = D;
+    out[y * 2][x * 2] = e0; out[y * 2][x * 2 + 1] = e1; out[y * 2 + 1][x * 2] = e2; out[y * 2 + 1][x * 2 + 1] = e3;
+  }
+  return out.map((r) => r.join(""));
+};
+
 /* ---------- ドットの判子(目・口) ----------
    2026-09 改訂: 顔が「どれも同じ」に見えたので、判子を大きく・種類を増やした。
    k=濃い線 w=白目 h=瞳の光 i=瞳の色(種族ごと。f.iris か glow) g=光る色(glow)
@@ -141,7 +169,9 @@ export const STAMPS = {
 };
 
 /* 部品の配列 → 色の格子。faces=[{p, kind:"eye"|"mouth", style, mirror}] */
-export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#ff5a5a", sleeping = false, blush = false }) {
+export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#ff5a5a", sleeping = false, blush = false, hd = 0 }) {
+  // hd = 高精細モードの倍率(0=従来の3段陰影)。部品はすでに倍率ぶん大きくして渡される
+  const U = hd || 1; // 奥行きのしきい値などはワールド単位なので倍率で合わせる
   // 画面上の範囲
   let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
   parts.forEach((e) => {
@@ -156,6 +186,7 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
   const grid = Array.from({ length: H }, () => new Array(W).fill(null));
   const depth = Array.from({ length: H }, () => new Array(W).fill(-1e9));
   const pid = Array.from({ length: H }, () => new Array(W).fill(-1));
+  const info = hd ? Array.from({ length: H }, () => new Array(W).fill(null)) : null; // hd: 陰影の後処理用
 
   for (let py = 0; py < H; py++) {
     for (let px = 0; px < W; px++) {
@@ -171,15 +202,48 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
       const m = pal[part.mat] || pal.body;
       let base = hex(m);
       // 体の模様(ぶち・しま)。体の部品にだけ
-      if (part.mat === "body" && pattern === 1 && h3(Math.floor(best.p[0] / 2.2), Math.floor(best.p[1] / 2.2), Math.floor(best.p[2] / 2.2)) > 0.8) base = mixc(base, [30, 30, 50], 0.28);
-      if (part.mat === "body" && pattern === 2 && Math.floor((best.p[2] + 40) / 2.4) % 2 === 0 && best.n[1] > -0.2) base = mixc(base, [30, 30, 50], 0.18);
+      if (part.mat === "body" && pattern === 1 && h3(Math.floor(best.p[0] / (2.2 * U)), Math.floor(best.p[1] / (2.2 * U)), Math.floor(best.p[2] / (2.2 * U))) > 0.8) base = mixc(base, [30, 30, 50], 0.28);
+      if (part.mat === "body" && pattern === 2 && Math.floor((best.p[2] + 40 * U) / (2.4 * U)) % 2 === 0 && best.n[1] > -0.2) base = mixc(base, [30, 30, 50], 0.18);
       const lam = Math.max(0, dot(best.n, LIGHT));
       const shiny = part.mat === "metal" || part.mat === "gold" || part.mat === "glass" || part.mat === "gem";
+      const selfLit = part.mat === "glowpart" || part.mat === "fire";
       let c = tone(base, lam, shiny);
-      if (part.mat === "glowpart" || part.mat === "fire") c = hex(m); // 自ら光る部品(光・炎)は陰影なし
+      if (selfLit) c = hex(m); // 自ら光る部品(光・炎)は陰影なし
+      if (info) info[py][px] = { base, lam, shiny, selfLit, n: best.n, p: best.p, mat: part.mat };
       grid[py][px] = toHex(c);
       depth[py][px] = -best.t;
       pid[py][px] = bi;
+    }
+  }
+
+  // 高精細: くぼみの陰(AO)・質感・ふちの光・5段陰影+ディザで塗り直す
+  if (info) {
+    const R = 3, near = 1.1 * U;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const f = info[y][x];
+      if (!f || f.selfLit) continue;
+      // 近くに「自分より手前にある別の部品」が多いほど、そこは奥まったくぼみ
+      let occ = 0, tot = 0;
+      for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+        if (!dx && !dy) continue;
+        const yy = y + dy, xx = x + dx;
+        if (yy < 0 || xx < 0 || yy >= H || xx >= W) continue;
+        tot++;
+        if (depth[yy][xx] > depth[y][x] + near && pid[yy][xx] !== pid[y][x]) occ++;
+      }
+      const ao = tot ? occ / tot : 0;
+      // 質感: 生き物の部品は細かいむら(うろこ・毛並み)、金属・宝石はなめらか
+      const organic = !f.shiny && f.mat !== "white" && f.mat !== "mouth";
+      const q = 1.7 * U;
+      const tex = organic ? (h3(Math.floor(f.p[0] / q), Math.floor(f.p[1] / q), Math.floor(f.p[2] / q)) - 0.5) * 0.07 : 0;
+      const v = f.lam + tex - ao * 0.9 + (BAYER[y & 1][x & 1] - 0.375) * 0.08;
+      let c = toneHD(f.base, v, f.shiny);
+      // ふちの光: 視線とほぼ直角で、光の当たらない側のふちに冷たい照り返し
+      const edge = 1 - Math.abs(dot(f.n, CAM));
+      if (edge > 0.78 && dot(f.n, LIGHT) < 0.35) c = mixc(c, [196, 214, 255], 0.28);
+      // 金属・宝石の鋭いハイライト
+      if (f.shiny && f.lam > 0.93) c = mixc(c, [255, 255, 255], 0.7);
+      grid[y][x] = toHex(c);
     }
   }
 
@@ -191,19 +255,20 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
     const sy = y - 1, sx = x - 1;
     const filled = sy >= 0 && sx >= 0 && sy < H && sx < W && src[sy][sx];
     if (!filled) {
-      let nb = false;
+      let nb = null;
       for (const [dy, dx] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const yy = sy + dy, xx = sx + dx;
-        if (yy >= 0 && xx >= 0 && yy < H && xx < W && src[yy][xx]) nb = true;
+        if (yy >= 0 && xx >= 0 && yy < H && xx < W && src[yy][xx]) nb = nb || src[yy][xx];
       }
-      if (nb) out[y][x] = OUTLINE;
+      // hd: 輪郭は真っ黒でなく「となりの色を深く沈めた色」(手描きドットのセルアウト)
+      if (nb) out[y][x] = hd ? toHex(mixc(hex(nb), [14, 12, 30], 0.84)) : OUTLINE;
       continue;
     }
     // 部品の境目(奥の部品のほうに線を引く)
     for (const [dy, dx] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const yy = sy + dy, xx = sx + dx;
       if (yy < 0 || xx < 0 || yy >= H || xx >= W || !src[yy][xx]) continue;
-      if (pid[yy][xx] !== pid[sy][sx] && depth[yy][xx] > depth[sy][sx] + 1.6) { out[y][x] = toHex(mixc(hex(src[sy][sx]), [20, 22, 40], 0.55)); break; }
+      if (pid[yy][xx] !== pid[sy][sx] && depth[yy][xx] > depth[sy][sx] + 1.6 * U) { out[y][x] = toHex(mixc(hex(src[sy][sx]), [20, 22, 40], 0.55)); break; }
     }
   }
 
@@ -214,11 +279,12 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
     const [sx, sy, dz] = project(f.p);
     const px = Math.round(sx - x0) + 1 - 0.0, py = Math.round(y1 - sy) + 1;
     const gx = px - 1, gy = py - 1;
-    if (gy < 0 || gx < 0 || gy >= H || gx >= W || depth[gy][gx] > dz + 1.2) return; // 見えない
+    if (gy < 0 || gx < 0 || gy >= H || gx >= W || depth[gy][gx] > dz + 1.2 * U) return; // 見えない
     let style = f.style;
     if (f.kind === "eye" && sleeping && style !== "glow") style = "closed";
-    const stamp = (STAMPS[f.kind] || {})[style];
+    let stamp = (STAMPS[f.kind] || {})[style];
     if (!stamp) return;
+    if (hd >= 1.6 && stamp.length) stamp = scale2x(stamp);
     const sh = stamp.length, sw = Math.max(...stamp.map((r) => r.length));
     const iris = f.iris || glow;
     stamp.forEach((row, yy) => [...row].forEach((ch, xx) => {
@@ -231,7 +297,8 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
     faces.filter((f) => f.kind === "eye").forEach((f) => {
       const [sx, sy] = project(f.p);
       const px = Math.round(sx - x0) + 1, py = Math.round(y1 - sy) + 1;
-      put(py + 2, px + (f.mirror ? 1 : -1), COLS.r);
+      const k = hd >= 1.6 ? 2 : 1;
+      for (let a = 0; a < k; a++) for (let b = 0; b < k; b++) put(py + 2 * k + a, px + (f.mirror ? 1 : -1) * k + b, COLS.r);
     });
   }
   return out;
