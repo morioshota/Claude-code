@@ -63,7 +63,7 @@ function evoAccessory(kind, parts, t) {
   }
 }
 
-const TIER_SCALE = [1.55, 1.75, 1.95]; // ST1〜2で約24ドット幅
+const TIER_SCALE = [1.9, 2.15, 2.4]; // ST1〜2で約28〜30ドット幅(顔を描き分ける余白)
 const PAL_FIXED = {
   dark: "#3b3f5c", white: "#f3f5fa", gold: "#ffd166", metal: "#b6c0cf", glass: "#8fd3f0", gem: "#5eead4",
   pink: "#ffa3bd", red: "#ef5b5b", orange: "#fb923c", leaf: "#4caf50", wood: "#a0703f", yellow: "#fde047",
@@ -107,7 +107,7 @@ function buildPixels(stock, sleeping) {
   // 大きさ(段階が上がるほど大きい)+左右反転
   const G = TIER_SCALE[t];
   const fx = flip ? -1 : 1;
-  parts = parts.map((p) => ({ ...p, c: [p.c[0] * G * fx, p.c[1] * G, p.c[2] * G], r: p.r.map((v) => v * G) }));
+  parts = parts.map((p) => ({ ...p, c: [p.c[0] * G * fx, p.c[1] * G, p.c[2] * G], r: p.r.map((v) => v * G), a: p.a ? p.a * fx : 0 }));
   const faces = (built.faces || []).map((f) => ({ ...f, p: [f.p[0] * G * fx, f.p[1] * G, f.p[2] * G], mirror: flip ? !f.mirror : !!f.mirror }));
 
   let grid = renderCreature({ parts, faces, pal, pattern, glow, sleeping, blush: !!built.blush });

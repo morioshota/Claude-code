@@ -8,6 +8,7 @@
          pink / red / orange / leaf / wood / yellow / glowpart(陰影なしで光る) */
 
 import { E, S, chain, mirror, onHead, eyes, mouth } from "../lib/creature3d.js";
+import { R, quad, dragon, hero, bird, fish } from "./rigs.js";
 
 const CREATURE_LOOK = {
   cosmo:  { bodies: ["#a78bfa", "#8b5cf6", "#c4b5fd"], belly: "#ede9fe", accent: "#f0abfc" },
@@ -30,7 +31,8 @@ const halo = (z, r = 3.6) => Array.from({ length: 10 }, (_, i) => { const a = (i
 const wingPair = (x, y, z, rx, rz, mat = "accent", tilt = 3) => mirror([E(x, y - 1, z, rx, 0.9, rz, mat), E(x + rx * 0.6, y - 1.2, z + tilt, rx * 0.55, 0.8, rz * 0.6, mat)]);
 const earsPointy = (h, len = 4, mat = "body", spread = 0.55) => mirror(chain([h.c[0] + h.r[0] * spread, h.c[1], h.c[2] + h.r[2] * 0.6], [h.c[0] + h.r[0] * spread + 1, h.c[1] - 0.5, h.c[2] + h.r[2] * 0.6 + len], 1.6, 0.4, 4, mat));
 
-const SPECIES_POOL = {
+/* 旧ロスターの種族(2026-09前半)。いくつかは新しいロスターでもそのまま使う */
+const LEGACY = {
   /* ---------------- コスモ(宇宙・防衛) ---------------- */
   cosmo: [
     { name: "ほしぐも", build: (t) => { // ふわふわの雲に星のアンテナ
@@ -498,6 +500,240 @@ const SPECIES_POOL = {
       if (t >= 2) P.push(...mirror(chain([6.6, 0, 11], [9, 2, 15], 1.4, 1, 4, "body")), ...crown(19, 2.4));
       return { parts: P, faces: [{ kind: "eye", style: "angry", p: [-2.6, 5.8, 9.6] }, { kind: "eye", style: "angry", p: [2.6, 5.8, 9.6], mirror: true }, { kind: "mouth", style: "zigzag", p: [0, 6, 5.6] }] };
     } },
+  ],
+};
+
+
+
+/* ================================================================
+   新ロスター(2026-09 後半): タイプごと6種族 = 60種族
+   構成: おどけ者1 + カッコいい2(竜・魔王・騎士・大きな獣) + 動物3
+   ⚠ 並び順と数を変えると全員の姿が変わる(CLAUDE.md 不変条件2)
+   ================================================================ */
+const L = (type, name) => LEGACY[type].find((x) => x.name === name);
+const withGlow = (r, glow, extra = {}) => ({ ...r, glow, ...extra });
+const crownAt = (x, y, z, r = 1.8) => [E(x, y, z, r, r, 0.6, "gold"), ...[-1, 0, 1].map((k) => S(x + k * r * 0.7, y, z + 0.9, 0.55, "gold")), S(x, y + r * 0.8, z + 0.3, 0.5, "gem")];
+
+const SPECIES_POOL = {
+  cosmo: [
+    L("cosmo", "ほしぐも"),
+    { name: "せいりゅう", build: (t) => withGlow(dragon({ // 星の竜
+      t, wing: "accent", hornMat: "gold", spikeMat: "gem", iris: "#fde047",
+      extra: [S(0, 3.6, 9, 0.8, "glowpart"), ...(t >= 1 ? [S(-2.6, -2, 11, 0.6, "glowpart"), S(2.4, -3, 8.5, 0.5, "glowpart")] : []), ...(t >= 2 ? crownAt(0, 5.4, 19.6, 1.6) : [])],
+    }), "#fef3c7") },
+    { name: "ほしのきし", build: (t) => withGlow(hero({ // 星の騎士
+      armor: "white", cloth: "accent", plume: "accent", cape: "body", weapon: "sword", bladeMat: "glass",
+      shield: t >= 1 ? "body" : null, iris: "#7dd3fc", t, crown: t >= 2,
+      extra: [S(0, 2.4, 8.9, 0.6, "glowpart")],
+    }), "#7dd3fc") },
+    { name: "つきうさぎ", build: (t) => quad({ // うさぎ(おすわり)
+      sit: true, girth: 3.1, legH: 1.6, headR: 3.1, snout: 1.3, snoutLen: 0.2, ears: "long", earLen: 5 + t, earInner: "pink",
+      tail: "puff", tailMat: "white", eyeStyle: "cute", iris: "#a78bfa", mouth: "cat",
+      extra: t >= 2 ? [E(0, 0.4, 12.6, 2.6, 2.2, 0.5, "gold"), S(0, 0.4, 13.2, 1.3, "glowpart")] : t >= 1 ? [S(3, 1.6, 8, 1.2, "glowpart")] : [],
+    }) },
+    { name: "ほしオオカミ", build: (t) => withGlow(quad({ // 星のたてがみのおおかみ
+      len: 9.5, girth: 3.2, legH: 3.8, headR: 3, snout: 2, snoutLen: 1.6, ears: "pointy", earLen: 3.2, tail: "bushy", tailLen: 5,
+      eyeStyle: "sharp", iris: "#fde047", mouth: "fangs", mane: t >= 1 ? "accent" : null,
+      extra: t >= 2 ? [...[-2, 0, 2].map((y) => S(0, y, 10.4, 0.6, "glowpart"))] : [],
+    }), "#fef08a") },
+    { name: "ほしワシ", build: (t) => bird({ // わし
+      body: "body", belly: "white", beak: "yellow", hooked: true, spread: t * 1.8, crest: t >= 2 ? "gold" : null,
+      eyeStyle: "fierce", iris: "#fbbf24", big: 1 + t * 0.08,
+      extra: [S(0, 3.1, 11.6, 2.3, "white")],
+    }) },
+  ],
+  metal: [
+    L("metal", "てつかぶと"),
+    L("metal", "ボルトン"),
+    { name: "こうてつりゅう", build: (t) => withGlow(dragon({ // 鋼鉄の竜
+      t, body: "metal", belly: "dark", wing: "dark", hornMat: "white", spikeMat: "dark", plates: true, hornType: "up",
+      iris: "#ef4444", eyeStyle: "demon", mouth: "snarl", extra: t >= 2 ? crownAt(0, 5.4, 19.6, 1.6) : [],
+    }), "#ef4444") },
+    { name: "よろいサイ", build: (t) => quad({ // さい
+      len: 10, girth: 4, legH: 3, legR: 1.5, headR: 3.2, snout: 2.6, snoutLen: 1.6, snoutMat: "body", ears: "round",
+      horn: { r0: 1.1 + t * 0.2, mat: t >= 2 ? "gold" : "white" }, tail: "tuft", eyeStyle: "angry", iris: "#1f2937", mouth: "line",
+      extra: t >= 1 ? mirror([E(3.6, 0, 8.6, 1, 3.8, 0.8, "metal")]) : [],
+    }) },
+    { name: "アルマジロ", build: (t) => quad({ // よろいのアルマジロ
+      len: 8.5, girth: 3.4, legH: 1.8, headR: 2.4, snout: 1.6, snoutLen: 1.6, ears: "round", tail: "thin", tailLen: 3,
+      eyeStyle: "beady", mouth: null, stripes: "metal",
+      extra: [E(0, 0, 5.5, 3.5, 4.4, 3.2, "metal"), ...[-2.6, -0.8, 1, 2.8].map((y) => E(0, y, 5.8, 3.6, 0.4, 3.3, "dark")), ...(t >= 2 ? [...[-2.6, 0, 2.6].map((y) => E(0, y, 9.2, 0.6, 0.6, 1, "gold"))] : [])],
+    }) },
+    { name: "クワガタン", build: (t) => { // 大あごのくわがた
+      const r = quad({ len: 8, girth: 3.2, legH: 2.4, legR: 0.6, headR: 2.6, snout: 0, ears: "none", tail: "none", paws: "dark",
+        body: "dark", belly: "dark", eyeStyle: "glow", iris: "#fbbf24", mouth: null, heading: R(36),
+        extra: [E(0, -0.8, 5.8, 3.4, 4.2, 2.2, "metal"), E(0, -0.8, 5.9, 0.3, 4.2, 2.3, "dark"),
+          ...mirror(chain([1.4, 7.2, 7], [0.8 + t * 0.4, 12 + t, 8.6 + t * 0.4], 0.7, 0.35, 6, t >= 2 ? "gold" : "metal", [3.6, 10, 8]))] });
+      return withGlow(r, "#fbbf24");
+    } },
+  ],
+  spark: [
+    L("spark", "ホタルン"),
+    { name: "らいりゅう", build: (t) => withGlow(dragon({ // 雷の竜
+      t, wing: "accent", hornMat: "yellow", spikeMat: "glowpart", hornType: "antler", iris: "#fde047",
+      extra: [...chain([0, -2.4, 4.4], [-1, -6, 7], 0.3, 0.3, 4, "glowpart"), ...(t >= 2 ? crownAt(0, 5.4, 19.6, 1.6) : [])],
+    }), "#fef08a") },
+    { name: "らいじゅう", build: (t) => withGlow(quad({ // 雷の獣(大きなたてがみ)
+      len: 10, girth: 3.7, legH: 3.8, headR: 3.2, snout: 2, snoutLen: 1.2, ears: "pointy", earLen: 3, tail: "thin", tailLen: 6,
+      mane: "accent", eyeStyle: "fierce", iris: "#fde047", mouth: "fangs", stripes: "dark",
+      extra: [...chain([0, -5, 9], [0, -10, 12], 0.4, 0.3, 4, "glowpart"), ...(t >= 1 ? mirror(chain([1.6, 5, 13], [2.4, 3, 17 + t], 0.6, 0.2, 4, "yellow")) : [])],
+    }), "#fde047") },
+    { name: "ハリネズミ", build: (t) => quad({ // はりねずみ
+      len: 7, girth: 3.3, legH: 1.4, legR: 0.8, headR: 2.5, snout: 1.4, snoutLen: 1.2, ears: "round", tail: "none",
+      eyeStyle: "beady", mouth: "smile",
+      extra: Array.from({ length: 14 }, (_, i) => { const a = (i / 14) * Math.PI; return E(Math.cos(a) * 2.8, -0.6 - Math.sin(a * 2) * 0.8, 3.6 + Math.sin(a) * 3.2, 0.7, 0.7, 1.6 + t * 0.3, i % 3 === 0 && t >= 1 ? "yellow" : "accent"); }),
+    }) },
+    L("spark", "とぐろウナギ"),
+    L("spark", "イナズマどり"),
+  ],
+  build: [
+    L("build", "レンガーン"),
+    { name: "ハンマーナイト", build: (t) => withGlow(hero({ // つちの騎士
+      armor: "metal", cloth: "body", plume: "body", weapon: "hammer", bulk: 1.1, iris: "#fb923c", t,
+      cape: t >= 1 ? "body" : null, crown: t >= 2,
+    }), "#fb923c") },
+    { name: "ちていりゅう", build: (t) => withGlow(dragon({ // 大地の竜(翼なし・岩の背)
+      t, wingType: "none", hornType: "up", hornMat: "white", spikeMat: "dark", body: "body", belly: "belly", iris: "#fde047", eyeStyle: "fierce", mouth: "snarl",
+      extra: [...[-3, -1, 1].map((y, i) => E(0, y, 12 - i * 1.4, 1.6, 1.4, 1.4, "dark")), ...(t >= 2 ? crownAt(0, 5.4, 19.6, 1.6) : [])],
+    }), "#fde047") },
+    { name: "ビーバー", build: (t) => quad({ // びーばー
+      sit: true, girth: 3.2, legH: 1.4, headR: 3, snout: 1.8, snoutLen: 0.4, ears: "round", tail: "flat", tailMat: "dark",
+      eyeStyle: "beady", mouth: "fang",
+      extra: [E(0, 5.6, 7.9, 0.9, 0.5, 0.8, "white"), ...(t >= 1 ? [E(0, 1.2, 12.2, 3.2, 3, 1.4, "yellow"), E(0, 3.4, 11.5, 3.4, 1.6, 0.5, "yellow")] : []), ...(t >= 2 ? [E(3.8, 3, 6, 0.3, 0.3, 3.6, "wood"), E(3.8, 3, 9.6, 1.4, 0.8, 0.8, "metal")] : [])],
+    }) },
+    { name: "ゾウさん", build: (t) => quad({ // ぞう
+      len: 10, girth: 4.4, legH: 3.4, legR: 1.7, headR: 3.6, snout: 0, ears: "flap", earMat: "body", tail: "tuft", tailLen: 3,
+      eyeStyle: "dot", mouth: null, paws: "belly",
+      extra: [...chain([0, 8.9, 10], [0, 11.6, 3.6], 1.3, 0.8, 6, "body", [0, 12.4, 8.4]), ...(t >= 1 ? mirror(chain([1.2, 8.4, 9], [1.8, 10.6, 8.6], 0.55, 0.3, 4, "white")) : []), ...(t >= 2 ? [E(0, 0, 12.6, 3, 4, 0.6, "red"), E(0, 0, 13.4, 1.6, 1.6, 1, "gold")] : [])],
+    }) },
+    L("build", "ヘルモグ"),
+  ],
+  play: [
+    L("play", "ピエロン"),
+    { name: "まおう", build: (t) => withGlow(hero({ // 魔王
+      armor: "dark", skin: "body", helmet: "horned", horns: "white", cape: "red", collar: true, weapon: "staff",
+      wings: t >= 1 ? "dark" : null, eyeStyle: "demon", iris: "#ef4444", mouth: "fangs", t, crown: t >= 2, bulk: 1.1,
+    }), "#ef4444") },
+    { name: "きゅうび", build: (t) => withGlow(quad({ // 九尾のきつね(進化で尾がふえる)
+      len: 8.5, girth: 3, legH: 3.4, headR: 2.9, snout: 1.7, snoutLen: 1.6, ears: "pointy", earLen: 3.4, eyeStyle: "sharp", iris: "#f59e0b", mouth: "cat",
+      tail: "bushy", tailLen: 5, belly: "white", snoutMat: "white",
+      extra: Array.from({ length: t * 2 }, (_, i) => { const a = (i % 2 ? 1 : -1) * (0.5 + Math.floor(i / 2) * 0.4); return chain([0, -4.2, 6.8], [Math.sin(a) * 5, -7.6, 10 + Math.cos(a) * 2], 1.1, 1.5, 4, "body"); }).flat().concat(t >= 2 ? [S(0, 5, 12, 0.9, "glowpart")] : []),
+    }), "#fca5a5") },
+    { name: "パンダ", build: (t) => quad({ // ぱんだ(おすわり)
+      sit: true, girth: 3.7, legH: 1.8, headR: 3.3, body: "white", belly: "white", snout: 1.5, snoutLen: 0.2, snoutMat: "white", ears: "round", earMat: "dark", earInner: "dark",
+      paws: "dark", tail: "none", eyeStyle: "big", iris: "#1f2937", mouth: "smile", eyePatch: "dark",
+      extra: [...mirror([E(3, 1.4, 6.6, 1.3, 1.3, 2.4, "dark")]), E(0, 0, 8.4, 3.8, 3.4, 1, "dark"), ...(t >= 1 ? [E(3.6, 3.2, 6, 0.4, 0.4, 4, "leaf")] : []), ...(t >= 2 ? crownAt(0, 0.6, 15.4, 1.8) : [])],
+    }) },
+    { name: "ねこ", build: (t) => quad({ // ねこ
+      len: 8, girth: 2.8, legH: 2.8, legR: 0.9, headR: 2.9, snout: 1.2, snoutLen: 0.3, ears: "pointy", earLen: 2.4, tail: "thin", tailLen: 6,
+      eyeStyle: "slit", iris: "#84cc16", mouth: "cat", stripes: "accent",
+      extra: t >= 1 ? [E(0, 3.6, 8.4, 2.4, 1.6, 0.6, "red"), S(0, 5, 8, 0.7, "gold")] : [],
+    }) },
+    { name: "おさる", build: (t) => quad({ // さる
+      sit: true, girth: 3, legH: 1.8, headR: 3, snout: 2, snoutLen: 0.3, snoutMat: "pink", ears: "round", earMat: "pink", tail: "thin", tailLen: 6,
+      eyeStyle: "big", iris: "#7c2d12", mouth: "grin",
+      extra: [...(t >= 1 ? [E(0, 0.3, 14, 2.6, 2.6, 1.4, "red"), S(0, 0.3, 15.6, 0.6, "yellow")] : []), ...(t >= 2 ? [...chain([3.4, 2, 6], [5, 4, 10], 0.3, 0.3, 4, "gold"), S(5, 4, 10.6, 1.1, "gem")] : [])],
+    }) },
+  ],
+  drive: [
+    L("drive", "タイヤン"),
+    { name: "そらりゅう", build: (t) => withGlow(dragon({ // 空の竜(羽根の翼)
+      t, wingType: "feather", wing: "body", hornType: "back", hornMat: "white", spikeMat: "white", belly: "white", iris: "#fbbf24", whiskers: t >= 1 ? "white" : null,
+      extra: t >= 2 ? crownAt(0, 5.4, 19.6, 1.6) : [],
+    }), "#bae6fd") },
+    { name: "チーター", build: (t) => quad({ // ちーたー
+      len: 10, girth: 2.8, legH: 4.4, legR: 0.9, headR: 2.6, snout: 1.5, snoutLen: 0.8, ears: "round", tail: "thin", tailLen: 7,
+      body: "yellow", belly: "white", snoutMat: "white", eyeStyle: "sharp", iris: "#f59e0b", mouth: "cat", heading: R(58),
+      extra: [...[[-1.8, 2, 8.6], [1.6, -1, 9.2], [-1, -3, 8.8], [1.8, 3.4, 8.4], [0.2, 0.6, 9.5], [-2, -1.4, 8]].map(([x, y, z]) => S(x, y, z, 0.55, "dark")), ...(t >= 1 ? mirror([E(0.9, 8.3, 11.2, 0.25, 0.3, 1.3, "dark")]) : []), ...(t >= 2 ? [E(0, 0, 9.4, 1.2, 4.6, 0.4, "accent")] : [])],
+    }) },
+    { name: "ウマ", build: (t) => quad({ // うま
+      len: 10.5, girth: 3.2, legH: 5, legR: 0.95, headR: 2.4, snout: 1.9, snoutLen: 2.4, snoutMat: "body", neck: 3.4, ears: "pointy", earLen: 1.8,
+      tail: "thin", tailMat: "dark", tailLen: 5, mane: null, eyeStyle: "oval", iris: "#1f2937", mouth: "line", paws: "dark",
+      extra: [...Array.from({ length: 6 }, (_, i) => E(0, 3.8 + i * 0.5, 10.8 + i * 1.2, 0.6, 0.9, 1.4, "dark")), ...(t >= 1 ? [E(0, 0.6, 11.3, 3.4, 2.4, 0.6, "red")] : []), ...(t >= 2 ? [...mirror([E(3.6, -1, 13, 2.6, 0.4, 3, "white")]), ...chain([0, 8.7, 18], [0, 9.8, 21], 0.5, 0.15, 4, "gold")] : [])],
+    }) },
+    { name: "イルカ", build: (t) => fish({ // いるか
+      len: 12, girth: 3, fin: "body", body: "body", belly: "white", eyeStyle: "cute", iris: "#1f2937", mouth: "smile", t,
+      extra: [E(0, 7, 6.2, 1.2, 1.8, 0.9, "body"), ...(t >= 2 ? [S(0, 0, 11.2, 1.2, "glowpart")] : [])],
+    }) },
+    { name: "ハヤブサ", build: (t) => bird({ // はやぶさ
+      body: "dark", belly: "white", beak: "yellow", hooked: true, spread: 1 + t * 1.6, eyeStyle: "fierce", iris: "#fde047", tailLen: 4,
+      extra: [S(0, 3.4, 11.4, 2.2, "white"), E(0, 3, 12.6, 2.9, 2.6, 1.2, "dark")],
+    }) },
+  ],
+  life: [
+    L("life", "はっぱっぱ"),
+    { name: "ユニコーン", build: (t) => withGlow(quad({ // ゆにこーん
+      len: 10, girth: 3.1, legH: 4.8, legR: 0.9, headR: 2.4, snout: 1.8, snoutLen: 2, snoutMat: "white", neck: 3.2, body: "white", belly: "white", ears: "pointy", earLen: 1.8,
+      horn: { from: [0, 7.8, 17.8], to: [0, 9.4, 22 + t], r0: 0.7, mat: "gold" }, tail: "bushy", tailMat: "accent", tailLen: 5, eyeStyle: "cute", iris: "#a855f7", mouth: null, paws: "gold",
+      extra: [...Array.from({ length: 6 }, (_, i) => E(0, 3.6 + i * 0.5, 10.6 + i * 1.2, 0.7, 0.9, 1.4, i % 2 ? "accent" : "pink")), ...(t >= 2 ? mirror([E(3.4, -1, 13, 2.6, 0.4, 3.2, "white"), E(5.4, -1.2, 14.6, 1.4, 0.4, 2.2, "white")]) : [])],
+    }), "#f5d0fe") },
+    { name: "もりのぬし", build: (t) => withGlow(quad({ // 森の主(大きな角のしか)
+      len: 10, girth: 3.4, legH: 4.6, legR: 1, headR: 2.6, snout: 1.8, snoutLen: 1.4, ears: "pointy", earLen: 2, tail: "puff", tailMat: "white",
+      antlers: { len: 4.5 + t * 1.2, mat: t >= 2 ? "gold" : "wood" }, eyeStyle: "sharp", iris: "#22c55e", mouth: null, belly: "belly",
+      extra: [...(t >= 1 ? [...[-1.6, 1.6].map((x) => S(x, 5.6, 17.8, 0.8, "leaf")), S(0, 0, 11, 0.8, "pink")] : []), S(0, 7.9, 12.4, 1.8, "white")],
+    }), "#86efac") },
+    { name: "ひつじ", build: (t) => quad({ // ひつじ
+      len: 8, girth: 3.6, legH: 2.4, legR: 0.7, headR: 2.4, body: "white", belly: "white", snout: 1.6, snoutLen: 0.6, snoutMat: "dark", noseMat: "dark", ears: "droop", earLen: 1.6, earMat: "dark",
+      tail: "puff", tailMat: "white", eyeStyle: "sleepyl", iris: "#1f2937", mouth: null, paws: "dark",
+      extra: [...Array.from({ length: 9 }, (_, i) => { const a = (i / 9) * Math.PI * 2; return S(Math.cos(a) * 3, Math.sin(a) * 3.4, 6.8 + (i % 2) * 0.8, 1.9, "white"); }), ...(t >= 1 ? mirror(chain([2, 5.2, 11], [3.2, 6.2, 9], 0.8, 0.6, 4, "gold", [3.6, 4.4, 11.6])) : []), ...(t >= 2 ? [E(0, 6.2, 8.8, 1.4, 0.6, 1.4, "gold")] : [])],
+    }) },
+    L("life", "こもりグマ"),
+    L("life", "たまごドリ"),
+  ],
+  tech: [
+    L("tech", "ドットおばけ"),
+    { name: "メカドラゴン", build: (t) => withGlow(dragon({ // 機械の竜
+      t, wingType: "mech", body: "metal", belly: "dark", hornMat: "metal", spikeMat: "glowpart", hornType: "up", plates: true, iris: "#22d3ee", eyeStyle: "visor", mouth: "zigzag",
+      extra: [S(0, 3.5, 8.6, 1.2, "glowpart"), ...(t >= 2 ? crownAt(0, 5.4, 19.6, 1.6) : [])],
+    }), "#22d3ee") },
+    { name: "サイバーにんじゃ", build: (t) => withGlow(hero({ // 忍者
+      armor: "dark", cloth: "body", helmet: "ninja", weapon: "katana", bladeMat: "glowpart", iris: "#22d3ee", eyeStyle: "visor", t,
+      extra: [E(0, 0, 5.5, 3.2, 2.3, 0.7, "body"), ...(t >= 1 ? mirror([S(3.3, 0, 10.2, 1.2, "glowpart")]) : []), ...(t >= 2 ? [...chain([-2, -2, 11], [-2, -2, 16], 0.6, 0.6, 3, "metal"), S(-2, -2, 16.6, 1, "glowpart")] : [])],
+    }), "#22d3ee") },
+    L("tech", "ロボわん"),
+    { name: "フクロウ", build: (t) => bird({ // ふくろう
+      body: "body", belly: "belly", beak: "orange", eyeStyle: "cute", iris: "#fbbf24", tailLen: 2,
+      extra: [...mirror([E(1.4, 5.5, 11.4, 1.6, 0.5, 1.6, "white"), ...chain([2, 2.4, 13.6], [2.8, 2, 15.4 + t * 0.6], 0.8, 0.3, 3, "body")]), ...(t >= 1 ? [E(0, 5.9, 12.1, 3.4, 0.3, 0.3, "dark"), ...mirror([E(1.4, 5.8, 11.4, 1.8, 0.2, 1.8, "glass")])] : []), ...(t >= 2 ? [E(0, 3, 14.2, 3, 3, 0.5, "dark"), E(0, 3, 15, 2, 2, 0.8, "dark")] : [])],
+    }) },
+    { name: "ヤモリ", build: (t) => quad({ // やもり
+      len: 8, girth: 2.3, legH: 1.2, legR: 0.7, headR: 2.3, snout: 1.4, snoutLen: 0.5, snoutMat: "body", ears: "none", tail: "thin", tailLen: 6, tailMat: "body",
+      eyeStyle: "big", iris: "#fbbf24", mouth: "smile", eyeDx: 0.55, eyeDz: 0.35, heading: R(60),
+      extra: [...[-2, 0, 2].map((y) => S(0, y, 4.8, 0.6, t >= 1 ? "glowpart" : "accent")), ...(t >= 2 ? mirror([E(2.4, -1, 5.8, 2.4, 0.3, 1.6, "glass")]) : [])],
+    }) },
+  ],
+  money: [
+    L("money", "ツボまじん"),
+    { name: "おうごんりゅう", build: (t) => withGlow(dragon({ // 黄金の竜
+      t, body: "gold", belly: "yellow", wing: "red", hornMat: "white", spikeMat: "red", iris: "#ef4444", eyeStyle: "dragon",
+      extra: [S(0, 3.6, 9, 0.9, "gem"), ...(t >= 1 ? mirror([S(3.6, 3.2, 6.2, 0.9, "gold")]) : []), ...(t >= 2 ? crownAt(0, 5.4, 19.6, 1.8) : [])],
+    }), "#fde047") },
+    { name: "しし", build: (t) => quad({ // らいおん
+      len: 9.5, girth: 3.5, legH: 3.6, legR: 1.2, headR: 3, snout: 1.9, snoutLen: 0.9, snoutMat: "belly", ears: "round", tail: "tuft", tailLen: 5,
+      body: "yellow", mane: "orange", eyeStyle: "fierce", iris: "#f59e0b", mouth: "fangs",
+      extra: t >= 2 ? crownAt(0, 5.7, 14.6, 1.8) : t >= 1 ? [E(0, 5, 9.6, 2.4, 1, 0.8, "red")] : [],
+    }) },
+    L("money", "こばんネコ"),
+    L("money", "ぶたちょきん"),
+    L("money", "がまぐちガエル"),
+  ],
+  market: [
+    L("market", "ちょうちんオバケ"),
+    { name: "かいぞくせんちょう", build: (t) => withGlow(hero({ // 海賊の船長(かっこいい骸骨ではなく、ひげの船長)
+      armor: "red", cloth: "dark", skin: "belly", helmet: "hat", weapon: "cutlass", cape: t >= 1 ? "dark" : null, eyeStyle: "fierce", iris: "#1f2937", mouth: "mustache", t,
+      extra: [E(0, 2.4, 11.8, 1.8, 0.9, 1, "dark"), ...(t >= 2 ? [...chain([-3.4, 0, 11], [-3.6, 0.4, 13], 0.5, 0.5, 2, "dark"), S(-3.6, 0.5, 13.8, 1.3, "leaf"), S(-3.6, 1.6, 13.6, 0.5, "yellow")] : [])],
+    }), "#fbbf24") },
+    { name: "サメ", build: (t) => fish({ // さめ
+      shark: true, len: 12, girth: 3.2, body: "metal", belly: "white", fin: "metal", // さめは灰色(属性色だと何の魚か分からない) eyeStyle: "fierce", iris: "#1f2937", mouth: "zigzag", t,
+      extra: [...(t >= 1 ? mirror([E(1.4, 5, 5, 0.8, 0.5, 0.4, "white")]) : []), ...(t >= 2 ? [E(0, -0.6, 11.6, 1.6, 1.6, 0.5, "gold")] : [])],
+    }) },
+    { name: "たぬき", build: (t) => quad({ // たぬき(商人)
+      sit: true, girth: 3.4, legH: 1.8, headR: 3.1, snout: 1.6, snoutLen: 0.5, snoutMat: "white", ears: "round", earMat: "dark", tail: "bushy", tailLen: 4,
+      body: "wood", belly: "belly", tailMat: "wood", // たぬきらしい茶色は属性色より優先
+      eyeStyle: "round", iris: "#7c2d12", mouth: "smile", eyePatch: "dark",
+      extra: [ ...(t >= 1 ? [E(0, 0.6, 14.6, 3.4, 3, 0.5, "wood"), E(0, 0.6, 15.2, 2, 2, 0.8, "wood")] : []), ...(t >= 2 ? [E(3.6, 2.6, 6, 1.4, 0.8, 1.8, "gold"), E(3.6, 3.4, 6, 0.8, 0.2, 0.8, "dark")] : [])],
+    }) },
+    L("market", "はたペンギン"),
+    L("market", "ふうせんウサ"),
   ],
 };
 

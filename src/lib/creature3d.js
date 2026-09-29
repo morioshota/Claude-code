@@ -18,6 +18,9 @@ export const S = (cx, cy, cz, r, mat) => E(cx, cy, cz, r, r, r, mat);
 export const chain = (p0, p1, r0, r1, n, mat, ctrl = null) => {
   const out = [];
   const c = ctrl || [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2];
+  // 球の間隔が細い側の半径より広いと点線(数珠)に見える。長さに応じて球を足す
+  const len = Math.hypot(c[0] - p0[0], c[1] - p0[1], c[2] - p0[2]) + Math.hypot(p1[0] - c[0], p1[1] - c[1], p1[2] - c[2]);
+  n = Math.max(n, Math.min(40, Math.ceil(len / Math.max(0.18, Math.min(r0, r1) * 0.9)) + 1));
   for (let i = 0; i < n; i++) {
     const t = n === 1 ? 0 : i / (n - 1);
     const a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, d = t * t;
@@ -51,16 +54,25 @@ const project = (p) => [dot(p, RIGHT), dot(p, UP), dot(p, CAM)]; // 画面x, 画
 
 /* 楕円体と視線の交差(視線はカメラ方向の反対 -CAM)。手前側の点を返す */
 const hitEllipsoid = (e, o) => {
-  const d = [-CAM[0], -CAM[1], -CAM[2]];
-  const oc = [(o[0] - e.c[0]) / e.r[0], (o[1] - e.c[1]) / e.r[1], (o[2] - e.c[2]) / e.r[2]];
+  let d = [-CAM[0], -CAM[1], -CAM[2]];
+  let rel = [o[0] - e.c[0], o[1] - e.c[1], o[2] - e.c[2]];
+  // 部品の向き(z軸まわりの回転 e.a)。視線を部品の座標系に直してから交差を解く
+  const ca = e.a ? Math.cos(e.a) : 1, sa = e.a ? Math.sin(e.a) : 0;
+  if (e.a) {
+    const unrot = (v) => [v[0] * ca - v[1] * sa, v[0] * sa + v[1] * ca, v[2]];
+    d = unrot(d); rel = unrot(rel);
+  }
+  const oc = [rel[0] / e.r[0], rel[1] / e.r[1], rel[2] / e.r[2]];
   const dd = [d[0] / e.r[0], d[1] / e.r[1], d[2] / e.r[2]];
   const a = dot(dd, dd), b = 2 * dot(oc, dd), c = dot(oc, oc) - 1;
   const disc = b * b - 4 * a * c;
   if (disc < 0) return null;
   const t = (-b - Math.sqrt(disc)) / (2 * a); // 近いほう
-  const p = [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t];
-  const n = [(p[0] - e.c[0]) / (e.r[0] * e.r[0]), (p[1] - e.c[1]) / (e.r[1] * e.r[1]), (p[2] - e.c[2]) / (e.r[2] * e.r[2])];
+  const lp = [rel[0] + d[0] * t, rel[1] + d[1] * t, rel[2] + d[2] * t]; // 部品の座標系での交点
+  let n = [lp[0] / (e.r[0] * e.r[0]), lp[1] / (e.r[1] * e.r[1]), lp[2] / (e.r[2] * e.r[2])];
+  if (e.a) n = [n[0] * ca + n[1] * sa, -n[0] * sa + n[1] * ca, n[2]]; // 法線を世界の向きへ戻す
   const l = Math.hypot(...n) || 1;
+  const p = [o[0] - CAM[0] * t, o[1] - CAM[1] * t, o[2] - CAM[2] * t];
   return { t, p, n: [n[0] / l, n[1] / l, n[2] / l] };
 };
 
@@ -80,25 +92,41 @@ const tone = (base, lam, shiny) => {
 };
 
 /* ---------- ドットの判子(目・口) ----------
-   k=濃い線 w=白 p=舌・口の中 g=光る目の色 y=金 r=ほほ(赤み) .=そのまま */
+   2026-09 改訂: 顔が「どれも同じ」に見えたので、判子を大きく・種類を増やした。
+   k=濃い線 w=白目 h=瞳の光 i=瞳の色(種族ごと。f.iris か glow) g=光る色(glow)
+   p=舌・口の中 y=金 r=ほほ .=そのまま   ※左目の形で書く(右目は左右反転して押す) */
 export const STAMPS = {
   eye: {
-    dot:     ["wk", "kk"],
-    big:     [".kk.", "kwwk", "kwkk", ".kk."],
-    oval:    ["kk", "wk", "kk"],
-    angry:   ["kk.", ".kk", "wkk"],
-    slit:    ["gkg", "gkg"],
-    glow:    ["gg", "gw"],
-    happy:   [".k.", "k.k"],
-    sleepyl: ["kkk", "wkk"],
-    cyclops: [".kkk.", "kwwwk", "kwkkk", "kwkkk", ".kkk."],
-    star:    [".y.", "yky", ".y."],
-    closed:  ["kkk"],
+    // --- かわいい系 ---
+    dot:     ["hk", "kk"],
+    beady:   ["kk", "kh"],
+    big:     [".kkk.", "khiik", "kiiik", ".kkk."],
+    cute:    [".kkk.", "khhik", "kiiik", "kiiik", ".kkk."],
+    oval:    [".k.", "khk", "kik", ".k."],
+    round:   [".kk.", "kihk", "kiik", ".kk."],
+    happy:   [".kk.", "k..k"],
+    sleepyl: ["kkkk", ".iik"],
+    star:    [".y.", "yhy", ".y."],
+    closed:  ["kkkk"],
+    cyclops: [".kkkk.", "kwwhhk", "kwiiik", "kwiiik", ".kkkk."],
+    // --- けもの系(瞳が縦長・アーモンド形) ---
+    almond:  ["kkk..", "kiikk", ".kkh."],
+    slit:    [".kk.", "kiki", "kiki", ".kk."],
+    // --- カッコいい系(眉つき・つり目・光る目) ---
+    sharp:   ["k....", ".kk..", "..kkk", ".kihk", "..kk."],
+    fierce:  ["kk...", ".kkkk", ".kiik", "..kk."],
+    dragon:  ["kkk..", ".kkkk", "kiikh", ".kkk."],
+    demon:   ["k...", ".kk.", "kggk", ".kk."],
+    glow:    ["gg", "gh"],
+    visor:   ["gggg"],
+    angry:   ["kk..", ".kkk", "kiik", ".kk."],
   },
   mouth: {
     smile:  ["k...k", ".kkk."],
     grin:   ["kkkkk", "kwkwk", ".kkk."],
     fang:   ["kkkk", "w..w"],
+    fangs:  ["kkkkkk", ".w..w."],
+    snarl:  ["kkkkkk", "kwkwkw", ".kkkk."],
     o:      [".k.", "kpk", ".k."],
     tongue: ["kkkk", ".pp."],
     zigzag: ["kkkkkk", "wkwkwk"],
@@ -106,6 +134,9 @@ export const STAMPS = {
     line:   ["kkk"],
     mustache: ["kk.kk", ".kkk."],
     big:    [".kkkk.", "kwppwk", ".kkkk."],
+    nose:   ["kk", "kk"],
+    snout:  [".kk.", "kkkk", "k..k"],
+    beak:   [],
   },
 };
 
@@ -178,7 +209,7 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
 
   // 目と口の判子。隠れている(より手前の部品に覆われた)顔は押さない
   const put = (y, x, col) => { if (y >= 0 && x >= 0 && y < H + 2 && x < W + 2 && out[y][x]) out[y][x] = col; };
-  const COLS = { k: OUTLINE, w: "#ffffff", p: "#ff7b9c", g: glow, y: "#ffd166", r: "#ff9fb0" };
+  const COLS = { k: OUTLINE, w: "#ffffff", h: "#ffffff", p: "#ff7b9c", g: glow, y: "#ffd166", r: "#ff9fb0" };
   faces.forEach((f) => {
     const [sx, sy, dz] = project(f.p);
     const px = Math.round(sx - x0) + 1 - 0.0, py = Math.round(y1 - sy) + 1;
@@ -189,10 +220,11 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
     const stamp = (STAMPS[f.kind] || {})[style];
     if (!stamp) return;
     const sh = stamp.length, sw = Math.max(...stamp.map((r) => r.length));
+    const iris = f.iris || glow;
     stamp.forEach((row, yy) => [...row].forEach((ch, xx) => {
       if (ch === ".") return;
       const cx = f.mirror ? sw - 1 - xx : xx;
-      put(py - Math.floor(sh / 2) + yy, px - Math.floor(sw / 2) + cx, COLS[ch]);
+      put(py - Math.floor(sh / 2) + yy, px - Math.floor(sw / 2) + cx, ch === "i" ? iris : COLS[ch]);
     }));
   });
   if (blush && !sleeping) {
@@ -206,8 +238,19 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
 }
 
 /* 頭の左右に目を2つ(右目は判子を左右反転)。dx=目の間隔, dz=高さ */
-export const eyes = (h, style, dx = 0.42, dz = 0.12) => [
-  { kind: "eye", style, p: onHead(h, -dx, dz), mirror: false },
-  { kind: "eye", style, p: onHead(h, dx, dz), mirror: true },
+export const eyes = (h, style, dx = 0.42, dz = 0.12, iris = null) => [
+  { kind: "eye", style, p: onHead(h, -dx, dz), mirror: false, iris },
+  { kind: "eye", style, p: onHead(h, dx, dz), mirror: true, iris },
 ];
+
+/* 部品と顔をまとめて z軸まわりに回す(けもの・竜を斜め向きにして横顔のシルエットを見せる)。
+   部品は向き(a)を持つので、細長い胴も細長いまま斜めを向く */
+export const turn = (parts, faces, ang) => {
+  const c = Math.cos(ang), s2 = Math.sin(ang);
+  const rot = (p) => [p[0] * c + p[1] * s2, -p[0] * s2 + p[1] * c, p[2]];
+  return {
+    parts: parts.filter(Boolean).map((e) => ({ ...e, c: rot(e.c), a: (e.a || 0) - ang })),
+    faces: faces.map((f) => ({ ...f, p: rot(f.p) })),
+  };
+};
 export const mouth = (h, style, dz = -0.32, dx = 0) => ({ kind: "mouth", style, p: onHead(h, dx, dz) });
