@@ -180,8 +180,8 @@ const HD_EYES = {
   // かわいい: 瞳が目のほとんど。上に大きな光、下に小さな光。瞳の下半分に瞳の色
   cute: ["..kkk..", ".kdddk.", "kdhhddk", "kdhhddk", "kddddhk", "kddiidk", ".kiiik.", "..kkk.."],
   small: [".kkk.", "khhdk", "khddk", "kdiik", ".kkk."],
-  // カッコいい: まぶたの太い線+軽い眉。白目と瞳と光はちゃんと残す(にらみすぎない)
-  cool: ["kk......", "..kkk...", "........", "..kkkkkk", ".kwwdhdk", ".kwiddik", ".kwwiiik", "..kkkkk."],
+  // カッコいい(ボス以外): 外側の太い上まぶた1本の切れ長。眉を足すと眠たげ・不機嫌に見えた
+  cool: ["kkkkk..", "kwwidkk", "kwidhdk", ".kiddik", "..kkkk."],
   // ボス(竜・魔王・悪役): 上まぶた自体が内側へ下がる鋭い目(眉は描かない。眉を足すとまつ毛に見えた)。笑わせない
   boss: ["kk....", "kwkk..", "kwidkk", "kwdhik", ".kkkk."],
   sleep: ["........", ".k....k.", "..kkkk.."],
@@ -225,12 +225,25 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
   const pid = Array.from({ length: H }, () => new Array(W).fill(-1));
   const info = hd ? Array.from({ length: H }, () => new Array(W).fill(null)) : null; // hd: 陰影の後処理用
 
+  // 高速化: 画面を8pxの升目に分け、升目ごとに「写りうる部品」だけを調べる(高精細は部品×画素が多い)
+  const B = 8, BW = Math.ceil(W / B), BH = Math.ceil(H / B);
+  const buckets = Array.from({ length: BW * BH }, () => []);
+  parts.forEach((e, i) => {
+    const [sx, sy] = project(e.c);
+    const rr = Math.max(...e.r) + 1;
+    const bx0 = Math.max(0, Math.floor((sx - rr - x0) / B)), bx1 = Math.min(BW - 1, Math.floor((sx + rr - x0) / B));
+    const by0 = Math.max(0, Math.floor((y1 - sy - rr) / B)), by1 = Math.min(BH - 1, Math.floor((y1 - sy + rr) / B));
+    for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++) buckets[by * BW + bx].push(i);
+  });
   for (let py = 0; py < H; py++) {
     for (let px = 0; px < W; px++) {
+      const cand = buckets[Math.floor(py / B) * BW + Math.floor(px / B)];
+      if (!cand.length) continue;
       const sx = x0 + px + 0.5, sy = y1 - py - 0.5;
       const o = [RIGHT[0] * sx + UP[0] * sy + CAM[0] * 200, RIGHT[1] * sx + UP[1] * sy + CAM[1] * 200, RIGHT[2] * sx + UP[2] * sy + CAM[2] * 200];
       let best = null, bi = -1;
-      for (let i = 0; i < parts.length; i++) {
+      for (let k = 0; k < cand.length; k++) {
+        const i = cand[k];
         const h = hitEllipsoid(parts[i], o);
         if (h && (!best || h.t < best.t)) { best = h; bi = i; }
       }

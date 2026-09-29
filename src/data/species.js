@@ -816,12 +816,12 @@ const SPECIES_POOL = {
   ],
 };
 
-/* 高精細モードの試作対象(竜・魔王は各build内でhd:true)。顔の比較用に、かわいい系・カッコいい系を数種ずつ */
-const HD_TRIAL = new Set(["つきうさぎ", "ねこ", "パンダ", "ひつじ", "ほしオオカミ", "ほしのきし"]);
+/* 全種族を高精細モードで描く(2026-09)。竜・魔王は各build内で mood:"boss" を返す。
+   悪役っぽい種族もボス顔にする(オーナー承認: かいぞくせんちょう・サメ) */
+const BOSS_FACE = new Set(["かいぞくせんちょう", "サメ"]);
 Object.values(SPECIES_POOL).forEach((pool) => pool.forEach((sp) => {
-  if (!HD_TRIAL.has(sp.name)) return;
   const b = sp.build;
-  sp.build = (t) => ({ ...b(t), hd: true });
+  sp.build = (t) => { const r = b(t); return { ...r, hd: true, mood: r.mood || (BOSS_FACE.has(sp.name) ? "boss" : null) }; };
 }));
 
 export { CREATURE_LOOK, SPECIES_POOL };
