@@ -25,7 +25,8 @@ import { NoteEditor } from "./components/notes.jsx";
 import { btnStyle, PressButton, FilterChip, pageStyle } from "./components/ui.jsx";
 import { STORAGE_KEY, noteKey, TYPES, STATUSES, ACHIEVEMENTS, SEED, BACKUP_FORMAT } from "./data/constants.js";
 import { evoPoolFor, rollEvoFx } from "./data/evolution.js";
-import { SPECIAL_POOL, SPECIAL_RATE } from "./data/species.js";
+import { SPECIAL_RATE } from "./data/species.js";
+import { getSpecials, loadSpecialPack, mergeSpecialPack, clearSpecialPack, parseSpecialPack } from "./lib/specials.js";
 import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/activity.js";
 import { sfx, soundEnabled, setSoundEnabled } from "./lib/sound.js";
 import { enableTilt, disableTilt, restoreTilt, tiltOn, tiltSupported, onTiltChange } from "./lib/cardfx.js";
@@ -56,6 +57,16 @@ export default function KabuDex() {
   const [evoFlash, setEvoFlash] = useState(null); // {stock, stage, tier} 進化セレモニー
   const [shinyFlash, setShinyFlash] = useState(null); // 色違い当選セレモニー(進化と重なったら後で表示)
   const [specialFlash, setSpecialFlash] = useState(null); // 特別キャラ当選セレモニー
+  const [specialsVer, setSpecialsVer] = useState(0); // とくべつパックの読み込み・変更で描き直すため
+  useEffect(() => { loadSpecialPack().then(() => setSpecialsVer((v) => v + 1)); }, []);
+  const importSpecialPack = async (data) => {
+    const list = parseSpecialPack(data);
+    if (!list || !list.length) return null;
+    const next = await mergeSpecialPack(list);
+    setSpecialsVer((v) => v + 1);
+    return next;
+  };
+  const removeSpecialPack = async () => { await clearSpecialPack(); setSpecialsVer((v) => v + 1); };
   const [view, setView] = useState("dex"); // 'dex'|'ranch'|'analysis'|'album'
   const [graduating, setGraduating] = useState(null); // 卒業式モーダル対象のstock
   const [activity, setActivity] = useState(null); // 草カレンダー用 {days, seeded}
@@ -173,8 +184,9 @@ export default function KabuDex() {
     let ns = { ...f, id: uid(), no: maxNo + 1, logs: f.logs || [], noteCount: 0, lastResearch: "" };
     // 特別キャラの抽選は「初めて登録したとき」の1回だけ(オーナー要望: 愛着が湧いた頃に姿が変わるのはショック)。
     // 外れたら従来どおり証券コードで決まるセクターの種族。当選は永久保存(不変条件6)
-    const wonSpecial = SPECIAL_POOL.length > 0 && Math.random() < SPECIAL_RATE;
-    if (wonSpecial) ns = { ...ns, special: SPECIAL_POOL[Math.floor(Math.random() * SPECIAL_POOL.length)].key, specialAt: today() };
+    const pool = getSpecials(); // とくべつパックを読み込んだ端末でだけ抽選される
+    const wonSpecial = pool.length > 0 && Math.random() < SPECIAL_RATE;
+    if (wonSpecial) ns = { ...ns, special: pool[Math.floor(Math.random() * pool.length)].key, specialAt: today() };
     persist([...stocks, ns]);
     setFormMode(null);
     recordActivity().then(setActivity);
@@ -343,7 +355,9 @@ export default function KabuDex() {
       } catch (e) { /* 壊れた記録キーはアプリ本体でも読めないためスキップ */ }
     }
     const act = await loadActivity(); // 草カレンダーの活動履歴も含める(format 2)
-    return { app: "kabu-dex", format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), stocks, notes, activity: act };
+    const sp = getSpecials();
+    return { app: "kabu-dex", format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), stocks, notes, activity: act,
+      ...(sp.length ? { specialPack: { format: "kabu-special-pack", version: 1, specials: sp } } : {}) };
   };
 
   /* 書き出しが完了したら最終バックアップ日を記録(リマインダーの起点) */
@@ -369,6 +383,9 @@ export default function KabuDex() {
   };
 
   const importAll = async (data, mode) => {
+    // バックアップに入っているとくべつパックも戻す(同じキーは上書き)
+    const sp = data.specialPack ? parseSpecialPack(data.specialPack) : null;
+    if (sp && sp.length) { await mergeSpecialPack(sp); setSpecialsVer((v) => v + 1); }
     const srcNotes = data.notes && typeof data.notes === "object" ? data.notes : {};
     // 読み込み時のv1→v2移行と同じ補完(バックアップが古い形式でも壊さない)
     const normalize = (s) => ({ noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s });
@@ -870,7 +887,7 @@ export default function KabuDex() {
       )}
       {panel === "party" && <PartyModal stocks={stocks} onClose={() => setPanel(null)} />}
       {panel === "badges" && <BadgeModal stocks={stocks} onClose={() => setPanel(null)} />}
-      {panel === "data" && <DataPortModal stocks={stocks} onExport={exportAll} onImport={importAll} onBackupDone={markBackupDone} onClose={() => setPanel(null)} />}
+      {panel === "data" && <DataPortModal stocks={stocks} onExport={exportAll} onImport={importAll} onBackupDone={markBackupDone} specials={getSpecials()} specialsVer={specialsVer} onSpecialPack={importSpecialPack} onClearSpecials={removeSpecialPack} onClose={() => setPanel(null)} />}
       {panel === "check" && <TriggerCheckModal due={due} onAnswer={answerTriggerCheck} onClose={() => setPanel(null)} />}
       {graduating && <GraduationModal stock={graduating} quote={quotes[graduating.id]} onConfirm={confirmGraduation} onCancel={() => setGraduating(null)} />}
     </div>

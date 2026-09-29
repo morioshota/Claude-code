@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { buildPixels } from "../lib/sprites.js";
+import { specialsVersion } from "../lib/specials.js";
 import { calcLevel, stageOf, moveTierOf, freshInfo, evalAchievements } from "../lib/stock.js";
 import { ACHIEVEMENTS, TYPES } from "../data/constants.js";
 import { hashStr, mulberry32, today } from "../lib/util.js";
@@ -841,7 +842,7 @@ function RanchKairo({ stocks, quotes, onSelect }) {
     /* ---- クリーチャー状態(保有=敷地 / ウォッチ=森) ---- */
     const artCache = new Map();
     const artFor = (s, sleeping) => {
-      const key = `${s.id}:${sleeping ? "z" : "a"}:${s.shiny ? "S" : ""}:${stageOf(calcLevel(s)).no}:${s.evoPattern || ""}`;
+      const key = `${s.id}:${sleeping ? "z" : "a"}:${s.shiny ? "S" : ""}:${stageOf(calcLevel(s)).no}:${s.evoPattern || ""}:${s.special || ""}:${specialsVersion()}`;
       if (!artCache.has(key)) artCache.set(key, creatureArt(s, sleeping));
       return artCache.get(key);
     };

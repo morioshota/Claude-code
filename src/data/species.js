@@ -734,47 +734,11 @@ const SPECIES_POOL = {
   ],
 };
 
-/* ---- 特別キャラ(2026-09末・オーナー要望) ----
-   種族・タイプと関係なく、銘柄を初めて登録したときだけ低確率で当選する超レアキャラ。
-   (記録保存ごとの抽選だと、愛着の湧いた子が後から別の姿に変わってしまう——オーナー指摘で登録時のみに)
-   当選したら stock.special にキーを永久保存する(不変条件6)。今後リクエストで追加していく。
-   px は自由な幅・固有の配色(pal の文字→色)。native:true は2倍拡大(Scale2x)をかけず実寸で描く
-   (小さな格子を拡大すると目・口がつぶれるため。顔の細部を1ドットずつ置ける)。個体差の色・左右反転・進化装飾はかけない(姿を崩さない)。
-   ⚠ フレデリックはレオ・レオニの絵本のキャラクター(オーナーが大好きなキャラとして個人の図鑑に追加) */
-const SPECIAL_POOL = [
-  { key: "frederick", name: "フレデリック", native: true, px: [ // 灰緑のねずみ・大きな薄茶の耳・眠たげな目・赤いポピー(24×28を実寸で手描き)
-    "........................",
-    ".rrkkrr.................",
-    "rrrkkrrr................",
-    "rrrkrrrr................",
-    ".rrrrrr.................",
-    "...rrr..................",
-    "...s..............ttt...",
-    "...s.............ttttt..",
-    "....s....tttt...tttTttt.",
-    "....s....tttt...ttTTTtt.",
-    "....s...tttttt..tTTTTTt.",
-    ".....s..ttttttggggTTTtt.",
-    ".....s...tttggggggggtt..",
-    ".....s...ttttgggggttg...",
-    "......s...ttttgggttttg..",
-    "...t..s...wkkwgggwkkwg..",
-    "..t...s...gwwggkggwwgg..",
-    "..t....s..gggggkkggggg..",
-    "..t....s...ggkgggkggg...",
-    "..t....s...gggkkkggg....",
-    "...t....s.gggggggggg....",
-    "...t....sggggggggggg....",
-    "....t...sgggggggggggg...",
-    ".....t...sggggggggggg...",
-    "......t..sgggggggggg....",
-    ".......t.sgggggggggg....",
-    "........ttsgggggggg.....",
-    "..........s.gggggg......",
-  ], pal: { g: "#6f7a55", t: "#cfb274", T: "#b8955a", w: "#f6f1e3", k: "#1a1a1a", r: "#e5491d", s: "#3fa34d" } },
-];
+/* ---- 特別キャラ ----
+   ドット絵そのものはアプリ本体に入れない(既存作品のキャラを含むため)。
+   オーナーの端末に読み込む「とくべつパック」(lib/specials.js)で供給する */
 
 /* 特別キャラの当選確率(銘柄を初めて登録したときの1回だけ抽選) */
 const SPECIAL_RATE = 0.03;
 
-export { CREATURE_LOOK, SPECIES_POOL, SPECIAL_POOL, SPECIAL_RATE };
+export { CREATURE_LOOK, SPECIES_POOL, SPECIAL_RATE };

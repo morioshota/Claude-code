@@ -3,7 +3,8 @@
    進化装飾(evoPattern)と色違い(shiny)は「抽選結果をstockに永久保存」する方式で
    決定論を維持しつつ上乗せされる。 */
 
-import { CREATURE_LOOK, SPECIES_POOL, SPECIAL_POOL } from "../data/species.js";
+import { CREATURE_LOOK, SPECIES_POOL } from "../data/species.js";
+import { findSpecial, specialsVersion } from "./specials.js";
 import { evoPoolFor } from "../data/evolution.js";
 import { calcLevel, stageOf } from "./stock.js";
 import { hashStr, mulberry32, shade, hueShift } from "./util.js";
@@ -226,7 +227,7 @@ function individualOf(seedSrc) {
    (opts.lowres は3D方式の名残で、いまはどちらでも同じ絵) */
 const PIX_CACHE = new Map();
 function buildPixels(stock, sleeping, opts = {}) {
-  const key = [stock.code, stock.name, stock.type, calcLevel(stock), !!stock.shiny, stock.evoPattern || "", stock.special || "", !!sleeping].join("|");
+  const key = [stock.code, stock.name, stock.type, calcLevel(stock), !!stock.shiny, stock.evoPattern || "", stock.special || "", specialsVersion(), !!sleeping].join("|");
   const hit = PIX_CACHE.get(key);
   if (hit) return hit;
   const res = buildPixelsRaw(stock, sleeping, opts);
@@ -262,7 +263,7 @@ function buildPixelsRaw(stock, sleeping) {
   };
   // 特別キャラ(当選してstock.specialに保存済み)は種族の代わりにその姿で描く。
   // 固有の配色のまま(色違いのときだけ色相を回す)、左右反転・進化装飾はしない
-  const special = stock.special ? SPECIAL_POOL.find((x) => x.key === stock.special) : null;
+  const special = findSpecial(stock.special); // パックが無い端末では通常の種族で描く
   const w = Math.max(...(special || species).px.map((r) => r.length));
   let grid = special ? special.px.map((row) => [...row.padEnd(w, ".")].map((ch) => {
     if (ch === ".") return null;
@@ -310,7 +311,8 @@ function buildPixelsRaw(stock, sleeping) {
   }
   grid = trimGrid(grid);
   // GBA風仕上げ: 2倍拡大 → 陰影 → アウトライン(順序重要: 輪郭は陰影の後)
-  grid = outlineGrid(shadeGrid(special && special.native ? grid : epx2(grid)));
+  if (special && special.raw) grid = padGrid(grid, 1, 1); // 元のドット絵のまま(輪郭も描き込み済み)
+  else grid = outlineGrid(shadeGrid(special && special.native ? grid : epx2(grid)));
 
   // ---- 光の粒(オーラ・色違い)は仕上げの後に✦(ダイヤ型)で描く:
   //      輪郭処理を通さないことで「浮いた四角」ではなく「光」に見える ----

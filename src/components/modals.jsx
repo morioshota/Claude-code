@@ -92,7 +92,25 @@ function BadgeModal({ stocks, onClose }) {
   );
 }
 
-function DataPortModal({ stocks, onExport, onImport, onBackupDone, onClose }) {
+function DataPortModal({ stocks, onExport, onImport, onBackupDone, specials = [], onSpecialPack, onClearSpecials, onClose }) {
+  const packRef = useRef(null);
+  const onPackFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setMsg(null);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const next = await onSpecialPack(JSON.parse(reader.result));
+        setMsg(next ? { ok: true, text: `とくべつパックを読み込みました（${next.length}キャラ）。これからの新規登録で低確率で登場します` }
+          : { ok: false, text: "このファイルはとくべつパックとして読み込めませんでした" });
+      } catch (err) {
+        setMsg({ ok: false, text: "このファイルはとくべつパックとして読み込めませんでした" });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
   const [preview, setPreview] = useState(null); // 読み込んだバックアップの中身 {data, stockCount, noteCount}
   const [mode, setMode] = useState("merge"); // 'merge'|'replace'
   const [busy, setBusy] = useState(false);
@@ -216,6 +234,29 @@ function DataPortModal({ stocks, onExport, onImport, onBackupDone, onClose }) {
             </div>
           )}
         </div>
+
+        {/* とくべつパック(この端末だけ・公開版には入っていない特別キャラ) */}
+        {onSpecialPack && (
+          <div style={{ border: "1px solid #3a3320", borderRadius: 12, padding: "12px 14px", marginTop: 12 }}>
+            <div style={{ ...secTitle, color: "#ffd166" }}>🌟 とくべつパック</div>
+            <div style={{ fontSize: 11.5, color: "#8b93b8", marginBottom: 10, lineHeight: 1.7 }}>
+              特別キャラのドット絵をこの端末に読み込みます（アプリ本体・公開URLには入っていません）。
+              読み込むと、これから<b>新しく登録する銘柄</b>が低確率で特別キャラになります。
+              <br />いま：{specials.length ? `${specials.length}キャラ読み込み済み` : "未読み込み"}
+            </div>
+            <input ref={packRef} type="file" accept=".json,application/json" onChange={onPackFile} style={{ display: "none" }} />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => packRef.current && packRef.current.click()} disabled={busy} style={{ ...btnStyle("#ffd166"), opacity: busy ? 0.5 : 1 }}>
+                📂 パックを読み込む
+              </button>
+              {specials.length > 0 && (
+                <button onClick={() => { if (window.confirm("この端末からとくべつパックを外します。特別キャラになっている銘柄は、通常の種族の姿で表示されます（パックを読み込み直せば戻ります）。よろしいですか？")) onClearSpecials(); }} style={btnStyle("#8b93b8")}>
+                  外す
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {msg && (
           <div style={{
