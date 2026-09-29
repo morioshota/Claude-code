@@ -168,6 +168,39 @@ export const STAMPS = {
   },
 };
 
+/* 高精細(hd)用の目。2026-09 オーナー指摘「顔が全体的に怖い」を受けて作り直し。
+   調べたこと(ドラクエ・ポケモンのモンスターの目):
+   ・ドラクエは強いモンスターでも「白目+瞳」があり、こちらと目が合う。黒く塗りつぶした目や
+     瞳のない光る目は、それだけで不気味になる
+   ・かわいい=大きな丸い目・大きな瞳・白いハイライト(光)。白目は少なめ
+   ・カッコいい=アーモンド形の目+まぶたの太い線+眉。ただし白目・瞳・ハイライトは残す
+     (リザードン・カイリューの目。つり上がりすぎると「怖い」側へ行く)
+   k=線 w=白目 i=瞳の色 d=瞳の奥(瞳の色を沈めた色) h=光 ※左目の形。右目は反転 */
+const HD_EYES = {
+  // かわいい: 瞳が目のほとんど。上に大きな光、下に小さな光。瞳の下半分に瞳の色
+  cute: ["..kkk..", ".kdddk.", "kdhhddk", "kdhhddk", "kddddhk", "kddiidk", ".kiiik.", "..kkk.."],
+  small: [".kkk.", "khhdk", "khddk", "kdiik", ".kkk."],
+  // カッコいい: まぶたの太い線+軽い眉。白目と瞳と光はちゃんと残す(にらみすぎない)
+  cool: ["kk......", "..kkk...", "........", "..kkkkkk", ".kwwdhdk", ".kwiddik", ".kwwiiik", "..kkkkk."],
+  sleep: ["........", ".k....k.", "..kkkk.."],
+};
+const HD_EYE_OF = {
+  cute: "cute", big: "cute", round: "cute", oval: "cute", cyclops: "cute", star: "cute", almond: "cute",
+  dot: "small", beady: "small", sleepyl: "small",
+  sharp: "cool", fierce: "cool", dragon: "cool", demon: "cool", angry: "cool", slit: "cool",
+  closed: "sleep",
+};
+// hdの口は拡大せず専用に描く(拡大すると顔の幅いっぱいの黒い帯+歯になり、いちばん怖く見えた)
+const HD_MOUTHS = {
+  smirk: ["k......k", ".kkkkkk.", "..w..w.."],   // 口角の上がった牙口(カッコいい系)
+  smile: ["k....k", ".kkkk."],
+  cat: ["k..k..k", ".kk.kk."],
+  o: [".kk.", "kppk", ".kk."],
+  line: ["kkkk"],
+  tongue: ["k....k", ".kkkk.", "..pp.."],
+};
+const HD_MOUTH_OF = { snarl: "smirk", grin: "smirk", zigzag: "smirk", fangs: "smirk", fang: "smirk", big: "smile", smile: "smile", cat: "cat", o: "o", line: "line", tongue: "tongue", mustache: "smile" };
+
 /* 部品の配列 → 色の格子。faces=[{p, kind:"eye"|"mouth", style, mirror}] */
 export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#ff5a5a", sleeping = false, blush = false, hd = 0 }) {
   // hd = 高精細モードの倍率(0=従来の3段陰影)。部品はすでに倍率ぶん大きくして渡される
@@ -275,22 +308,38 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
   // 目と口の判子。隠れている(より手前の部品に覆われた)顔は押さない
   const put = (y, x, col) => { if (y >= 0 && x >= 0 && y < H + 2 && x < W + 2 && out[y][x]) out[y][x] = col; };
   const COLS = { k: OUTLINE, w: "#ffffff", h: "#ffffff", p: "#ff7b9c", g: glow, y: "#ffd166", r: "#ff9fb0" };
+  // hd: 目の判子は大きいので、左右の目がくっつくと「サングラス」に見える。すき間を空ける
+  const eyeShift = new Map();
+  if (hd >= 1.6 && !sleeping) {
+    const ey = faces.filter((f) => f.kind === "eye" && HD_EYES[HD_EYE_OF[f.style]])
+      .map((f) => ({ f, x: project(f.p)[0], y: project(f.p)[1] })).sort((a, b) => a.x - b.x);
+    if (ey.length === 2 && Math.abs(ey[0].y - ey[1].y) < 4) {
+      const need = Math.max(...HD_EYES[HD_EYE_OF[ey[0].f.style]].map((r) => r.length)) + 2;
+      const gap = ey[1].x - ey[0].x;
+      if (gap < need) { const d = Math.ceil((need - gap) / 2); eyeShift.set(ey[0].f, -d); eyeShift.set(ey[1].f, d); }
+    }
+  }
   faces.forEach((f) => {
     const [sx, sy, dz] = project(f.p);
-    const px = Math.round(sx - x0) + 1 - 0.0, py = Math.round(y1 - sy) + 1;
-    const gx = px - 1, gy = py - 1;
+    const px0 = Math.round(sx - x0) + 1, py = Math.round(y1 - sy) + 1;
+    const px = px0 + (eyeShift.get(f) || 0);
+    const gx = px0 - 1, gy = py - 1;
     if (gy < 0 || gx < 0 || gy >= H || gx >= W || depth[gy][gx] > dz + 1.2 * U) return; // 見えない
     let style = f.style;
     if (f.kind === "eye" && sleeping && style !== "glow") style = "closed";
+    const big = hd >= 1.6;
     let stamp = (STAMPS[f.kind] || {})[style];
-    if (!stamp) return;
-    if (hd >= 1.6 && stamp.length) stamp = scale2x(stamp);
+    if (big && f.kind === "eye" && HD_EYES[HD_EYE_OF[style]]) stamp = HD_EYES[HD_EYE_OF[style]];
+    else if (big && f.kind === "mouth" && HD_MOUTHS[HD_MOUTH_OF[style]]) stamp = HD_MOUTHS[HD_MOUTH_OF[style]];
+    else if (!stamp) return;
+    else if (big && stamp.length) stamp = scale2x(stamp);
     const sh = stamp.length, sw = Math.max(...stamp.map((r) => r.length));
     const iris = f.iris || glow;
+    const deep = toHex(mixc(hex(iris), [16, 14, 40], 0.84)); // 瞳の奥はほぼ黒(明るいとメガネのように見えた)
     stamp.forEach((row, yy) => [...row].forEach((ch, xx) => {
       if (ch === ".") return;
       const cx = f.mirror ? sw - 1 - xx : xx;
-      put(py - Math.floor(sh / 2) + yy, px - Math.floor(sw / 2) + cx, ch === "i" ? iris : COLS[ch]);
+      put(py - Math.floor(sh / 2) + yy, px - Math.floor(sw / 2) + cx, ch === "i" ? iris : ch === "d" ? deep : COLS[ch]);
     }));
   });
   if (blush && !sleeping) {

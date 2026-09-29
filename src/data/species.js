@@ -537,7 +537,7 @@ function steelDemon(t) {
   if (t >= 1) Array.from({ length: 7 }, (_, i) => { const a = Math.PI * (0.1 + (i / 6) * 0.8); P.push(...chain([Math.cos(a) * 3.2, -2.4, 13.4 + Math.sin(a) * 3.2], [Math.cos(a) * (6 + t), -2.6, 13.4 + Math.sin(a) * (6 + t)], 0.55, 0.15, 4, "gold")); });
   if (t >= 2) P.push(E(0, -2.6, 13.4, 3.6, 0.4, 3.6, "gold"), S(0, 2.9, 9.2, 0.8, "gem"));
   const faces = [
-    { kind: "eye", style: "demon", p: onHead(head, -0.42, 0.18) }, { kind: "eye", style: "demon", p: onHead(head, 0.42, 0.18), mirror: true },
+    { kind: "eye", style: "demon", p: onHead(head, -0.42, 0.18), iris: "#fbbf24" }, { kind: "eye", style: "demon", p: onHead(head, 0.42, 0.18), iris: "#fbbf24", mirror: true },
     { kind: "mouth", style: "snarl", p: [0, 3.1, 13.2] },
   ];
   return { ...turn(P, faces, R(12)), glow: "#ef4444", hd: true };
@@ -592,7 +592,7 @@ function serpentDemon(t) {
   P.push(...mirror([...chain([2, -1, 12], [7 + t, -2.4, 17 + t], 0.45, 0.3, 6, "dark"), E(4.2 + t * 0.4, -1.8, 13.8 + t * 0.4, 2.4 + t * 0.3, 0.3, 3 + t * 0.3, "accent"), E(6 + t * 0.6, -2.2, 13.2 + t * 0.4, 1.3, 0.3, 2.8, "accent")]));
   if (t >= 2) P.push(S(0, 3.9, 8.8, 0.9, "gem"), ...crownAt(0, 2.4, 16.2, 1.4));
   const faces = [
-    { kind: "eye", style: "demon", p: onHead(head, -0.42, 0.08) }, { kind: "eye", style: "demon", p: onHead(head, 0.42, 0.08), mirror: true },
+    { kind: "eye", style: "demon", p: onHead(head, -0.42, 0.08), iris: "#fbbf24" }, { kind: "eye", style: "demon", p: onHead(head, 0.42, 0.08), iris: "#fbbf24", mirror: true },
     { kind: "eye", style: "glow", p: onHead(head, 0, 0.5) },
     { kind: "mouth", style: "fangs", p: [0, 5.1, 12.9] },
   ];
@@ -815,5 +815,13 @@ const SPECIES_POOL = {
     L("market", "ふうせんウサ"),
   ],
 };
+
+/* 高精細モードの試作対象(竜・魔王は各build内でhd:true)。顔の比較用に、かわいい系・カッコいい系を数種ずつ */
+const HD_TRIAL = new Set(["つきうさぎ", "ねこ", "パンダ", "ひつじ", "ほしオオカミ", "ほしのきし"]);
+Object.values(SPECIES_POOL).forEach((pool) => pool.forEach((sp) => {
+  if (!HD_TRIAL.has(sp.name)) return;
+  const b = sp.build;
+  sp.build = (t) => ({ ...b(t), hd: true });
+}));
 
 export { CREATURE_LOOK, SPECIES_POOL };
