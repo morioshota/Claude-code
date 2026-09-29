@@ -176,7 +176,7 @@ export function renderCreature({ parts, faces = [], pal, pattern = 0, glow = "#f
       const lam = Math.max(0, dot(best.n, LIGHT));
       const shiny = part.mat === "metal" || part.mat === "gold" || part.mat === "glass" || part.mat === "gem";
       let c = tone(base, lam, shiny);
-      if (part.mat === "glowpart") c = hex(m); // 自ら光る部品は陰影なし
+      if (part.mat === "glowpart" || part.mat === "fire") c = hex(m); // 自ら光る部品(光・炎)は陰影なし
       grid[py][px] = toHex(c);
       depth[py][px] = -best.t;
       pid[py][px] = bi;

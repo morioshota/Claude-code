@@ -99,64 +99,80 @@ export function quad(o = {}) {
 }
 
 /* ---------- 竜(ドラゴン) ----------
-   直立ぎみの胴+長い首+角+翼+トゲの並んだしっぽ。t(進化段階)で翼と角が育つ */
+   2026-09 改訂(オーナー提示の参考画像の作風): 直立したずんぐり体型、
+   しま模様の大きなおなか、振り上げた爪の腕、大きく開いた口とキバ、頭のとさか、
+   コウモリの翼、トゲの並んだ太いしっぽ。ST3からは口から炎を吐く。
+   ※特定のキャラクターの模写ではなく「王道の竜」の作りをなぞったオリジナル */
 export function dragon(o = {}) {
   const {
-    body = "body", belly = "belly", wing = "accent", hornMat = "white", spikeMat = "accent",
-    t = 0, wingType = "bat", hornType = "back", iris = "#fde047", eyeStyle = "dragon", mouth = "fangs",
-    heading = R(44), extra = [], crest = null, whiskers = null, plates = false,
+    body = "body", belly = "amber", stripe = "stripe", wing = "accent", bone = "dark", hornMat = "white", spikeMat = "red",
+    t = 0, wingType = "bat", hornType = "crest", iris = "#fde047", eyeStyle = "dragon",
+    heading = R(34), extra = [], whiskers = null, plates = false, fire = false,
   } = o;
   const P = [];
-  // 足と胴
-  P.push(...mirror([E(2.8, -1.4, 3.4, 2.3, 3, 3.1, body), E(3.1, 0.8, 0.7, 1.6, 2.3, 0.75, "dark")]));
-  P.push(...mirror(Array.from({ length: 3 }, (_, i) => E(2.4 + i * 0.7, 2.9, 0.5, 0.3, 0.6, 0.4, "white"))));
-  P.push(E(0, 0.3, 7.6, 3.7, 3.4, 5, body));
-  P.push(E(0, 2.6, 7.1, 2.5, 1.3, 4.1, belly));
-  [5.3, 7, 8.7].forEach((z) => P.push(E(0, 3.5, z, 2.2, 0.4, 0.35, "dark")));
-  if (plates) [5, 7.5].forEach((z) => P.push(...mirror([E(3.4, 0.4, z, 0.6, 1.8, 1, "metal")])));
-  // 腕
-  P.push(...mirror([...chain([3.2, 1.6, 9], [3.6, 4.4, 6.6], 1, 0.8, 3, body), E(3.7, 4.9, 6.3, 0.9, 0.9, 0.6, "dark")]));
-  // 首と頭
-  P.push(...chain([0, 1.6, 11], [0, 4.4, 15], 2.2, 1.7, 4, body, [0, 1.2, 14.6]));
-  const head = E(0, 5.4, 16.3, 2.5, 3.1, 2.3, body);
-  P.push(head, E(0, 9, 15.8, 1.6, 3.2, 1.4, body), E(0, 8.4, 14.7, 1.4, 2.8, 0.75, belly)); // 長い鼻づら+下あご
-  P.push(...mirror([E(1.4, 6.6, 17.6, 0.9, 1.4, 0.45, "dark")])); // 眉の張り出し
-  P.push(...mirror([S(0.6, 11.9, 16.4, 0.35, "dark")])); // 鼻の穴
-  // 角
-  const hl = 2.6 + t * 1.4;
-  if (hornType === "back") P.push(...mirror(chain([1.5, 4.4, 18], [2.4, 1.2 - t * 0.4, 19.2 + hl], 0.85, 0.22, 5, hornMat, [2.2, 3.4, 20.5 + t * 0.6])));
-  if (hornType === "up") P.push(...mirror(chain([1.4, 5, 18.2], [2.2, 4.4, 18.6 + hl + 0.6], 0.8, 0.2, 5, hornMat)));
-  if (hornType === "antler") P.push(...mirror([...chain([1.3, 4.4, 18], [3.4, 2.6, 18.5 + hl], 0.55, 0.3, 5, hornMat), ...chain([2.2, 3.6, 19.6], [1.8, 5, 20.8 + t], 0.4, 0.25, 3, hornMat)]));
-  if (crest) P.push(...chain([0, 5, 18.4], [0, 1.4, 19 + t], 0.9, 0.3, 5, crest, [0, 3.4, 20.4]));
-  if (whiskers) P.push(...mirror(chain([1.4, 9.4, 15.6], [4.4, 11, 14 + t * 0.5], 0.3, 0.2, 5, whiskers, [3.6, 10.6, 16.4])));
+  // 足(太い足首+爪)
+  P.push(...mirror([E(2.7, 0.4, 3.2, 2.1, 2.3, 2.8, body), E(2.8, 1.4, 0.8, 1.8, 2.5, 0.9, body)]));
+  P.push(...mirror([0, 1, 2].map((i) => E(1.8 + i * 0.9, 3.8, 0.55, 0.32, 0.55, 0.4, "white"))));
+  // ずんぐりしたおなか+しま模様の腹板
+  P.push(E(0, 0.2, 7.6, 4.6, 4, 5.3, body));
+  P.push(E(0, 2.2, 7.3, 3.3, 2.1, 4.7, belly));
+  [4.2, 5.8, 7.4, 9, 10.5].forEach((z, i) => P.push(E(0, 2.4 + (i === 2 ? 0.25 : 0), z, 3.1 - Math.abs(i - 2) * 0.35, 1.95, 0.28, stripe)));
+  if (plates) [5.5, 8].forEach((z) => P.push(...mirror([E(4.4, 0.2, z, 0.7, 2, 1.1, "metal")])));
+  // 振り上げた腕と爪
+  P.push(...mirror([...chain([3.6, 1.4, 10.4], [4.4, 4.2, 11.6], 1.1, 0.85, 4, body, [4.8, 2.4, 10]),
+    ...[0, 1, 2].map((i) => E(3.9 + i * 0.55, 5, 12 + (i === 1 ? 0.5 : 0), 0.25, 0.3, 0.7, "white"))]));
+  // 首と頭(長い鼻づら・大きく開いた口)
+  P.push(...chain([0, 1.2, 11.8], [0, 3.2, 15.2], 2.1, 1.8, 4, body, [0, 0.8, 14.6]));
+  P.push(E(0, 4.2, 16.6, 2.3, 2.7, 2.2, body));                 // 頭
+  P.push(E(0, 7.3, 17.2, 1.55, 2.9, 1.05, body));               // 上あご(上向き)
+  P.push(E(0, 6.8, 14.9, 1.35, 2.5, 0.65, body));               // 下あご
+  P.push(E(0, 7, 16, 1.2, 2.3, 0.75, "mouth"));                 // 口の中
+  P.push(...mirror([0, 1, 2].map((i) => S(0.9, 6.4 + i * 1.3, 16.35, 0.3, "white"))));   // 上のキバ
+  P.push(...mirror([0, 1].map((i) => S(0.8, 6.8 + i * 1.3, 15.5, 0.28, "white"))));       // 下のキバ
+  P.push(...mirror([E(1.3, 5.4, 18.2, 0.8, 1.1, 0.4, "dark")]));                            // 眉の張り出し
+  P.push(...mirror([S(0.55, 10, 17.4, 0.3, "dark")]));                                      // 鼻の穴
+  // 角・とさか
+  const hl = 2.6 + t * 1.3;
+  if (hornType === "crest") P.push(...chain([0, 3.4, 18.4], [0, 0.6, 19 + hl], 1, 0.25, 6, hornMat, [0, 2.4, 20.6 + t * 0.4]), E(0, 9.4, 17.9, 0.35, 0.5, 0.9, hornMat));
+  if (hornType === "back") P.push(...mirror(chain([1.4, 3.6, 18.4], [2.2, 0.8 - t * 0.4, 19.2 + hl], 0.8, 0.22, 5, hornMat, [2.1, 3, 20.6])));
+  if (hornType === "up") P.push(...mirror(chain([1.3, 4.2, 18.4], [2, 3.6, 18.8 + hl + 0.6], 0.8, 0.2, 5, hornMat)));
+  if (hornType === "antler") P.push(...mirror([...chain([1.2, 3.8, 18.3], [3.2, 2, 18.6 + hl], 0.55, 0.3, 5, hornMat), ...chain([2.1, 3, 19.8], [1.7, 4.4, 20.9 + t], 0.4, 0.25, 3, hornMat)]));
+  if (whiskers) P.push(...mirror(chain([1.2, 9.4, 16.8], [4.2, 11, 15 + t * 0.5], 0.3, 0.2, 5, whiskers, [3.4, 10.6, 17.6])));
+  // 太いしっぽ(背中側から回り込む)+トゲ
+  const tail = chain([0, -3, 5], [-3.5, -7.5, 11.5 + t], 2.5, 0.8, 9, body, [-1, -9.5, 3.5]);
+  P.push(...tail);
+  tail.forEach((sp, i) => { if (i % 2 === 1 && i < tail.length - 1) P.push(E(sp.c[0] - 0.3, sp.c[1] - 0.4, sp.c[2] + sp.r[0] * 0.9, 0.35, 0.6, 0.8 + (1 - i / tail.length) * 0.6, spikeMat)); });
+  P.push(E(-3.7, -7.8, 12.4 + t, 0.5, 0.9, 1.2, spikeMat));
   // 背中のトゲ
-  [[0, 3.2, 15.2], [0, 1.8, 13.2], [0, -0.8, 11.6], [0, -2.4, 9.4], [0, -3.4, 7]].forEach(([x, y, z], i) => P.push(E(x, y, z, 0.45, 0.8, 0.9 + (i === 2 ? 0.3 : 0) + t * 0.15, spikeMat)));
-  // しっぽ(先にやじり)
-  P.push(...chain([0, -2.6, 4.4], [2.2, -10.5, 2.2], 2.2, 0.6, 8, body, [-0.4, -9, 0.8]));
-  P.push(E(2.4, -11.4, 2.3, 1.6, 1.6, 0.55, spikeMat));
-  // 翼
-  // 翼: 付け根は肩(2.8, -1.4, 11.4)。大きさ ws は付け根からの広がりだけに効かせる(高さに掛けると翼が宙に浮いた)
-  const ws = 1 + t * 0.35;
-  const sh = [2.8, -1.6, 11.2];
+  [[0, 1.6, 15.2], [0, 0.4, 13.4], [0, -2.4, 11.5], [0, -3.8, 9.2]].forEach(([x, y, z]) => P.push(E(x, y, z, 0.4, 0.7, 0.8 + t * 0.12, spikeMat)));
+  // 翼(付け根は肩の後ろ)
+  const ws = 1 + t * 0.3;
+  const sh = [2.6, -2.2, 11.6];
   if (wingType === "bat") {
     P.push(...mirror([
-      ...chain(sh, [sh[0] + 4.6 * ws, -2.6, sh[2] + 4.2 * ws], 0.55, 0.35, 5, "dark", [sh[0] + 2.4 * ws, -2, sh[2] + 4 * ws]),
-      E(sh[0] + 1.6 * ws, -2.1, sh[2] + 0.9 * ws, 1.9 * ws, 0.32, 2.6 * ws, wing),
-      E(sh[0] + 3 * ws, -2.3, sh[2] + 1.3 * ws, 1.4 * ws, 0.32, 2.9 * ws, wing),
-      E(sh[0] + 4.1 * ws, -2.5, sh[2] + 2.1 * ws, 0.9 * ws, 0.3, 2.3 * ws, wing),
+      ...chain(sh, [sh[0] + 5 * ws, -3, sh[2] + 4.4 * ws], 0.55, 0.35, 6, bone, [sh[0] + 2.4 * ws, -2.6, sh[2] + 4.6 * ws]),
+      ...chain([sh[0] + 5 * ws, -3, sh[2] + 4.4 * ws], [sh[0] + 5.6 * ws, -3, sh[2] - 1.4 * ws], 0.3, 0.25, 5, bone),
+      E(sh[0] + 1.9 * ws, -2.7, sh[2] + 0.9 * ws, 2.2 * ws, 0.3, 2.9 * ws, wing),
+      E(sh[0] + 3.6 * ws, -2.9, sh[2] + 1.3 * ws, 1.8 * ws, 0.3, 3.1 * ws, wing),
+      E(sh[0] + 5 * ws, -3, sh[2] + 1.1 * ws, 0.9 * ws, 0.28, 2.7 * ws, wing),
     ]));
   }
   if (wingType === "feather") {
-    P.push(...mirror(Array.from({ length: 5 }, (_, i) => E(sh[0] + 0.8 + i * 1.05 * ws, -2.2, sh[2] + 0.6 + i * 0.75 * ws - (i > 2 ? (i - 2) * 1.1 : 0), 1.1, 0.35, 2.4 + i * 0.3 * ws, i % 2 ? wing : "white"))));
+    P.push(...mirror(Array.from({ length: 5 }, (_, i) => E(sh[0] + 0.8 + i * 1.05 * ws, -2.8, sh[2] + 0.6 + i * 0.75 * ws - (i > 2 ? (i - 2) * 1.1 : 0), 1.1, 0.35, 2.4 + i * 0.3 * ws, i % 2 ? wing : "white"))));
   }
   if (wingType === "mech") {
-    P.push(...mirror([E(sh[0] + 2 * ws, -2.2, sh[2] + 1.8, 2.3 * ws, 0.4, 1.1, "metal"), E(sh[0] + 2.4 * ws, -2.4, sh[2] - 0.2, 2.1 * ws, 0.4, 0.8, "metal"), S(sh[0] + 4.3 * ws, -2.4, sh[2] + 2.2, 0.9, "glowpart"), S(sh[0] + 4.5 * ws, -2.4, sh[2] - 0.1, 0.8, "glowpart")]));
+    P.push(...mirror([E(sh[0] + 2 * ws, -2.8, sh[2] + 1.8, 2.3 * ws, 0.4, 1.1, "metal"), E(sh[0] + 2.4 * ws, -3, sh[2] - 0.2, 2.1 * ws, 0.4, 0.8, "metal"), S(sh[0] + 4.3 * ws, -3, sh[2] + 2.2, 0.9, "glowpart"), S(sh[0] + 4.5 * ws, -3, sh[2] - 0.1, 0.8, "glowpart")]));
+  }
+  // 炎の息(ST3から)。口の先から斜め上へ広がる
+  if (fire && t >= 1) {
+    // 口もとは細く、顔から離れるほど太く(顔に炎の塊がかぶらないように)
+    const f = chain([0, 11.2, 16.1], [0.4, 17.6 + t, 17.8 + t * 0.6], 0.45, 1.5 + t * 0.35, 7, "fire", [0, 14.6, 16.2]);
+    P.push(...f, S(0.4, 18.2 + t, 18 + t * 0.6, 0.8 + t * 0.25, "yellow"));
   }
   P.push(...extra);
   const faces = [
-    { kind: "eye", style: eyeStyle, p: [-1.5, 7.5, 16.9], iris },
-    { kind: "eye", style: eyeStyle, p: [1.5, 7.5, 16.9], iris, mirror: true },
-    { kind: "mouth", style: mouth, p: [0, 11.8, 14.9] },
+    { kind: "eye", style: eyeStyle, p: [-1.35, 6.3, 17.7], iris },
+    { kind: "eye", style: eyeStyle, p: [1.35, 6.3, 17.7], iris, mirror: true },
   ];
   return turn(P, faces, heading);
 }

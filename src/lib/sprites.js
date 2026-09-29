@@ -67,6 +67,7 @@ const TIER_SCALE = [1.9, 2.15, 2.4]; // ST1〜2で約28〜30ドット幅(顔を�
 const PAL_FIXED = {
   dark: "#3b3f5c", white: "#f3f5fa", gold: "#ffd166", metal: "#b6c0cf", glass: "#8fd3f0", gem: "#5eead4",
   pink: "#ffa3bd", red: "#ef5b5b", orange: "#fb923c", leaf: "#4caf50", wood: "#a0703f", yellow: "#fde047",
+  fire: "#ff8a3d", bronze: "#c68a3e", skin: "#8fb8e8", amber: "#f0a040", stripe: "#b86a24", mouth: "#c2334a",
 };
 
 function buildPixels(stock, sleeping) {

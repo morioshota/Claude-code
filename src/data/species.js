@@ -9,6 +9,7 @@
 
 import { E, S, chain, mirror, onHead, eyes, mouth } from "../lib/creature3d.js";
 import { R, quad, dragon, hero, bird, fish } from "./rigs.js";
+import { turn } from "../lib/creature3d.js";
 
 const CREATURE_LOOK = {
   cosmo:  { bodies: ["#a78bfa", "#8b5cf6", "#c4b5fd"], belly: "#ede9fe", accent: "#f0abfc" },
@@ -514,11 +515,95 @@ const L = (type, name) => LEGACY[type].find((x) => x.name === name);
 const withGlow = (r, glow, extra = {}) => ({ ...r, glow, ...extra });
 const crownAt = (x, y, z, r = 1.8) => [E(x, y, z, r, r, 0.6, "gold"), ...[-1, 0, 1].map((k) => S(x + k * r * 0.7, y, z + 0.9, 0.55, "gold")), S(x, y + r * 0.8, z + 0.3, 0.5, "gem")];
 
+/* ---------- 魔王3種(2026-09 オーナー提示の参考画像の作風) ----------
+   ※いずれも特定キャラクターの模写ではなく、王道の「魔王」の作り(よろいの武人・
+     ローブの魔導王・翼の大蛇)をなぞったオリジナル */
+
+/* はがねのまおう: 角の大きな、よろいの武人。両手に三日月の刀。背に後光のトゲ */
+function steelDemon(t) {
+  const P = [];
+  P.push(...mirror([E(2.2, 0.6, 1, 1.7, 2.3, 1.1, "bronze"), E(2.1, 0, 3.8, 1.6, 1.6, 2.6, "bronze"), E(2.3, 1.4, 5.2, 0.9, 0.7, 0.8, "dark")]));
+  P.push(E(0, 0, 9, 4.2, 2.8, 3.8, "bronze"));
+  [7.2, 8.6, 10].forEach((z) => P.push(E(0, 2.6, z, 2.2, 0.35, 0.3, "stripe")));
+  P.push(E(0, 2.7, 6.6, 1.2, 0.4, 1.4, "stripe"));
+  P.push(...mirror([S(4.6, 0, 11.6, 2.2, "bronze"), ...[0, 1].map((i) => E(4.9 + i * 0.8, -0.4, 13.4 + i * 0.3, 0.35, 0.35, 1.1, "white"))]));
+  // 腕を横に張って、両手に三日月刀
+  P.push(...mirror([...chain([5.2, 0.6, 10.6], [8, 2, 9], 1.3, 1.1, 4, "bronze"), S(8.4, 2.3, 8.8, 1.1, "dark"),
+    ...chain([8.4, 2.5, 8.2], [10.8, 3.4, 14.2 + t], 0.75, 0.25, 8, "white", [11.8, 2.8, 9.6])]));
+  const head = S(0, 0.8, 14.4, 2.3, "bronze");
+  P.push(head, E(0, 2.6, 13.4, 1.4, 0.7, 0.8, "dark"));
+  P.push(...mirror(chain([1.6, 0.4, 15.8], [5 + t * 0.8, 1.4, 19 + t], 0.95, 0.25, 7, "white", [5, -0.2, 15.4])));
+  P.push(E(0, 0.6, 16.6, 0.6, 0.6, 1.4 + t * 0.4, "bronze"));
+  if (t >= 1) Array.from({ length: 7 }, (_, i) => { const a = Math.PI * (0.1 + (i / 6) * 0.8); P.push(...chain([Math.cos(a) * 3.2, -2.4, 13.4 + Math.sin(a) * 3.2], [Math.cos(a) * (6 + t), -2.6, 13.4 + Math.sin(a) * (6 + t)], 0.55, 0.15, 4, "gold")); });
+  if (t >= 2) P.push(E(0, -2.6, 13.4, 3.6, 0.4, 3.6, "gold"), S(0, 2.9, 9.2, 0.8, "gem"));
+  const faces = [
+    { kind: "eye", style: "demon", p: onHead(head, -0.42, 0.18) }, { kind: "eye", style: "demon", p: onHead(head, 0.42, 0.18), mirror: true },
+    { kind: "mouth", style: "snarl", p: [0, 3.1, 13.2] },
+  ];
+  return { ...turn(P, faces, R(12)), glow: "#ef4444" };
+}
+
+/* だいまどうおう: ローブの魔導王。高くとがった襟、青白い顔、赤い宝石の首飾り、曲がった杖 */
+function sorcererDemon(t) {
+  const P = [];
+  P.push(E(0, 0, 4.6, 5, 4.4, 5, "accent"), E(0, 0.2, 1.2, 6, 5.2, 1.4, "accent"), E(0, 0.1, 0.9, 6.1, 5.3, 0.5, "gold"));
+  P.push(E(0, 2.2, 5, 1.2, 2.4, 4.4, "red"));                      // 前合わせの裏地
+  P.push(E(0, 0, 9.6, 4, 3.2, 2.8, "accent"));
+  // 高くとがった襟(左右に2本の翼のような立ち襟)
+  P.push(...mirror([...chain([2.2, -1.4, 10.6], [4.6 + t * 0.4, -2, 18 + t], 1.6, 0.35, 8, "dark", [4.6, -1.2, 13]), E(2.6, -0.8, 12.6, 1, 0.3, 2.4, "red")]));
+  const head = S(0, 0.8, 13.4, 2.4, "skin");
+  P.push(head, ...mirror(chain([2, 0.6, 13.8], [3.4, 0, 15.6], 0.6, 0.2, 4, "skin")));
+  P.push(E(0, 0.6, 15.8, 2, 2, 0.9, "dark"), E(0, 0.8, 16.8, 1.2, 1.2, 1, "dark"));  // 頭巾
+  // 首飾り+赤い宝石
+  Array.from({ length: 7 }, (_, i) => { const a = Math.PI * (0.15 + (i / 6) * 0.7); P.push(S(Math.cos(a) * 2.6, 1.8 + Math.sin(a) * 1.2, 10.9 - Math.sin(a) * 1.4, 0.4, "gold")); });
+  P.push(S(0, 3.4, 9.3, 1, "red"));
+  // 前に差し出す右手
+  P.push(...chain([3.4, 0.8, 10.2], [3.6, 5.4, 10.4], 1.2, 0.9, 5, "accent"), S(3.6, 6.2, 10.6, 1, "skin"), ...[0, 1, 2].map((i) => E(3.1 + i * 0.5, 7, 10.8 + (i === 1 ? 0.4 : 0), 0.22, 0.6, 0.22, "skin")));
+  // 曲がった木の杖(左手)
+  P.push(S(-4.2, 1.4, 8.6, 0.95, "skin"), ...chain([-4.4, 1.6, 0.6], [-4.4, 1.6, 16], 0.42, 0.42, 14, "wood"),
+    ...chain([-4.4, 1.6, 16], [-3, 1.6, 16.4], 0.45, 0.35, 6, "wood", [-4.8, 1.6, 18.4]));
+  if (t >= 1) P.push(S(-3.4, 1.6, 15.2, 0.8, "gem"));
+  if (t >= 2) P.push(...[-1, 0, 1].map((k) => S(k * 1.1, 0.8, 17.9, 0.5, "gold")), ...Array.from({ length: 3 }, (_, i) => S(-6 + i * 6, -1, 20 + (i % 2), 0.9, "glowpart")));
+  const faces = [
+    { kind: "eye", style: "sharp", p: onHead(head, -0.42, 0.14), iris: "#fde047" }, { kind: "eye", style: "sharp", p: onHead(head, 0.42, 0.14), iris: "#fde047", mirror: true },
+    { kind: "mouth", style: "grin", p: onHead(head, 0, -0.42) },
+  ];
+  return { ...turn(P, faces, R(16)), glow: "#c084fc" };
+}
+
+/* へんげのまおう: 翼をもつ大蛇の魔王。節のある長い下半身にトゲ、広げた爪の腕、
+   左右に張り出す長い角と、額の第三の目 */
+function serpentDemon(t) {
+  const P = [];
+  // 太い根元は胴の下、前へとぐろを巻いてから後ろへ細くなる(先端にトゲ)
+  const seg = chain([0, 1, 5.4], [-5, -8.5, 3.2], 2.8, 0.7, 11, "body", [7.5, 3.5, 0.6]);
+  seg.forEach((sp, i) => {
+    P.push(sp);
+    if (i % 2 === 0 && i < seg.length - 1) P.push(E(sp.c[0], sp.c[1], sp.c[2] + sp.r[0] * 0.95, 0.35, 0.35, 0.6 + sp.r[0] * 0.3 + t * 0.2, "dark"));
+  });
+  P.push(E(-5.6, -9.4, 3.3, 0.5, 1.4, 0.5, "dark"));                   // しっぽの先のトゲ
+  P.push(E(0, 1.6, 8.6, 3.2, 2.4, 4, "body"));                         // 上半身
+  [7, 8.4, 9.8].forEach((z) => P.push(E(0, 3.6, z, 2.4, 0.35, 0.3, "dark")));  // あばら
+  P.push(...mirror([...chain([2.8, 1.8, 10.4], [7.4, 4.2, 11], 1, 0.7, 5, "body"), ...[0, 1, 2].map((i) => chain([7.4, 4.2, 11], [8.6 + i * 0.4, 5.6, 12.4 - i * 1.2], 0.3, 0.15, 3, "white")).flat()]));
+  const head = S(0, 2.6, 13.8, 2.6, "body");
+  P.push(head, E(0, 4.6, 12.6, 1.5, 0.9, 1, "mouth"));
+  P.push(...mirror(chain([2, 2.2, 14.6], [7 + t, 1.2, 15.6 + t * 0.4], 0.7, 0.18, 8, "dark")));   // 横に張る長い角
+  Array.from({ length: 5 }, (_, i) => { const a = Math.PI * (0.25 + (i / 4) * 0.5); P.push(...chain([Math.cos(a) * 1.8, 2, 14.8 + Math.sin(a) * 1.8], [Math.cos(a) * 3.8, 1.4, 14.8 + Math.sin(a) * (3.8 + t * 0.4)], 0.45, 0.12, 4, i === 2 ? "accent" : "dark")); });
+  P.push(...mirror([...chain([2, -1, 12], [7 + t, -2.4, 17 + t], 0.45, 0.3, 6, "dark"), E(4.2 + t * 0.4, -1.8, 13.8 + t * 0.4, 2.4 + t * 0.3, 0.3, 3 + t * 0.3, "accent"), E(6 + t * 0.6, -2.2, 13.2 + t * 0.4, 1.3, 0.3, 2.8, "accent")]));
+  if (t >= 2) P.push(S(0, 3.9, 8.8, 0.9, "gem"), ...crownAt(0, 2.4, 16.2, 1.4));
+  const faces = [
+    { kind: "eye", style: "demon", p: onHead(head, -0.42, 0.08) }, { kind: "eye", style: "demon", p: onHead(head, 0.42, 0.08), mirror: true },
+    { kind: "eye", style: "glow", p: onHead(head, 0, 0.5) },
+    { kind: "mouth", style: "fangs", p: [0, 5.1, 12.9] },
+  ];
+  return { ...turn(P, faces, R(20)), glow: "#ef4444" };
+}
+
 const SPECIES_POOL = {
   cosmo: [
     L("cosmo", "ほしぐも"),
     { name: "せいりゅう", build: (t) => withGlow(dragon({ // 星の竜
-      t, wing: "accent", hornMat: "gold", spikeMat: "gem", iris: "#fde047",
+      t, wing: "amber", hornMat: "white", spikeMat: "red", iris: "#ef4444",
       extra: [S(0, 3.6, 9, 0.8, "glowpart"), ...(t >= 1 ? [S(-2.6, -2, 11, 0.6, "glowpart"), S(2.4, -3, 8.5, 0.5, "glowpart")] : []), ...(t >= 2 ? crownAt(0, 5.4, 19.6, 1.6) : [])],
     }), "#fef3c7") },
     { name: "ほしのきし", build: (t) => withGlow(hero({ // 星の騎士
@@ -544,7 +629,7 @@ const SPECIES_POOL = {
   ],
   metal: [
     L("metal", "てつかぶと"),
-    L("metal", "ボルトン"),
+    { name: "はがねのまおう", build: steelDemon },
     { name: "こうてつりゅう", build: (t) => withGlow(dragon({ // 鋼鉄の竜
       t, body: "metal", belly: "dark", wing: "dark", hornMat: "white", spikeMat: "dark", plates: true, hornType: "up",
       iris: "#ef4444", eyeStyle: "demon", mouth: "snarl", extra: t >= 2 ? crownAt(0, 5.4, 19.6, 1.6) : [],
@@ -610,10 +695,7 @@ const SPECIES_POOL = {
   ],
   play: [
     L("play", "ピエロン"),
-    { name: "まおう", build: (t) => withGlow(hero({ // 魔王
-      armor: "dark", skin: "body", helmet: "horned", horns: "white", cape: "red", collar: true, weapon: "staff",
-      wings: t >= 1 ? "dark" : null, eyeStyle: "demon", iris: "#ef4444", mouth: "fangs", t, crown: t >= 2, bulk: 1.1,
-    }), "#ef4444") },
+    { name: "だいまどうおう", build: sorcererDemon },
     { name: "きゅうび", build: (t) => withGlow(quad({ // 九尾のきつね(進化で尾がふえる)
       len: 8.5, girth: 3, legH: 3.4, headR: 2.9, snout: 1.7, snoutLen: 1.6, ears: "pointy", earLen: 3.4, eyeStyle: "sharp", iris: "#f59e0b", mouth: "cat",
       tail: "bushy", tailLen: 5, belly: "white", snoutMat: "white",
@@ -686,10 +768,7 @@ const SPECIES_POOL = {
       t, wingType: "mech", body: "metal", belly: "dark", hornMat: "metal", spikeMat: "glowpart", hornType: "up", plates: true, iris: "#22d3ee", eyeStyle: "visor", mouth: "zigzag",
       extra: [S(0, 3.5, 8.6, 1.2, "glowpart"), ...(t >= 2 ? crownAt(0, 5.4, 19.6, 1.6) : [])],
     }), "#22d3ee") },
-    { name: "サイバーにんじゃ", build: (t) => withGlow(hero({ // 忍者
-      armor: "dark", cloth: "body", helmet: "ninja", weapon: "katana", bladeMat: "glowpart", iris: "#22d3ee", eyeStyle: "visor", t,
-      extra: [E(0, 0, 5.5, 3.2, 2.3, 0.7, "body"), ...(t >= 1 ? mirror([S(3.3, 0, 10.2, 1.2, "glowpart")]) : []), ...(t >= 2 ? [...chain([-2, -2, 11], [-2, -2, 16], 0.6, 0.6, 3, "metal"), S(-2, -2, 16.6, 1, "glowpart")] : [])],
-    }), "#22d3ee") },
+    { name: "へんげのまおう", build: serpentDemon },
     L("tech", "ロボわん"),
     { name: "フクロウ", build: (t) => bird({ // ふくろう
       body: "body", belly: "belly", beak: "orange", eyeStyle: "cute", iris: "#fbbf24", tailLen: 2,
