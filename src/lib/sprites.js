@@ -70,6 +70,32 @@ const PAL_FIXED = {
   fire: "#ff8a3d", bronze: "#c68a3e", skin: "#8fb8e8", amber: "#f0a040", stripe: "#b86a24", mouth: "#c2334a",
 };
 
+/* 明るさだけ動かす(k>0で白へ、k<0で黒へ寄せる) */
+const tone = (hex, k) => {
+  const n = parseInt(hex.slice(1), 16), to = k > 0 ? 255 : 0, a = Math.abs(k);
+  const ch = (v) => Math.round(v + (to - v) * a).toString(16).padStart(2, "0");
+  return `#${ch((n >> 16) & 255)}${ch((n >> 8) & 255)}${ch(n & 255)}`;
+};
+const pickOf = (r, arr) => arr[Math.floor(r() * arr.length)];
+
+/* 個体差: 同じ種族でも「別の個体」に見えるように、色あい・明るさ・体つきを散らす。
+   シードは「証券コード+:ind」の別系統なので、種族・左右反転など既存の抽選結果は一切変わらない
+   (不変条件1・2を守ったまま上乗せ)。株価は絡めない(不変条件5) */
+function individualOf(seedSrc) {
+  const r = mulberry32(hashStr(seedSrc + ":ind"));
+  return {
+    bodyHue: pickOf(r, [-42, -24, 0, 0, 24, 42]),
+    bodyTone: pickOf(r, [-0.22, -0.1, 0, 0.12]),
+    accentHue: pickOf(r, [-110, -60, 0, 0, 60, 110, 170]),
+    accentTone: pickOf(r, [-0.25, -0.12, 0, 0.15]),
+    dark: pickOf(r, ["#3b3f5c", "#3b3f5c", "#5e2f3e", "#2f5140", "#4b3566", "#5d4630"]), // 角・帽子・トゲなど暗い部品
+    gearHue: pickOf(r, [-40, -20, 0, 20, 40]),        // 衣装・うろこ等(skin/bronze/amber/stripe)
+    wide: 0.9 + r() * 0.22,                          // 横幅・奥行き(ずんぐり〜ほっそり)
+    tall: 0.93 + r() * 0.15,                         // 背の高さ
+  };
+}
+const GEAR_MATS = ["skin", "bronze", "amber", "stripe"];
+
 function buildPixels(stock, sleeping) {
   const look = CREATURE_LOOK[stock.type] || CREATURE_LOOK.metal;
   const pool = SPECIES_POOL[stock.type] || SPECIES_POOL.metal;
@@ -100,16 +126,22 @@ function buildPixels(stock, sleeping) {
     if (evoKind !== "aura") parts = [...parts, ...evoAccessory(evoKind, parts, Math.min(stageNo - 2, 2))];
   }
 
+  // 個体差の色(色違いはこの上からさらに150度回す)
+  const ind = individualOf(seedSrc);
+  body = tone(hueShift(body, ind.bodyHue), ind.bodyTone);
+  accent = tone(hueShift(accent, ind.accentHue), ind.accentTone);
+  const gear = Object.fromEntries(GEAR_MATS.map((k) => [k, hueShift(PAL_FIXED[k], ind.gearHue)]));
   if (shiny) {
     body = hueShift(body, 150); belly = hueShift(belly, 150); accent = hueShift(accent, 150); glow = hueShift(glow, 150);
   }
-  const pal = { ...PAL_FIXED, body, belly, accent, glowpart: glow };
+  const pal = { ...PAL_FIXED, ...gear, dark: ind.dark, body, belly, accent, glowpart: glow };
 
-  // 大きさ(段階が上がるほど大きい)+左右反転
-  const G = TIER_SCALE[t];
+  // 大きさ(段階が上がるほど大きい)+個体差の体つき+左右反転
+  // (向きaはz軸まわりの回転なので、x・yを同じ倍率にしておけば形は崩れない)
+  const G = TIER_SCALE[t], GW = G * ind.wide, GT = G * ind.tall;
   const fx = flip ? -1 : 1;
-  parts = parts.map((p) => ({ ...p, c: [p.c[0] * G * fx, p.c[1] * G, p.c[2] * G], r: p.r.map((v) => v * G), a: p.a ? p.a * fx : 0 }));
-  const faces = (built.faces || []).map((f) => ({ ...f, p: [f.p[0] * G * fx, f.p[1] * G, f.p[2] * G], mirror: flip ? !f.mirror : !!f.mirror }));
+  parts = parts.map((p) => ({ ...p, c: [p.c[0] * GW * fx, p.c[1] * GW, p.c[2] * GT], r: [p.r[0] * GW, p.r[1] * GW, p.r[2] * GT], a: p.a ? p.a * fx : 0 }));
+  const faces = (built.faces || []).map((f) => ({ ...f, p: [f.p[0] * GW * fx, f.p[1] * GW, f.p[2] * GT], mirror: flip ? !f.mirror : !!f.mirror }));
 
   let grid = renderCreature({ parts, faces, pal, pattern, glow, sleeping, blush: !!built.blush });
   grid = trimGrid(grid);
