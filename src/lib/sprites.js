@@ -310,7 +310,7 @@ function buildPixelsRaw(stock, sleeping) {
   }
   grid = trimGrid(grid);
   // GBA風仕上げ: 2倍拡大 → 陰影 → アウトライン(順序重要: 輪郭は陰影の後)
-  grid = outlineGrid(shadeGrid(epx2(grid)));
+  grid = outlineGrid(shadeGrid(special && special.native ? grid : epx2(grid)));
 
   // ---- 光の粒(オーラ・色違い)は仕上げの後に✦(ダイヤ型)で描く:
   //      輪郭処理を通さないことで「浮いた四角」ではなく「光」に見える ----

@@ -170,13 +170,18 @@ export default function KabuDex() {
 
   const addStock = (f) => {
     const maxNo = stocks.reduce((m, s) => Math.max(m, s.no || 0), 0);
-    const ns = { ...f, id: uid(), no: maxNo + 1, logs: f.logs || [], noteCount: 0, lastResearch: "" };
+    let ns = { ...f, id: uid(), no: maxNo + 1, logs: f.logs || [], noteCount: 0, lastResearch: "" };
+    // 特別キャラの抽選は「初めて登録したとき」の1回だけ(オーナー要望: 愛着が湧いた頃に姿が変わるのはショック)。
+    // 外れたら従来どおり証券コードで決まるセクターの種族。当選は永久保存(不変条件6)
+    const wonSpecial = SPECIAL_POOL.length > 0 && Math.random() < SPECIAL_RATE;
+    if (wonSpecial) ns = { ...ns, special: SPECIAL_POOL[Math.floor(Math.random() * SPECIAL_POOL.length)].key, specialAt: today() };
     persist([...stocks, ns]);
     setFormMode(null);
+    recordActivity().then(setActivity);
+    if (wonSpecial) { setSpecialFlash(ns); return; } // 当選時は登録の演出の代わりに特別キャラのセレモニー
     setGetFlash({ icon: "🎉", text: `${ns.name} を図鑑に登録した！` });
     sfx("get");
     burstConfetti(30);
-    recordActivity().then(setActivity);
     setTimeout(() => setGetFlash(null), 2000);
   };
 
@@ -287,8 +292,7 @@ export default function KabuDex() {
     }
     // touch=true(記録の追加)のときだけ鮮度(最終調査日)を更新。削除では更新しない
     // 色違い抽選: 記録の追加ごとに5%。当選は永久保存(削除では抽選しない)
-    // 特別キャラ抽選: 記録の追加ごとに SPECIAL_RATE(1%)。種族・タイプと無関係に全キャラから抽選し、当選は永久保存
-    let wonShiny = false, wonSpecial = false;
+    let wonShiny = false;
     const next = stocks.map((s) => {
       if (s.id !== stockId) return s;
       let ns = { ...s, noteCount: notes.length, lastResearch: touch ? today() : s.lastResearch };
@@ -296,17 +300,12 @@ export default function KabuDex() {
         ns = { ...ns, shiny: true, shinyAt: today() };
         wonShiny = true;
       }
-      if (touch && !s.special && SPECIAL_POOL.length && Math.random() < SPECIAL_RATE) {
-        ns = { ...ns, special: SPECIAL_POOL[Math.floor(Math.random() * SPECIAL_POOL.length)].key, specialAt: today() };
-        wonSpecial = true;
-      }
       return ns;
     });
     persistWithEvoCheck(next, stockId);
     if (touch) {
       recordActivity().then(setActivity);
-      if (wonSpecial) setSpecialFlash(next.find((s) => s.id === stockId));
-      else if (wonShiny) setShinyFlash(next.find((s) => s.id === stockId));
+      if (wonShiny) setShinyFlash(next.find((s) => s.id === stockId));
     }
     return true;
   };

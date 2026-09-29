@@ -7,7 +7,6 @@ import { useEffect, useRef } from "react";
 import { Creature } from "./ui.jsx";
 import { TYPES } from "../data/constants.js";
 import { EVO_KINDS } from "../data/evolution.js";
-import { SPECIAL_POOL } from "../data/species.js";
 import { sfx } from "../lib/sound.js";
 
 const reduced = () =>
@@ -203,7 +202,6 @@ export function ShinyCeremony({ stock, onDone }) {
 /* ============ 特別キャラのセレモニー(調査記録の保存で超低確率当選。種族と無関係) ============ */
 
 export function SpecialCeremony({ stock, onDone }) {
-  const sp = SPECIAL_POOL.find((x) => x.key === stock.special);
   useEffect(() => {
     sfx("shiny");
     flashScreen("rgba(255,209,102,.55)");
@@ -231,8 +229,8 @@ export function SpecialCeremony({ stock, onDone }) {
             <Creature stock={stock} size={110} />
           </div>
           <div style={{ fontFamily: "'DotGothic16', monospace", color: "#dfe4ff", fontSize: 13, marginTop: 8 }}>
-            {stock.name} に {sp ? sp.name : "とくべつなキャラ"} が やってきた！<br />
-            <span style={{ fontSize: 10.5, color: "#8b93b8" }}>（確率1%・この姿は永久に残ります）</span>
+            {stock.name} に とくべつなキャラ が やってきた！<br />
+            <span style={{ fontSize: 10.5, color: "#8b93b8" }}>（登録したときだけの低確率・この姿は永久に残ります）</span>
           </div>
         </div>
       </div>

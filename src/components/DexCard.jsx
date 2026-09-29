@@ -176,7 +176,7 @@ function DexCard({ stock, onClick, stopLossState }) {
             </span>
             {special && (
               <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 9.5, color: "#ffd166", marginTop: 3, textShadow: "0 0 8px rgba(255,209,102,.6)" }}>
-                🌟 とくべつ: {special.name}
+                🌟 とくべつ
               </div>
             )}
           </div>
