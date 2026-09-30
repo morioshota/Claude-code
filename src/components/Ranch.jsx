@@ -558,11 +558,11 @@ function RanchKairo({ stocks, quotes, onSelect }) {
   const stocksRef = useRef(stocks); stocksRef.current = stocks;
   const quotesRef = useRef(quotes); quotesRef.current = quotes;
   const onSelectRef = useRef(onSelect); onSelectRef.current = onSelect;
-  /* ズームは3段階: [0]=マップ全体が画面に入る / [1]=その中間 / [2]=2倍(以前の3段階の真ん中)。
+  /* ズームは3段階: [0]=マップ全体が画面に入る / [1]=その中間 / [2]=1.6倍。
      ⚠ 以前は 1/2/3倍の固定で、いちばん引いても全体が見えず、いちばん寄ると近すぎた(オーナー指摘)。
      [0]は画面の大きさから毎回計算する(resize)。zoomRef は実際の倍率、zoomIdxRef は段階 */
   const zoomIdxRef = useRef(typeof window !== "undefined" && window.innerWidth >= 900 ? 2 : 1);
-  const zoomLevelsRef = useRef([1, 1.41, 2]);
+  const zoomLevelsRef = useRef([0.8, 1.13, 1.6]);
   const zoomRef = useRef(zoomLevelsRef.current[zoomIdxRef.current]);
   const clampRef = useRef(() => {});
   const [, setZoomTick] = useState(0);
@@ -902,8 +902,11 @@ function RanchKairo({ stocks, quotes, onSelect }) {
     };
     clampRef.current = clampPan;
     const setZoomLevels = () => {
-      const fit = Math.min(2, Math.max(0.2, Math.min(cw / worldW, chh / worldH) * 0.98));
-      zoomLevelsRef.current = [fit, Math.sqrt(fit * 2), 2]; // 真ん中は見た目の比率で等間隔(幾何平均)
+      // 両端は少し内側に(全体ぴったり・2倍だと極端=オーナー指摘): 引き=全体の1.35倍(ほぼ全体)、寄り=1.6倍
+      const HI = 1.6;
+      const fit = Math.max(0.2, Math.min(cw / worldW, chh / worldH) * 0.98);
+      const lo = Math.min(fit * 1.35, HI / 1.5);
+      zoomLevelsRef.current = [lo, Math.sqrt(lo * HI), HI]; // 真ん中は見た目の比率で等間隔(幾何平均)
       zoomRef.current = zoomLevelsRef.current[zoomIdxRef.current];
     };
     const resize = () => {
