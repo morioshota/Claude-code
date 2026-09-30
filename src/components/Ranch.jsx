@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { buildPixels } from "../lib/sprites.js";
+import { specialsVersion } from "../lib/specials.js";
 import { calcLevel, stageOf, moveTierOf, freshInfo, evalAchievements } from "../lib/stock.js";
 import { ACHIEVEMENTS, TYPES } from "../data/constants.js";
 import { hashStr, mulberry32, today } from "../lib/util.js";
@@ -507,6 +508,17 @@ function creatureArt(stock, sleeping) {
   grid.forEach((row, y) => row.forEach((col, x) => {
     if (col) { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); }
   }));
+  // 特別キャラ(とくべつパック)には100ドット級の大きな絵もある。牧場では1セル=1pxで描くので、
+  // 通常のクリーチャー(24ドット前後)と同じくらいの大きさに縮める
+  const MAXW = 32;
+  if (w > MAXW) {
+    const k = MAXW / w, small = document.createElement("canvas");
+    small.width = MAXW; small.height = Math.max(1, Math.round(h * k));
+    const sx = small.getContext("2d");
+    sx.imageSmoothingEnabled = true; sx.imageSmoothingQuality = "high";
+    sx.drawImage(cv, 0, 0, small.width, small.height);
+    return small;
+  }
   return cv;
 }
 
@@ -841,7 +853,7 @@ function RanchKairo({ stocks, quotes, onSelect }) {
     /* ---- クリーチャー状態(保有=敷地 / ウォッチ=森) ---- */
     const artCache = new Map();
     const artFor = (s, sleeping) => {
-      const key = `${s.id}:${sleeping ? "z" : "a"}:${s.shiny ? "S" : ""}:${stageOf(calcLevel(s)).no}:${s.evoPattern || ""}`;
+      const key = `${s.id}:${sleeping ? "z" : "a"}:${s.shiny ? "S" : ""}:${stageOf(calcLevel(s)).no}:${s.evoPattern || ""}:${s.special || ""}:${specialsVersion()}`;
       if (!artCache.has(key)) artCache.set(key, creatureArt(s, sleeping));
       return artCache.get(key);
     };

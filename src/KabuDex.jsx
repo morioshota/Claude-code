@@ -19,12 +19,14 @@ import { Heatmap } from "./components/Heatmap.jsx";
 import { RanchView } from "./components/Ranch.jsx";
 import { StockForm } from "./components/StockForm.jsx";
 import { TriggerCheckModal, dueForCheck } from "./components/TriggerCheck.jsx";
-import { FxLayer, EvoCeremony, ShinyCeremony, burstConfetti } from "./components/fx.jsx";
+import { FxLayer, EvoCeremony, ShinyCeremony, SpecialCeremony, burstConfetti } from "./components/fx.jsx";
 import { PartyModal, BadgeModal, DataPortModal } from "./components/modals.jsx";
 import { NoteEditor } from "./components/notes.jsx";
 import { btnStyle, PressButton, FilterChip, pageStyle } from "./components/ui.jsx";
 import { STORAGE_KEY, noteKey, TYPES, STATUSES, ACHIEVEMENTS, SEED, BACKUP_FORMAT } from "./data/constants.js";
 import { evoPoolFor, rollEvoFx } from "./data/evolution.js";
+import { SPECIAL_RATE } from "./data/species.js";
+import { getSpecials, loadSpecialPack, mergeSpecialPack, clearSpecialPack, parseSpecialPack } from "./lib/specials.js";
 import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/activity.js";
 import { sfx, soundEnabled, setSoundEnabled } from "./lib/sound.js";
 import { enableTilt, disableTilt, restoreTilt, tiltOn, tiltSupported, onTiltChange } from "./lib/cardfx.js";
@@ -54,6 +56,17 @@ export default function KabuDex() {
   const [getFlash, setGetFlash] = useState(null);
   const [evoFlash, setEvoFlash] = useState(null); // {stock, stage, tier} 進化セレモニー
   const [shinyFlash, setShinyFlash] = useState(null); // 色違い当選セレモニー(進化と重なったら後で表示)
+  const [specialFlash, setSpecialFlash] = useState(null); // 特別キャラ当選セレモニー
+  const [specialsVer, setSpecialsVer] = useState(0); // とくべつパックの読み込み・変更で描き直すため
+  useEffect(() => { loadSpecialPack().then(() => setSpecialsVer((v) => v + 1)); }, []);
+  const importSpecialPack = async (data) => {
+    const list = parseSpecialPack(data);
+    if (!list || !list.length) return null;
+    const next = await mergeSpecialPack(list);
+    setSpecialsVer((v) => v + 1);
+    return next;
+  };
+  const removeSpecialPack = async () => { await clearSpecialPack(); setSpecialsVer((v) => v + 1); };
   const [view, setView] = useState("dex"); // 'dex'|'ranch'|'analysis'|'album'
   const [graduating, setGraduating] = useState(null); // 卒業式モーダル対象のstock
   const [activity, setActivity] = useState(null); // 草カレンダー用 {days, seeded}
@@ -168,13 +181,19 @@ export default function KabuDex() {
 
   const addStock = (f) => {
     const maxNo = stocks.reduce((m, s) => Math.max(m, s.no || 0), 0);
-    const ns = { ...f, id: uid(), no: maxNo + 1, logs: f.logs || [], noteCount: 0, lastResearch: "" };
+    let ns = { ...f, id: uid(), no: maxNo + 1, logs: f.logs || [], noteCount: 0, lastResearch: "" };
+    // 特別キャラの抽選は「初めて登録したとき」の1回だけ(オーナー要望: 愛着が湧いた頃に姿が変わるのはショック)。
+    // 外れたら従来どおり証券コードで決まるセクターの種族。当選は永久保存(不変条件6)
+    const pool = getSpecials(); // とくべつパックを読み込んだ端末でだけ抽選される
+    const wonSpecial = pool.length > 0 && Math.random() < SPECIAL_RATE;
+    if (wonSpecial) ns = { ...ns, special: pool[Math.floor(Math.random() * pool.length)].key, specialAt: today() };
     persist([...stocks, ns]);
     setFormMode(null);
+    recordActivity().then(setActivity);
+    if (wonSpecial) { setSpecialFlash(ns); return; } // 当選時は登録の演出の代わりに特別キャラのセレモニー
     setGetFlash({ icon: "🎉", text: `${ns.name} を図鑑に登録した！` });
     sfx("get");
     burstConfetti(30);
-    recordActivity().then(setActivity);
     setTimeout(() => setGetFlash(null), 2000);
   };
 
@@ -336,7 +355,9 @@ export default function KabuDex() {
       } catch (e) { /* 壊れた記録キーはアプリ本体でも読めないためスキップ */ }
     }
     const act = await loadActivity(); // 草カレンダーの活動履歴も含める(format 2)
-    return { app: "kabu-dex", format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), stocks, notes, activity: act };
+    const sp = getSpecials();
+    return { app: "kabu-dex", format: BACKUP_FORMAT, exportedAt: new Date().toISOString(), stocks, notes, activity: act,
+      ...(sp.length ? { specialPack: { format: "kabu-special-pack", version: 1, specials: sp } } : {}) };
   };
 
   /* 書き出しが完了したら最終バックアップ日を記録(リマインダーの起点) */
@@ -362,6 +383,9 @@ export default function KabuDex() {
   };
 
   const importAll = async (data, mode) => {
+    // バックアップに入っているとくべつパックも戻す(同じキーは上書き)
+    const sp = data.specialPack ? parseSpecialPack(data.specialPack) : null;
+    if (sp && sp.length) { await mergeSpecialPack(sp); setSpecialsVer((v) => v + 1); }
     const srcNotes = data.notes && typeof data.notes === "object" ? data.notes : {};
     // 読み込み時のv1→v2移行と同じ補完(バックアップが古い形式でも壊さない)
     const normalize = (s) => ({ noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s });
@@ -468,6 +492,8 @@ export default function KabuDex() {
         @keyframes kzPop { 0%{opacity:0; transform:translate(-50%,-50%) scale(.6)} 40%{opacity:1; transform:translate(-50%,-50%) scale(1.08)} 70%{transform:translate(-50%,-50%) scale(1)} 100%{opacity:0; transform:translate(-50%,-50%) scale(1)} }
         @keyframes kzHolo { 0%{background-position:0% 50%} 100%{background-position:300% 50%} }
         @keyframes kzAura { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
+        @keyframes kzCrownGlow { 0%,100%{filter:drop-shadow(0 0 2px rgba(255,209,102,.45))} 50%{filter:drop-shadow(0 0 6px rgba(255,209,102,.95)) drop-shadow(0 0 10px rgba(255,190,60,.45))} }
+        @keyframes kzCrownShine { 0%{transform:translateX(-10px)} 55%,100%{transform:translateX(12px)} }
         @keyframes kzHop { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
         @keyframes kzShiny { 0%,100%{ filter: drop-shadow(0 0 3px #f0abfc) } 50%{ filter: drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 14px #f0abfc) } }
         @keyframes kzSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
@@ -648,6 +674,7 @@ export default function KabuDex() {
       {evoFlash && <EvoCeremony evo={evoFlash} onDone={() => setEvoFlash(null)} />}
       {/* 色違いセレモニー(進化と重なった場合は進化のあとに表示) */}
       {shinyFlash && !evoFlash && <ShinyCeremony stock={shinyFlash} onDone={() => setShinyFlash(null)} />}
+      {specialFlash && !evoFlash && <SpecialCeremony stock={specialFlash} onDone={() => setSpecialFlash(null)} />}
 
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "20px 14px 60px" }}>
         {/* ヘッダー */}
@@ -862,7 +889,7 @@ export default function KabuDex() {
       )}
       {panel === "party" && <PartyModal stocks={stocks} onClose={() => setPanel(null)} />}
       {panel === "badges" && <BadgeModal stocks={stocks} onClose={() => setPanel(null)} />}
-      {panel === "data" && <DataPortModal stocks={stocks} onExport={exportAll} onImport={importAll} onBackupDone={markBackupDone} onClose={() => setPanel(null)} />}
+      {panel === "data" && <DataPortModal stocks={stocks} onExport={exportAll} onImport={importAll} onBackupDone={markBackupDone} specials={getSpecials()} specialsVer={specialsVer} onSpecialPack={importSpecialPack} onClearSpecials={removeSpecialPack} onClose={() => setPanel(null)} />}
       {panel === "check" && <TriggerCheckModal due={due} onAnswer={answerTriggerCheck} onClose={() => setPanel(null)} />}
       {graduating && <GraduationModal stock={graduating} quote={quotes[graduating.id]} onConfirm={confirmGraduation} onCancel={() => setGraduating(null)} />}
     </div>

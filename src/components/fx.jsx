@@ -198,3 +198,42 @@ export function ShinyCeremony({ stock, onDone }) {
     </div>
   );
 }
+
+/* ============ 特別キャラのセレモニー(調査記録の保存で超低確率当選。種族と無関係) ============ */
+
+export function SpecialCeremony({ stock, onDone }) {
+  useEffect(() => {
+    sfx("shiny");
+    flashScreen("rgba(255,209,102,.55)");
+    burstStars(34);
+    const t1 = setTimeout(() => { burstStars(24); sfx("sparkle"); }, 900);
+    const t2 = setTimeout(() => { burstStars(18); sfx("sparkle"); }, 1900);
+    const t3 = setTimeout(onDone, 5600);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 150, display: "flex", justifyContent: "center", alignItems: "center", background: "rgba(5,7,18,.7)", pointerEvents: "none" }}>
+      <div style={{
+        background: "#0e1122", borderRadius: 16, padding: 2,
+        backgroundImage: "linear-gradient(#0e1122,#0e1122), linear-gradient(120deg,#ffd166,#ffffff,#f0abfc,#7dd3fc,#ffd166)",
+        backgroundOrigin: "border-box", backgroundClip: "padding-box, border-box",
+        border: "2px solid transparent", boxShadow: "0 0 90px rgba(255,209,102,.6)",
+        animation: "kzPop 5.6s ease forwards",
+      }}>
+        <div style={{ padding: "22px 34px", textAlign: "center" }}>
+          <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 15, color: "#ffd166", animation: "kzAura 1s ease-in-out infinite" }}>
+            🌟 とくべつなキャラ が あらわれた！！ 🌟
+          </div>
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 8, filter: "drop-shadow(0 0 22px #ffd166)" }}>
+            <Creature stock={stock} size={110} />
+          </div>
+          <div style={{ fontFamily: "'DotGothic16', monospace", color: "#dfe4ff", fontSize: 13, marginTop: 8 }}>
+            {stock.name} に とくべつなキャラ が やってきた！<br />
+            <span style={{ fontSize: 10.5, color: "#8b93b8" }}>（登録したときだけの低確率・この姿は永久に残ります）</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
