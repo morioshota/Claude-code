@@ -287,12 +287,6 @@ function buildPixelsRaw(stock, sleeping) {
   // 保存がない(旧データ・インポート)場合はコードから決定論的にフォールバック
   const stageNo = stageOf(calcLevel(stock)).no;
   let evoKind = null;
-  // 王冠は進化装飾(角・アンテナ等)の先ではなく「体の頭の上」に載せるので、装飾を足す前の頭の位置を覚えておく
-  const head = (() => {
-    let best = null;
-    grid.forEach((row, y) => { const bnd = rowBounds(row); if (bnd && (!best || bnd[1] - bnd[0] > best.span)) best = { cx: Math.round((bnd[0] + bnd[1]) / 2), span: bnd[1] - bnd[0] }; });
-    return { t: topRow(grid), cx: best ? best.cx : Math.floor(grid[0].length / 2) };
-  })();
   if (stageNo >= 2 && !special) {
     const evoPool = evoPoolFor(stock.type);
     evoKind = stock.evoPattern || evoPool[hashStr(seedSrc + ":evo") % evoPool.length];
@@ -300,27 +294,10 @@ function buildPixelsRaw(stock, sleeping) {
     if (evoKind !== "aura") {
       const lv = Math.min(stageNo - 1, 3);
       grid = applyEvoPattern(grid, evoKind, lv, accent, body);
-      head.t += 3 + lv; head.cx += 2 + lv; // applyEvoPattern の余白ぶんずらす
     }
   }
   // ステージ4は王冠を頭上に(体の中心=最も幅の広い行の中央に載せる)
-  // ステージ4以上は頭上に王冠。3つのとがり+金の帯+赤い宝石で「王冠」と分かる形にする(2026-09末オーナー指摘)。
-  // 実寸で描く特別キャラ(native/raw)は拡大されないので、ひとまわり大きい王冠を使う
-  if (stageNo >= 4) {
-    const Y = "#ffd166", G = "#d99a0b", R = "#ef4444", W = "#fff7d6";
-    const CROWN = special && (special.native || special.raw)
-      ? ["y..y..y", "yw.y.wy", "yyyryyy", "gyyyyyg", "ggggggg"]
-      : ["y.y.y", "yyryy", "ggggg"];
-    const ch = CROWN.length, cw = CROWN[0].length;
-    grid = padGrid(grid, ch, Math.ceil(cw / 2)); // 王冠の余白
-    const gw = grid[0].length;
-    const t = head.t + ch, cx = head.cx + Math.ceil(cw / 2);
-    const col = { y: Y, g: G, r: R, w: W };
-    CROWN.forEach((row, yy) => [...row].forEach((c, xx) => {
-      const X = cx - Math.floor(cw / 2) + xx, Yp = t - ch + yy;
-      if (c !== "." && X >= 0 && X < gw && Yp >= 0) grid[Yp][X] = col[c];
-    }));
-  }
+  // 王冠はクリーチャーの絵には描き足さない(図鑑カード上部に小さく出す: DexCard の PixelCrown)
   grid = trimGrid(grid);
   // GBA風仕上げ: 2倍拡大 → 陰影 → アウトライン(順序重要: 輪郭は陰影の後)
   if (special && special.raw) grid = padGrid(grid, 1, 1); // 元のドット絵のまま(輪郭も描き込み済み)

@@ -11,6 +11,19 @@
 import { useEffect, useRef } from "react";
 import { Creature, RarityBadge, TypeChip, StatusBadge } from "./ui.jsx";
 import { findSpecial } from "../lib/specials.js";
+
+/* ステージ4以上の小さな王冠。クリーチャーの絵には描き足さず、カード上部の中央にさりげなく出す
+   (2026-09末オーナー指摘: キャラに被せるより、カードのやや上に表示するほうが良い) */
+const CROWN_PX = ["y..y..y", "yy.y.yy", "yyyryyy", "ggggggg"];
+const CROWN_COL = { y: "#ffd166", g: "#d99a0b", r: "#ef4444" };
+function PixelCrown() {
+  return (
+    <svg width={17} height={10} viewBox="0 0 7 4" shapeRendering="crispEdges" aria-label="王冠"
+      style={{ display: "block", filter: "drop-shadow(0 0 3px rgba(255,209,102,.55))" }}>
+      {CROWN_PX.map((row, y) => [...row].map((c, x) => (c === "." ? null : <rect key={`${x}-${y}`} x={x} y={y} width="1.02" height="1.02" fill={CROWN_COL[c]} />)))}
+    </svg>
+  );
+}
 import { TYPES, RARITIES } from "../data/constants.js";
 import { calcLevel, stageOf, rarityOf, urFxOf, freshInfo } from "../lib/stock.js";
 import { registerCard, setPointer, clearPointer } from "../lib/cardfx.js";
@@ -155,6 +168,7 @@ function DexCard({ stock, onClick, stopLossState }) {
           )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <span style={{ fontFamily: "'DotGothic16', monospace", fontSize: 11, color: "#6b7394" }}>No.{String(stock.no).padStart(3, "0")}</span>
+            {stage.no >= 4 && !sold && <PixelCrown />}
             <RarityBadge rarity={rank} size={13} />
           </div>
           {/* クリーチャーはさらに手前(いちばん浮く層) */}
