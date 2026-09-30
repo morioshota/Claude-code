@@ -29,6 +29,7 @@ import { SPECIAL_RATE } from "./data/species.js";
 import { getSpecials, loadSpecialPack, mergeSpecialPack, clearSpecialPack, parseSpecialPack } from "./lib/specials.js";
 import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/activity.js";
 import { sfx, soundEnabled, setSoundEnabled } from "./lib/sound.js";
+import { initSync, getSyncState, onSyncState } from "./lib/sync.js";
 import { enableTilt, disableTilt, restoreTilt, tiltOn, tiltSupported, onTiltChange } from "./lib/cardfx.js";
 import { fetchHeldQuotes, stopLossStateOf, stopLossPctOf } from "./lib/holdings.js";
 import { calcLevel, stageOf, freshInfo, evalAchievements } from "./lib/stock.js";
@@ -121,6 +122,33 @@ export default function KabuDex() {
       setActivity(act);
     })();
   }, []);
+
+  /* ☁️ 同期: 読み込みが終わってから開始。別の端末の変更を取り込んだら画面を読み直す */
+  const [syncSt, setSyncSt] = useState(getSyncState());
+  const loaded = stocks !== null;
+  useEffect(() => {
+    if (!loaded) return;
+    const off = onSyncState(setSyncSt);
+    initSync(async () => {
+      try {
+        const res = await storage.get(STORAGE_KEY);
+        const data = res && res.value ? JSON.parse(res.value) : null;
+        if (data && Array.isArray(data.stocks)) {
+          setStocks(data.stocks.map((s) => ({ noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s })));
+        }
+      } catch (e) { /* 読めなければ今の表示のまま */ }
+      // 開いている記録は読み直す(localStorageは同期読みできるので更新関数の中で読む)
+      setNotesCache((prev) => {
+        const n = {};
+        Object.keys(prev).forEach((id) => {
+          try { const v = localStorage.getItem(noteKey(id)); n[id] = v ? JSON.parse(v) : []; } catch (e) { n[id] = []; }
+        });
+        return n;
+      });
+      setActivity(await loadActivity());
+    });
+    return off;
+  }, [loaded]);
 
   /* カードの傾き演出: 前回オンなら復帰(iOSは許可が要るのでボタン待ち)。状態はボタン表示に反映 */
   useEffect(() => {
@@ -710,6 +738,11 @@ export default function KabuDex() {
           )}
           <div style={{ marginTop: 8, fontSize: 10.5, color: backupStale ? "#fca5a5" : "#5b6284" }}>
             💾 最終バックアップ: {lastBackup ? `${backupDays === 0 ? "今日" : `${backupDays}日前`}（${lastBackup}）` : "まだ書き出していません"}
+            {syncSt.on && (
+              <span onClick={() => setPanel("data")} style={{ cursor: "pointer", marginLeft: 10, color: syncSt.phase === "error" || syncSt.phase === "login" ? "#fca5a5" : "#7dd3fc" }}>
+                {syncSt.phase === "syncing" ? "☁️ 同期中…" : syncSt.phase === "login" ? "☁️ 要ログイン" : syncSt.phase === "error" ? "☁️ 同期エラー" : "☁️ 同期済み"}
+              </span>
+            )}
           </div>
         </div>
 

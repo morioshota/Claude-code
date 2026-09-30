@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Gauge, btnStyle, Overlay } from "./ui.jsx";
+import { SyncPanel } from "./SyncPanel.jsx";
 import { TYPES, ACHIEVEMENTS } from "../data/constants.js";
 import { evalAchievements } from "../lib/stock.js";
 import { today } from "../lib/util.js";
@@ -186,6 +187,8 @@ function DataPortModal({ stocks, onExport, onImport, onBackupDone, specials = []
         <div style={{ fontSize: 11.5, color: "#8b93b8", marginTop: 2, marginBottom: 14, lineHeight: 1.7 }}>
           データはブラウザ内（localStorage）に保存されているため、キャッシュ削除などで消えることがあります。定期的にファイルへ書き出しておくのがおすすめです。
         </div>
+
+        <SyncPanel />
 
         {/* エクスポート */}
         <div style={{ border: "1px solid #252b48", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
