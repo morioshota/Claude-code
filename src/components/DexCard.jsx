@@ -17,10 +17,25 @@ import { findSpecial } from "../lib/specials.js";
 const CROWN_PX = ["y..y..y", "yy.y.yy", "yyyryyy", "ggggggg"];
 const CROWN_COL = { y: "#ffd166", g: "#d99a0b", r: "#ef4444" };
 function PixelCrown() {
+  // 後光がゆっくり脈打ち(kzCrownGlow)、光の筋が斜めに流れる(kzCrownShine)。筋は王冠の形で切り抜く
   return (
     <svg width={17} height={10} viewBox="0 0 7 4" shapeRendering="crispEdges" aria-label="王冠"
-      style={{ display: "block", filter: "drop-shadow(0 0 3px rgba(255,209,102,.55))" }}>
+      style={{ display: "block", overflow: "visible", animation: "kzCrownGlow 2.6s ease-in-out infinite" }}>
+      <defs>
+        <clipPath id="kzCrownClip">
+          {CROWN_PX.map((row, y) => [...row].map((c, x) => (c === "." ? null : <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" />)))}
+        </clipPath>
+        <linearGradient id="kzCrownBand" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#fff" stopOpacity="0" />
+          <stop offset="0.5" stopColor="#fff" stopOpacity="0.9" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+      </defs>
       {CROWN_PX.map((row, y) => [...row].map((c, x) => (c === "." ? null : <rect key={`${x}-${y}`} x={x} y={y} width="1.02" height="1.02" fill={CROWN_COL[c]} />)))}
+      <g clipPath="url(#kzCrownClip)">
+        <rect x="-2" y="-1" width="2.2" height="6" fill="url(#kzCrownBand)" transform="skewX(-20)"
+          style={{ animation: "kzCrownShine 2.6s ease-in-out infinite", transformBox: "fill-box" }} />
+      </g>
     </svg>
   );
 }
@@ -166,9 +181,12 @@ function DexCard({ stock, onClick, stopLossState }) {
               <span style={{ position: "absolute", bottom: 8, right: 8, color: t.color, fontSize: 10, opacity: .8 }}>✦</span>
             </>
           )}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, position: "relative" }}>
+            {/* 王冠は左右の表示の幅に関係なく、カードの真ん中に置く */}
+            {stage.no >= 4 && !sold && (
+              <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", pointerEvents: "none" }}><PixelCrown /></div>
+            )}
             <span style={{ fontFamily: "'DotGothic16', monospace", fontSize: 11, color: "#6b7394" }}>No.{String(stock.no).padStart(3, "0")}</span>
-            {stage.no >= 4 && !sold && <PixelCrown />}
             <RarityBadge rarity={rank} size={13} />
           </div>
           {/* クリーチャーはさらに手前(いちばん浮く層) */}

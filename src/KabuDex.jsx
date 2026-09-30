@@ -492,6 +492,8 @@ export default function KabuDex() {
         @keyframes kzPop { 0%{opacity:0; transform:translate(-50%,-50%) scale(.6)} 40%{opacity:1; transform:translate(-50%,-50%) scale(1.08)} 70%{transform:translate(-50%,-50%) scale(1)} 100%{opacity:0; transform:translate(-50%,-50%) scale(1)} }
         @keyframes kzHolo { 0%{background-position:0% 50%} 100%{background-position:300% 50%} }
         @keyframes kzAura { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
+        @keyframes kzCrownGlow { 0%,100%{filter:drop-shadow(0 0 2px rgba(255,209,102,.45))} 50%{filter:drop-shadow(0 0 6px rgba(255,209,102,.95)) drop-shadow(0 0 10px rgba(255,190,60,.45))} }
+        @keyframes kzCrownShine { 0%{transform:translateX(-10px)} 55%,100%{transform:translateX(12px)} }
         @keyframes kzHop { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
         @keyframes kzShiny { 0%,100%{ filter: drop-shadow(0 0 3px #f0abfc) } 50%{ filter: drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 14px #f0abfc) } }
         @keyframes kzSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
