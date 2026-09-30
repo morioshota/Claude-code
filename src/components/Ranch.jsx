@@ -508,6 +508,17 @@ function creatureArt(stock, sleeping) {
   grid.forEach((row, y) => row.forEach((col, x) => {
     if (col) { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); }
   }));
+  // 特別キャラ(とくべつパック)には100ドット級の大きな絵もある。牧場では1セル=1pxで描くので、
+  // 通常のクリーチャー(24ドット前後)と同じくらいの大きさに縮める
+  const MAXW = 32;
+  if (w > MAXW) {
+    const k = MAXW / w, small = document.createElement("canvas");
+    small.width = MAXW; small.height = Math.max(1, Math.round(h * k));
+    const sx = small.getContext("2d");
+    sx.imageSmoothingEnabled = true; sx.imageSmoothingQuality = "high";
+    sx.drawImage(cv, 0, 0, small.width, small.height);
+    return small;
+  }
   return cv;
 }
 
