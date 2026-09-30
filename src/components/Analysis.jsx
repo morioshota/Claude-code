@@ -9,6 +9,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Creature, TypeChip, btnStyle } from "./ui.jsx";
 import { AssetHistory } from "./AssetHistory.jsx";
+import { fetchQuote } from "../lib/quotes.js";
+import { fmtMoney, fmtPct } from "../lib/holdings.js";
 import { TYPES } from "../data/constants.js";
 import {
   METRIC_GROUPS, METRIC_BY_KEY, ALL_METRIC_KEYS, RATING_LABEL, CHART_RANGES,
@@ -429,6 +431,7 @@ const COMPARE_KEYS = ["per", "pbr", "roe", "dividendYield", "equityRatio"];
 export function AnalysisView({ stocks, onSelect }) {
   const actives = stocks.filter((s) => s.status !== "sold");
   const [rows, setRows] = useState({});
+  const [quotes, setQuotes] = useState({}); // 参考株価(目標株価との差を出すため)
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState("no");
   const [reload, setReload] = useState(0);
@@ -436,11 +439,15 @@ export function AnalysisView({ stocks, onSelect }) {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    Promise.all(actives.map((s) => fetchFundamentals(s, { force: reload > 0 }).catch(() => null))).then((res) => {
+    Promise.all([
+      Promise.all(actives.map((s) => fetchFundamentals(s, { force: reload > 0 }).catch(() => null))),
+      Promise.all(actives.map((s) => fetchQuote(s, { force: reload > 0 }).catch(() => null))),
+    ]).then(([res, qs]) => {
       if (!alive) return;
-      const m = {};
-      actives.forEach((s, i) => { m[s.id] = res[i]; });
+      const m = {}, q = {};
+      actives.forEach((s, i) => { m[s.id] = res[i]; q[s.id] = qs[i]; });
       setRows(m);
+      setQuotes(q);
       setLoading(false);
     });
     return () => { alive = false; };
@@ -496,15 +503,20 @@ export function AnalysisView({ stocks, onSelect }) {
         </button>
       </div>
       <div style={{ overflowX: "auto", border: "1px solid #262d4d", borderRadius: 12, background: "#10142a" }}>
-        <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 520 }}>
+        <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 760 }}>
           <thead>
             <tr style={{ borderBottom: "1px solid #262d4d" }}>
-              <th style={{ ...th, textAlign: "left" }} onClick={() => setSortKey("no")}>銘柄</th>
+              {/* 銘柄の列は横スクロールしても左に残す(右端の目標株価を見るときに、どの銘柄か分かるように) */}
+              <th style={{ ...th, textAlign: "left", position: "sticky", left: 0, zIndex: 1, background: "#10142a" }} onClick={() => setSortKey("no")}>銘柄</th>
               {COMPARE_KEYS.map((k) => (
                 <th key={k} style={{ ...th, color: sortKey === k ? "#ffd166" : "#8b93b8" }} onClick={() => setSortKey(k)}>
                   {METRIC_BY_KEY[k].label}
                 </th>
               ))}
+              {/* 目標株価の列は並べ替えない(差の大きい順に並べると「おすすめ順」に見えるため) */}
+              <th style={{ ...th, cursor: "default", borderLeft: "1px dashed #2a3050" }}>株価</th>
+              <th style={{ ...th, cursor: "default" }}>目標株価<span style={{ display: "block", fontSize: 8.5, fontWeight: 400, color: "#5b6284" }}>アナリスト平均</span></th>
+              <th style={{ ...th, cursor: "default" }}>目標株価との差<span style={{ display: "block", fontSize: 8.5, fontWeight: 400, color: "#5b6284" }}>目標 − 今の株価</span></th>
             </tr>
           </thead>
           <tbody>
@@ -513,11 +525,11 @@ export function AnalysisView({ stocks, onSelect }) {
               const currency = (auto && auto.currency) || (/^[0-9]/.test(String(s.code)) ? "JPY" : "USD");
               return (
                 <tr key={s.id} onClick={() => onSelect(s.id)} style={{ borderBottom: "1px solid #1b2138", cursor: "pointer" }}>
-                  <td style={{ padding: "6px 8px" }}>
+                  <td style={{ padding: "6px 8px", position: "sticky", left: 0, zIndex: 1, background: "#10142a", boxShadow: "6px 0 8px -6px rgba(0,0,0,.6)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <Creature stock={s} size={26} shadow={false} />
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, color: "#f2f4ff", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 130 }}>
+                        <div style={{ fontSize: 12.5, color: "#f2f4ff", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 104 }}>
                           {s.shiny ? "✨" : ""}{s.name}
                         </div>
                         <div style={{ fontSize: 9.5, color: "#5b6284" }}>{s.code}</div>
@@ -534,11 +546,36 @@ export function AnalysisView({ stocks, onSelect }) {
                       </td>
                     );
                   })}
+                  {(() => {
+                    const q = quotes[s.id];
+                    const now = q && typeof q.close === "number" ? q.close : null;
+                    const tgt = auto && Number.isFinite(auto.targetPrice) ? auto.targetPrice : null;
+                    const gap = now !== null && tgt !== null ? tgt - now : null;
+                    const dim = { ...td, color: "#3f4666" };
+                    return (
+                      <>
+                        <td style={now !== null ? { ...td, borderLeft: "1px dashed #2a3050" } : { ...dim, borderLeft: "1px dashed #2a3050" }}>{now !== null ? fmtMoney(now, currency) : "—"}</td>
+                        <td style={tgt !== null ? { ...td, color: "#c7cdec" } : dim}>{tgt !== null ? fmtMoney(tgt, currency) : "—"}</td>
+                        <td style={gap !== null ? { ...td, color: "#c7cdec" } : dim}>
+                          {gap !== null ? (
+                            <>
+                              {fmtMoney(gap, currency, true)}
+                              <span style={{ display: "block", fontSize: 10.5, color: "#8b93b8" }}>{fmtPct((gap / now) * 100)}</span>
+                            </>
+                          ) : "—"}
+                        </td>
+                      </>
+                    );
+                  })()}
                 </tr>
               );
             })}
           </tbody>
         </table>
+      </div>
+      <div style={{ fontSize: 10, color: "#8b93b8", lineHeight: 1.7, marginTop: 10, background: "#0b0e1d", borderRadius: 8, padding: "8px 10px" }}>
+        ⚠️ 目標株価は<b style={{ color: "#c7cdec" }}>証券アナリストなど第三者の意見</b>（平均）で、この図鑑からの売買推奨ではありません。外れることもよくあります。
+        「目標株価との差」は、目標株価 − 今の参考株価（遅延）を金額と、今の株価に対する％で示した計算結果です。
       </div>
       <div style={{ fontSize: 10, color: "#3f4666", marginTop: 10, lineHeight: 1.8 }}>
         指標はYahoo Financeの遅延データとあなたの手入力によるもので、誤差があります。
