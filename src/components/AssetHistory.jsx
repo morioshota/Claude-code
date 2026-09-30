@@ -147,7 +147,10 @@ export function AssetHistory({ stocks, onSelect }) {
   const long = range === "3y" || range === "5y";
   const i0 = idx === null ? n - 1 : idx;
   const P = pts[i0];
-  const P0 = pts.find((p) => p.items.length) || pts[0];
+  // 内わけの起点は表示期間のはじめの日。まだ何も持っていない日なら「0円から」になり、内わけの合計が上の時価・含み損益と一致する。
+  // ⚠ 以前は「最初に持っていた日」を起点にしていたため、その日の時価・含み損益のぶんだけ上の数字と合わなかった(オーナー指摘)
+  const P0 = pts[0];
+  const fromZero = !P0.items.length;
 
   // 見方ごとの縦軸
   let lo, hi;
@@ -247,9 +250,16 @@ export function AssetHistory({ stocks, onSelect }) {
     <div style={{ fontSize: 11, color: "#c7cdec", fontWeight: 700 }}>{t}<span style={{ fontWeight: 400, color: "#5b6284", fontSize: 10 }}>　{sub}</span></div>
   );
   const sign = (v) => (v >= 0 ? PLUS : MINUS);
-  const flowCard = i0 > pts.indexOf(P0) && (
+  const flowCard = i0 > 0 && P.items.length > 0 && (
     <div style={{ marginTop: 10, border: "1px solid #232a4a", borderRadius: 10, padding: "9px 11px", display: "grid", gap: 6 }}>
-      <div style={{ fontSize: 11, color: "#8b93b8" }}>🔀 {fullDate(P0.date)} → {fullDate(P.date)} の内わけ</div>
+      <div style={{ fontSize: 11, color: "#8b93b8" }}>
+        🔀 {fromZero ? "保有なし（0円）" : fullDate(P0.date)} → {fullDate(P.date)} の内わけ
+        <div style={{ fontSize: 10, color: "#5b6284" }}>
+          {fromZero
+            ? "期間のはじめはまだ何も持っていないので、時価・含み損益は上の数字と一致します"
+            : <>期間のはじめ（{fullDate(P0.date)}）の時価 {fmtMoney(P0.value, H.currency)}・含み損益 {fmtMoney(P0.pnl, H.currency, true)} からの変化です</>}
+        </div>
+      </div>
       {secTitle("💼 時価", "持っている株の評価額")}
       {flowRow("投資額の増減", flow.dCost, COST, "買った・売った取得額")}
       {flowRow("＋ 含み損益の増減", flow.dPnl, sign(flow.dPnl))}
