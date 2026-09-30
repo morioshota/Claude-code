@@ -17,11 +17,11 @@ export const symbolFor = (stock) => {
   return null;
 };
 
-export const fetchQuote = async (stock) => {
+export const fetchQuote = async (stock, { force = false } = {}) => {
   const symbol = symbolFor(stock);
   if (!symbol) return null;
 
-  try {
+  if (!force) try {
     const cached = JSON.parse(localStorage.getItem(cacheKey(symbol)) || "null");
     if (cached && Date.now() - cached.at < (cached.quote ? TTL_MS : NEG_TTL_MS)) {
       return cached.quote;
@@ -32,7 +32,7 @@ export const fetchQuote = async (stock) => {
   let quote = null;
   let cacheable = false; // 一時的な失敗(オフライン・デプロイ直後等)はキャッシュせず次回開いたとき再試行する
   try {
-    const res = await fetch(`${endpoint}?symbol=${encodeURIComponent(symbol)}`);
+    const res = await fetch(`${endpoint}?symbol=${encodeURIComponent(symbol)}${force ? `&_=${Date.now()}` : ""}`);
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data.close === "number") { quote = data; cacheable = true; }

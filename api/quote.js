@@ -64,11 +64,15 @@ export default async function handler(req, res) {
     }
 
     const { date, time } = localDateTime(meta.regularMarketTime || Math.floor(Date.now() / 1000), meta.gmtoffset);
-    // Vercelエッジで10分キャッシュ(全ユーザー共有)。取得回数を抑える
-    res.setHeader("Cache-Control", "public, s-maxage=600, stale-while-revalidate=1800");
+    // Vercelエッジで10分キャッシュ(全ユーザー共有)。取得回数を抑える。
+    // 「きょう」タブの更新(_=時刻つき)は1分だけにして、なるべく新しい値を返す
+    const fresh = url.searchParams.has("_");
+    res.setHeader("Cache-Control", fresh ? "public, s-maxage=60" : "public, s-maxage=600, stale-while-revalidate=1800");
     return send(res, 200, {
       symbol: meta.symbol || symbol,
       close: price,
+      // 前の取引日の終値(きょうの損益=「きょう」タブ用。事実の差を出すだけで騰落の判定はしない)
+      prevClose: typeof meta.chartPreviousClose === "number" ? meta.chartPreviousClose : typeof meta.previousClose === "number" ? meta.previousClose : null,
       currency: meta.currency || (symbol.endsWith(".T") ? "JPY" : "USD"),
       date,
       time,

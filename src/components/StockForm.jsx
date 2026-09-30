@@ -5,6 +5,8 @@ import { btnStyle, Overlay } from "./ui.jsx";
 import { TYPES, STATUSES } from "../data/constants.js";
 import { DEFAULT_STOP_LOSS_PCT, stopLossPctOf, stopLossPriceOf } from "../lib/holdings.js";
 import { SaleFields, TradeSummary } from "./Album.jsx";
+import { replayTrades } from "../lib/lots.js";
+import { uid } from "../lib/util.js";
 
 function StockForm({ initial, onSave, onCancel }) {
   const [f, setF] = useState(initial || {
@@ -70,11 +72,40 @@ function StockForm({ initial, onSave, onCancel }) {
           <div style={{ background: "#10142a", border: "1px solid #262d4d", borderRadius: 10, padding: "4px 12px 12px", marginTop: 12 }}>
             <label style={label}>ほかく情報（任意・時価と含み損益の表示に使います）</label>
             {Array.isArray(f.trades) && f.trades.length > 0 ? (
-              /* 売買の記録がある銘柄は、株数・平均取得単価・購入日を記録から自動で決める(lib/lots.js) */
-              <div style={{ fontSize: 12, color: "#c7cdec", lineHeight: 1.8 }}>
-                {Number(f.shares || 0).toLocaleString()}株・平均取得単価 {f.avgPrice ?? "—"}・購入日 {f.buyDate || "—"}
-                <div style={{ fontSize: 10.5, color: "#8b93b8" }}>📒 売買の記録から自動で計算しています。直すときは銘柄詳細の「売買の記録」で追加・削除してください</div>
-              </div>
+              /* 売買の記録がある銘柄: ここで直せるのは「はじめの保有」(記録の1件目)。
+                 いまの株数・平均取得単価・購入日は記録全体から自動で決まる(lib/lots.js。保存時に applyTrades) */
+              (() => {
+                const init = f.trades.find((t) => t.initial);
+                const setInit = (k, v) => setF((p) => {
+                  const cur = p.trades.find((t) => t.initial);
+                  const nextInit = { ...(cur || { id: uid(), kind: "buy", initial: true, date: "", shares: null, price: null }), [k]: v };
+                  return { ...p, trades: cur ? p.trades.map((t) => (t.initial ? nextInit : t)) : [nextInit, ...p.trades] };
+                });
+                const now = replayTrades(f.trades);
+                return (
+                  <div>
+                    <label style={{ ...label, marginTop: 0 }}>🌱 はじめの保有（売買の記録の1件目）</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <div>
+                        <label style={{ ...label, marginTop: 0 }}>株数</label>
+                        <input style={input} type="number" inputMode="decimal" min="0" step="any" value={init ? (init.shares ?? "") : ""} placeholder="例: 100"
+                          onChange={(e) => { const v = parseFloat(e.target.value); setInit("shares", Number.isFinite(v) ? v : null); }} />
+                      </div>
+                      <div>
+                        <label style={{ ...label, marginTop: 0 }}>取得単価</label>
+                        <input style={input} type="number" inputMode="decimal" min="0" step="any" value={init ? (init.price ?? "") : ""} placeholder="例: 3952"
+                          onChange={(e) => { const v = parseFloat(e.target.value); setInit("price", Number.isFinite(v) ? v : null); }} />
+                      </div>
+                    </div>
+                    <label style={{ ...label, marginTop: 10 }}>購入日</label>
+                    <input style={input} type="date" value={init ? init.date || "" : ""} onChange={(e) => setInit("date", e.target.value || "")} />
+                    <div style={{ fontSize: 11.5, color: "#c7cdec", marginTop: 8, lineHeight: 1.7 }}>
+                      記録全体で → <b>{now.shares.toLocaleString()}株</b>・平均取得単価 <b>{now.shares > 0 ? (Math.round(now.avg * 100) / 100).toLocaleString() : "—"}</b>
+                      <div style={{ fontSize: 10.5, color: "#8b93b8" }}>📒 買い増し・一部売却は銘柄詳細の「売買の記録」で追加・修正・削除できます</div>
+                    </div>
+                  </div>
+                );
+              })()
             ) : (<>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>

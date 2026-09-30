@@ -33,6 +33,7 @@ import { initSync, getSyncState, onSyncState } from "./lib/sync.js";
 import { enableTilt, disableTilt, restoreTilt, tiltOn, tiltSupported, onTiltChange } from "./lib/cardfx.js";
 import { fetchHeldQuotes, stopLossStateOf, stopLossPctOf, pnlOf } from "./lib/holdings.js";
 import { PortfolioSummary } from "./components/PortfolioSummary.jsx";
+import { DailyView } from "./components/DailyView.jsx";
 import { applyTrades } from "./lib/lots.js";
 import { calcLevel, stageOf, freshInfo, evalAchievements } from "./lib/stock.js";
 import { today, uid, daysSince } from "./lib/util.js";
@@ -308,7 +309,13 @@ export default function KabuDex() {
   };
 
   const saveEdit = (f) => {
-    persist(stocks.map((s) => (s.id === selectedId ? { ...s, ...f, id: s.id, no: s.no, logs: s.logs, noteCount: s.noteCount, lastResearch: s.lastResearch } : s)));
+    persist(stocks.map((s) => {
+      if (s.id !== selectedId) return s;
+      const ns = { ...s, ...f, id: s.id, no: s.no, logs: s.logs, noteCount: s.noteCount, lastResearch: s.lastResearch };
+      // 売買の記録がある銘柄は、はじめの保有を直したら株数・平均取得単価・購入日を計算し直す(空の行は捨てる)
+      if (Array.isArray(ns.trades)) return applyTrades(ns, ns.trades.filter((t) => Number(t.shares) > 0 && Number(t.price) > 0));
+      return ns;
+    }));
     setFormMode(null);
   };
 
@@ -764,7 +771,7 @@ export default function KabuDex() {
             ))}
             {saveState && <span style={{ fontSize: 11, color: "#8b93b8", alignSelf: "center" }}>{saveState}</span>}
           </div>
-          <PortfolioSummary stocks={stocks} quotes={quotes} onOpen={() => { setView("analysis"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+          <PortfolioSummary stocks={stocks} quotes={quotes} onOpen={() => { setView("analysis"); window.scrollTo({ top: 0, behavior: "smooth" }); }} onOpenToday={() => setView("today")} />
           {staleCount > 0 && (
             <div style={{ marginTop: 10, fontSize: 11.5, color: "#fca5a5" }}>
               🥀 90日以上調査していない銘柄が{staleCount}件あります（記録が風化中）
@@ -848,10 +855,11 @@ export default function KabuDex() {
         )}
 
         {/* ビュー切り替え(均等グリッド。スマホで高さが凸凹しないよう1行1段に固定) */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr) 44px 44px", gap: 7, marginBottom: 10 }}>
-          {[["dex", "📕", "図鑑"], ["ranch", "🏞", "ぼくじょう"], ["analysis", "📊", "分析"], ["album", "🎓", "アルバム"]].map(([k, icon, label]) => (
+        {/* タブが5つになったので、📱🔊は右端の1列に上下2段で置く(タブの幅を確保するため) */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr) 38px", gridTemplateRows: "auto auto", gap: 6, marginBottom: 10 }}>
+          {[["dex", "📕", "図鑑"], ["today", "📅", "きょう"], ["ranch", "🏞", "ぼくじょう"], ["analysis", "📊", "分析"], ["album", "🎓", "アルバム"]].map(([k, icon, label]) => (
             <PressButton key={k} color="#ffd166" active={view === k} onClick={() => setView(k)}
-              style={{ flexDirection: "column", gap: 1, padding: "7px 2px", fontFamily: "'DotGothic16', monospace", fontSize: 11.5, letterSpacing: 0.5 }}>
+              style={{ gridRow: "1 / 3", flexDirection: "column", gap: 1, padding: "7px 0", fontFamily: "'DotGothic16', monospace", fontSize: 11, letterSpacing: 0, whiteSpace: "nowrap" }}>
               <span style={{ fontSize: 15, lineHeight: 1 }}>{icon}</span>
               <span>{label}</span>
             </PressButton>
@@ -859,18 +867,19 @@ export default function KabuDex() {
           <PressButton
             color="#c084fc" active={tilt} title={tilt ? "端末の傾きでカードが動きます" : "端末を傾けるとカードが動くようにする"}
             onClick={async () => { if (!tiltSupported()) return; if (tilt) disableTilt(); else { const ok = await enableTilt(); if (!ok) setTilt(false); } }}
-            style={{ padding: "7px 0", fontSize: 16, opacity: tiltSupported() ? 1 : 0.35 }}>
+            style={{ padding: "2px 0", fontSize: 13, opacity: tiltSupported() ? 1 : 0.35 }}>
             📱
           </PressButton>
           <PressButton
             color="#60a5fa" active={soundOn} title={soundOn ? "効果音オン" : "効果音オフ"}
             onClick={() => { const next = !soundOn; setSoundOn(next); setSoundEnabled(next); if (next) sfx("sparkle"); }}
-            style={{ padding: "7px 0", fontSize: 16 }}>
+            style={{ padding: "2px 0", fontSize: 13 }}>
             {soundOn ? "🔊" : "🔇"}
           </PressButton>
         </div>
 
         {view === "ranch" && <RanchView stocks={stocks} activity={activity} quotes={quotes} onSelect={openDetail} />}
+        {view === "today" && <DailyView stocks={stocks} onSelect={openDetail} onQuotes={(m) => setQuotes((q) => ({ ...q, ...m }))} />}
         {view === "analysis" && <AnalysisView stocks={stocks} onSelect={openDetail} />}
         {view === "album" && <AlbumView stocks={stocks} onSelect={openDetail} onSaveLesson={saveLesson} onSaveTrade={saveTrade} />}
 
