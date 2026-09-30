@@ -53,6 +53,8 @@ export function AssetHistory({ stocks, onSelect }) {
   const [reload, setReload] = useState(0);
   const [cur, setCur] = useState("JPY");
   const [idx, setIdx] = useState(null); // なぞっている点(nullなら最新)
+  // 銘柄ごとの棒の長さを何で決めるか: "pct"=含み損益率(既定。保有数の差に左右されない) / "amt"=金額(資産への効き方)
+  const [barBy, setBarBy] = useState(() => { try { return localStorage.getItem("kabu-asset-bar") || "pct"; } catch (e) { return "pct"; } });
   const boxRef = useRef(null);
   const svgRef = useRef(null);
   const [boxW, setBoxW] = useState(340);
@@ -248,21 +250,35 @@ export function AssetHistory({ stocks, onSelect }) {
   );
 
   /* ---- 銘柄ごとの内訳(その日の含み損益。中央の線から右が＋、左が−) ---- */
-  const items = [...P.items].sort((a, b) => b.pnl - a.pnl);
-  // 物差しは「表示期間の全部の日・全部の銘柄でいちばん大きい含み損益」に固定する。
+  const metric = (it) => (barBy === "pct" ? it.pct : it.pnl);
+  const items = [...P.items].sort((a, b) => metric(b) - metric(a));
+  // 物差しは「表示期間の全部の日・全部の銘柄でいちばん大きい値」に固定する(％でも金額でも同じ)。
   // ⚠ その日の最大に合わせると、いちばん大きい銘柄がどの日も右端に張り付き、日をまたいだ増減が見えなかった(オーナー指摘)
-  let maxAbs = 1;
-  pts.forEach((pt) => pt.items.forEach((it) => { const a = Math.abs(it.pnl); if (a > maxAbs) maxAbs = a; }));
+  // ⚠ 既定は％: 金額だと保有数の多い銘柄ほど長くなり、棒が「持っている量の差」を表してしまう(オーナーと相談して決定)
+  let maxAbs = barBy === "pct" ? 0.01 : 1;
+  pts.forEach((pt) => pt.items.forEach((it) => { const a = Math.abs(metric(it)); if (a > maxAbs) maxAbs = a; }));
   const shown = items.length > 12 ? [...items.slice(0, 6), null, ...items.slice(-5)] : items;
+  const barChip = (k, label) => (
+    <button key={k} onClick={() => { setBarBy(k); try { localStorage.setItem("kabu-asset-bar", k); } catch (e) { /* 表示だけ */ } }}
+      style={{ ...chip(barBy === k, "#dfe4ff"), padding: "2px 9px", fontSize: 10.5 }}>{label}</button>
+  );
   const breakdown = (
     <div style={{ marginTop: 10 }}>
-      <div style={{ fontSize: 11, color: "#8b93b8", marginBottom: 6 }}>📋 {fullDate(P.date)} の銘柄ごとの含み損益（タップで詳細）</div>
-      <div style={{ fontSize: 10, color: "#5b6284", marginTop: -3, marginBottom: 6 }}>棒の端＝この期間でいちばん大きかった含み損益（{fmtMoney(maxAbs, cc)}）。日を動かすと棒が伸び縮みします</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: "#8b93b8" }}>📋 {fullDate(P.date)} の銘柄ごとの含み損益（タップで詳細）</span>
+        <span style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: "#6b7394" }}>棒</span>{barChip("pct", "％")}{barChip("amt", "金額")}
+        </span>
+      </div>
+      <div style={{ fontSize: 10, color: "#5b6284", marginTop: -3, marginBottom: 6 }}>
+        棒の端＝この期間でいちばん大きかった{barBy === "pct" ? `含み損益率（${fmtPct(maxAbs)}）` : `含み損益（${fmtMoney(maxAbs, cc)}）`}。日を動かすと棒が伸び縮みします
+        {barBy === "pct" ? "（％は保有数に左右されません。資産への効き方は金額で）" : ""}
+      </div>
       <div style={{ display: "grid", gap: 5 }}>
         {shown.map((it, k) => {
           if (!it) return <div key={"gap" + k} style={{ fontSize: 10.5, color: "#5b6284", textAlign: "center" }}>… ほか{items.length - 11}銘柄 …</div>;
           const s = H.stocks[it.id];
-          const w = (Math.abs(it.pnl) / maxAbs) * 50;
+          const w = Math.min(50, (Math.abs(metric(it)) / maxAbs) * 50);
           return (
             <div key={it.id} onClick={() => onSelect && onSelect(it.id)}
               style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(60px,1fr) 104px", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 11.5 }}>
@@ -276,7 +292,10 @@ export function AssetHistory({ stocks, onSelect }) {
                   left: it.pnl >= 0 ? "50%" : `${50 - w}%`, width: `${Math.max(w, 0.8)}%` }} />
               </div>
               <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#dfe4ff", whiteSpace: "nowrap", lineHeight: 1.15 }}>
-                {fmtMoney(it.pnl, cc, true)}<br /><span style={{ color: "#6b7394", fontSize: 10 }}>{fmtPct(it.pct)}</span>
+                {/* 棒と同じものを上(大きく)に、もう片方を下(小さく)に */}
+                {barBy === "pct"
+                  ? <>{fmtPct(it.pct)}<br /><span style={{ color: "#6b7394", fontSize: 10 }}>{fmtMoney(it.pnl, cc, true)}</span></>
+                  : <>{fmtMoney(it.pnl, cc, true)}<br /><span style={{ color: "#6b7394", fontSize: 10 }}>{fmtPct(it.pct)}</span></>}
               </span>
             </div>
           );
