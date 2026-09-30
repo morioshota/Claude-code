@@ -44,6 +44,7 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 - `src/lib/sound.js` — レトロ効果音（Web Audioで自前生成。`kabu-sound` キーでミュート永続化）
 - `src/lib/trade.js` — リリース銘柄の売買の記録・実現損益・振り返り用の事実（事実のみ・評価なし）
 - `src/lib/activity.js` — 研究活動の記録（草カレンダー用。`kabu-activity-v1` キー）
+- `src/lib/sync.js` / `src/components/SyncPanel.jsx` / `api/sync.js` — ☁️ iPhone⇄PC同期（下記「同期」）
 - `src/data/evolution.js` — 進化パターンのタイプ別プールと演出ガチャの確率
 - `src/components/` — UI部品（`ui.jsx` 共通部品 / `DexCard` / `DetailModal` / `StockForm` / `notes` / `AiAssistant` / `modals`（パーティ・実績・バックアップ）/ `Ranch`（カイロ風2Dアイソメ牧場）/ `Analysis`（銘柄分析: 指標カード・株価チャート・見比べ表）/ `Album`（卒業アルバム）/ `Heatmap`（草カレンダー）/ `TriggerCheck`（トリガー点検）/ `fx`（演出レイヤー・セレモニー））
 - `src/main.jsx` / `index.html` — エントリポイント
@@ -114,6 +115,18 @@ npm run build    # 本番ビルド(dist/)
 - プロキシは許可モデル・max_tokens上限(2000)・web検索ツールのみをホワイトリストで固定。
   任意リクエストの転送はしない（キー悪用・コスト暴走の防止）
 - web検索の `pause_turn` はプロキシ側で継続処理し、テキストを集約して返す
+
+## ☁️ 同期（iPhone ⇄ PC・2026-09末）
+
+- 構成: `api/sync.js`（Vercel Function）→ Upstash Redis（`KV_REST_API_URL`/`KV_REST_API_TOKEN`）。クライアントは `lib/sync.js`、画面は💾バックアップ内の `SyncPanel`。設定手順は `docs/DEPLOY.md` 手順4
+- **ログインはパスキー（Face ID）**。初回登録とパスキー紛失時だけ環境変数 `SYNC_SETUP_CODE` の合言葉が要る（10回間違いで1時間ロック）。セッションは署名つきHttpOnly Cookie（`kd_s`・90日。pullのたびに残り60日を切ったら延長）。オーナー1人用の設計（ユーザーの区別なし）
+- ⚠ **Safariは「ボタンを押した直後」でないとFace IDを出さない**。チャレンジは先に取得（`prepare*`）し、ボタンの中では `startRegistration/startAuthentication` だけを呼ぶ（`finish*`）
+- ⚠ パスキーは**ドメインに結びつく**（rpID=開いたホスト名）。本番ドメイン以外（デプロイごとのURL）では使えない
+- **3者マージ**: 各端末が前回そろえた状態（`kabu-sync-base`）を覚えておき、base と比べて両側の変更を合わせる。銘柄は内部IDごと→項目ごと（同じ項目の衝突はこの端末優先）、`logs`は1件ずつ、`lastResearch`/`lastTriggerCheck`は新しいほう、`shiny`は一度trueなら消えない（不変条件6）。削除と編集がぶつかったら**残す**側に倒す。調査記録は銘柄ごと→記録IDごと。草は日ごとに「base＋両側の増分」。図鑑No.が衝突したら後ろを振り直す
+- サーバーの書き込みは版番号つきCAS（Luaで1回）。先を越されたら409→取り直してやり直す。同期中にローカルで操作があったら書き戻さずにやり直す（`storage.js` の `onStorageWrite` で通し番号を数える）
+- 初めてつなぐ端末: クラウドが空なら送る／この端末が見本データ（SEED）のままなら自動でクラウドを使う／どちらにも記録があれば「クラウドを使う/この端末で上書き」を聞く（端末ごとに内部IDが違うので混ぜると重複するため）
+- **とくべつパックは同期しない**（著作権。端末ごと）。効果音・バックアップ日などの端末設定も同期しない
+- テスト: `node test/sync.test.mjs`（2台を再現して、同時編集・削除の衝突・草の加算・401・ロックを確認）。⚠ マージの規則を変えたらここにケースを足すこと
 
 ## 株価表示（参考株価）
 
