@@ -182,11 +182,13 @@ export function AssetHistory({ stocks, onSelect }) {
     <div className="kzGlassPanel" style={{ padding: "10px 12px", marginTop: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
         <span style={{ fontSize: 11, color: "#8b93b8" }}>{fullDate(P.date)}{idx === null ? " 時点（最新）" : ""}・{P.items.length}銘柄</span>
-        {idx !== null && <button onClick={() => setIdx(null)} style={{ ...chip(false, GOLD), padding: "2px 8px", fontSize: 10.5 }}>最新に戻す</button>}
+        {/* ボタンは常に置いて見えなくするだけ(出たり消えたりで高さが変わらないように) */}
+        <button onClick={() => setIdx(null)} tabIndex={idx === null ? -1 : 0}
+          style={{ ...chip(false, GOLD), padding: "2px 8px", fontSize: 10.5, visibility: idx === null ? "hidden" : "visible" }}>最新に戻す</button>
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "2px 14px", marginTop: 2 }}>
-        <span style={{ fontFamily: mono, fontSize: 22, color: "#f2f4ff", fontVariantNumeric: "tabular-nums" }}>{fmtMoney(P.value, cc)}</span>
-        <span style={{ fontSize: 12, color: "#c7cdec" }}>投資額 {fmtMoney(P.cost, cc)}</span>
+      <div style={{ display: "flex", flexWrap: "nowrap", alignItems: "baseline", gap: 14, marginTop: 2, minWidth: 0 }}>
+        <span style={{ fontFamily: mono, fontSize: 22, color: "#f2f4ff", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{fmtMoney(P.value, cc)}</span>
+        <span style={{ fontSize: 12, color: "#c7cdec", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>投資額 {fmtMoney(P.cost, cc)}</span>
       </div>
       <div style={{ fontSize: 13, color: "#f2f4ff", marginTop: 2 }}>
         含み損益 <b style={{ fontFamily: mono, fontSize: 15, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(P.pnl, cc, true)}</b>
@@ -201,11 +203,20 @@ export function AssetHistory({ stocks, onSelect }) {
         <span style={{ color: PLUS }}>＋ {fmtMoney(P.gain, cc)}<span style={{ color: "#8b93b8" }}>（{P.gainN}銘柄）</span></span>
         <span style={{ color: MINUS }}>− {fmtMoney(Math.abs(P.loss), cc)}<span style={{ color: "#8b93b8" }}>（{P.lossN}銘柄）</span></span>
       </div>
-      {evAt.map((e) => (
-        <div key={e.kind + e.id} style={{ fontSize: 11.5, color: "#dfe4ff", marginTop: 6 }}>
-          {e.kind === "buy" ? "📥" : "📤"} {e.label}：{e.name}（{e.shares ? `${e.shares.toLocaleString()}株・` : ""}{fmtMoney(e.amount, cc)}{e.kind === "sell" && e.realized != null ? `・実現損益 ${fmtMoney(e.realized, cc, true)}` : ""}）
-        </div>
-      ))}
+      {/* できごと欄: 高さを2行ぶんに固定して、買/売の日をなぞっても下のグラフが動かないようにする。
+          同じ日に複数あれば1件目＋「ほか○件」 */}
+      <div style={{ marginTop: 6, height: 34, overflow: "hidden", fontSize: 11.5, lineHeight: "17px", borderTop: "1px dashed rgba(255,255,255,.08)", paddingTop: 3 }}>
+        {evAt.length === 0 ? (
+          <span style={{ color: "#4f5778" }}>📝 この日のできごと：なし（グラフ下の 買／売 の日をなぞると、その日の取引が出ます）</span>
+        ) : (() => {
+          const e = evAt[0];
+          return (
+            <span style={{ color: "#dfe4ff", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+              {evAt.length > 1 && <b style={{ color: "#ffd166" }}>{evAt.length}件 </b>}{e.kind === "buy" ? "📥" : "📤"} {e.label}：{e.name}（{e.shares ? `${e.shares.toLocaleString()}株・` : ""}{fmtMoney(e.amount, cc)}{e.kind === "sell" && e.realized != null ? `・実現損益 ${fmtMoney(e.realized, cc, true)}` : ""}）
+            </span>
+          );
+        })()}
+      </div>
     </div>
   );
 
