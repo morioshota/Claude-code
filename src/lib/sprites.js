@@ -294,7 +294,7 @@ function buildPixelsRaw(stock, sleeping) {
     if (evoKind !== "aura") grid = applyEvoPattern(grid, evoKind, Math.min(stageNo - 1, 3), accent, body);
   }
   // ステージ4は王冠を頭上に(体の中心=最も幅の広い行の中央に載せる)
-  if (stageNo >= 4) {
+  if (stageNo >= 4 && !special) { // 特別キャラは元のイラストのまま(王冠を描き足さない)
     if (grid[0].some(Boolean)) grid = padGrid(grid, 1, 0); // 王冠の余白
     const gw = grid[0].length;
     let best = null; // {y, cx} 最も幅広い行
