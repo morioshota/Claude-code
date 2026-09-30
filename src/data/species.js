@@ -739,6 +739,6 @@ const SPECIES_POOL = {
    オーナーの端末に読み込む「とくべつパック」(lib/specials.js)で供給する */
 
 /* 特別キャラの当選確率(銘柄を初めて登録したときの1回だけ抽選) */
-const SPECIAL_RATE = 0.03;
+const SPECIAL_RATE = 0.05;
 
 export { CREATURE_LOOK, SPECIES_POOL, SPECIAL_RATE };
