@@ -68,8 +68,26 @@ export function buildHistory(positions, charts, currency) {
 
   // 銘柄ごとに「その日までの最後の終値」を引けるようにしておく(銘柄ごとに間引き位置が違うため)
   const series = pos.map((p) => ({ ...p, pts: charts[p.stock.id].points }));
+
+  // 売却で「含み損益 → 実現損益」に移った額(日付つき)。時価の変化の内わけで「値動きのぶん」と分けるのに使う
+  //  一部売却: (売値 − その時点の平均)×株数 / 卒業(全部売却): (売却単価 − 平均)×株数。売却単価が未入力なら売却日の前の終値で見積もる
+  const realizedEvents = [];
+  series.forEach((p) => {
+    if (p.timeline) p.timeline.forEach((st) => { if (st.trade.kind === "sell" && st.realized != null) realizedEvents.push({ date: st.trade.date || "", amt: st.realized }); });
+    if (p.to) {
+      let sh = p.shares, av = p.avg;
+      if (p.timeline) { let st = null; for (const t of p.timeline) { if (!t.date || t.date < p.to) st = t; else break; } if (!st || st.shares <= 0) return; sh = st.shares; av = st.avg; }
+      let price = p.sellPrice;
+      if (!price) { const before = p.pts.filter(([d]) => d < p.to); price = before.length ? before[before.length - 1][1] : null; }
+      if (price) realizedEvents.push({ date: p.to, amt: (price - av) * sh });
+    }
+  });
+  realizedEvents.sort((a, b) => a.date.localeCompare(b.date));
+  let rk = 0, realizedCum = 0;
+
   const cursor = series.map(() => -1);
   const points = dates.map((d) => {
+    while (rk < realizedEvents.length && realizedEvents[rk].date <= d) realizedCum += realizedEvents[rk++].amt;
     const items = [];
     let value = 0, cost = 0, gain = 0, loss = 0, gainN = 0, lossN = 0;
     series.forEach((p, k) => {
@@ -88,7 +106,7 @@ export function buildHistory(positions, charts, currency) {
       if (pl > 0) { gain += pl; gainN++; } else if (pl < 0) { loss += pl; lossN++; }
       items.push({ id: p.stock.id, value: v, cost: c, pnl: pl, pct: (pl / c) * 100, close });
     });
-    return { date: d, value, cost, pnl: value - cost, gain, loss, gainN, lossN, items };
+    return { date: d, value, cost, pnl: value - cost, realized: realizedCum, gain, loss, gainN, lossN, items };
   });
 
   // できごと: 期間内の購入日・売却日(自分の記録=事実)
@@ -116,7 +134,12 @@ export function buildHistory(positions, charts, currency) {
   return { currency, dates, points, events, assumed, skipped, stocks: Object.fromEntries(series.map((p) => [p.stock.id, p.stock])) };
 }
 
-/* 期間はじめ→ある日までの「時価の変化」を、投資額の増減(買った/売った)と含み損益の増減(値動き)に分ける */
+/* 期間はじめ→ある日までの「時価の変化」を3つに分ける(必ず 時価の変化 = dCost + dMove + dExit になる):
+   dCost … 投資額の増減(買った・売ったぶん。取得額ベース)
+   dMove … 値動きのぶん(持っていた株の株価の変化。売った株は売値までの値動き)
+   dExit … 売却で確定したぶん(含み損益が実現損益に移って時価から抜けた額 = −実現損益) */
 export function flowBetween(a, b) {
-  return { dValue: b.value - a.value, dCost: b.cost - a.cost, dPnl: b.pnl - a.pnl };
+  const dRealized = (b.realized || 0) - (a.realized || 0);
+  const dPnl = b.pnl - a.pnl;
+  return { dValue: b.value - a.value, dCost: b.cost - a.cost, dPnl, dRealized, dMove: dPnl + dRealized, dExit: -dRealized || 0 };
 }
