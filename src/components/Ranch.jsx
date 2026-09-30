@@ -558,7 +558,13 @@ function RanchKairo({ stocks, quotes, onSelect }) {
   const stocksRef = useRef(stocks); stocksRef.current = stocks;
   const quotesRef = useRef(quotes); quotesRef.current = quotes;
   const onSelectRef = useRef(onSelect); onSelectRef.current = onSelect;
-  const zoomRef = useRef(typeof window !== "undefined" && window.innerWidth >= 900 ? 2 : 1);
+  /* ズームは3段階: [0]=マップ全体が画面に入る / [1]=その中間 / [2]=2倍(以前の3段階の真ん中)。
+     ⚠ 以前は 1/2/3倍の固定で、いちばん引いても全体が見えず、いちばん寄ると近すぎた(オーナー指摘)。
+     [0]は画面の大きさから毎回計算する(resize)。zoomRef は実際の倍率、zoomIdxRef は段階 */
+  const zoomIdxRef = useRef(typeof window !== "undefined" && window.innerWidth >= 900 ? 2 : 1);
+  const zoomLevelsRef = useRef([1, 1.41, 2]);
+  const zoomRef = useRef(zoomLevelsRef.current[zoomIdxRef.current]);
+  const clampRef = useRef(() => {});
   const [, setZoomTick] = useState(0);
   // HD-2D風の仕上げ(被写界深度・ブルーム・光の筋・注釈ラベル)。重い端末向けにOFFにできる
   const cinemaRef = useRef(cinemaSaved());
@@ -888,8 +894,17 @@ function RanchKairo({ stocks, quotes, onSelect }) {
     }
     const clampPan = () => {
       const z = zoomRef.current;
-      pan.x = Math.max(cw / (2 * z) - 60, Math.min(worldW - cw / (2 * z) + 60, pan.x));
-      pan.y = Math.max(chh / (2 * z) - 40, Math.min(worldH - chh / (2 * z) + 40, pan.y));
+      // マップが画面より小さい向きは真ん中に固定(全体表示のとき)
+      if (worldW * z <= cw) pan.x = worldW / 2;
+      else pan.x = Math.max(cw / (2 * z) - 60, Math.min(worldW - cw / (2 * z) + 60, pan.x));
+      if (worldH * z <= chh) pan.y = worldH / 2;
+      else pan.y = Math.max(chh / (2 * z) - 40, Math.min(worldH - chh / (2 * z) + 40, pan.y));
+    };
+    clampRef.current = clampPan;
+    const setZoomLevels = () => {
+      const fit = Math.min(2, Math.max(0.2, Math.min(cw / worldW, chh / worldH) * 0.98));
+      zoomLevelsRef.current = [fit, Math.sqrt(fit * 2), 2]; // 真ん中は見た目の比率で等間隔(幾何平均)
+      zoomRef.current = zoomLevelsRef.current[zoomIdxRef.current];
     };
     const resize = () => {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -899,6 +914,7 @@ function RanchKairo({ stocks, quotes, onSelect }) {
       canvas.height = Math.round(chh * dpr);
       canvas.style.width = cw + "px";
       canvas.style.height = chh + "px";
+      setZoomLevels();
       clampPan();
     };
     resize();
@@ -985,7 +1001,8 @@ function RanchKairo({ stocks, quotes, onSelect }) {
       const P = PHASE_INFO[phase];
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.imageSmoothingEnabled = false;
+      // 縮小表示(全体)のときだけなめらかに縮める(ドットのまま間引くとちらつくため)。拡大はドットのまま
+      ctx.imageSmoothingEnabled = z < 1;
 
       const grd = ctx.createLinearGradient(0, 0, 0, chh);
       grd.addColorStop(0, P.sky[0]); grd.addColorStop(1, P.sky[1]);
@@ -1191,7 +1208,8 @@ function RanchKairo({ stocks, quotes, onSelect }) {
           const f = toScreen(ox + isoX((forest.i0 + forest.i1) / 2, forest.j0 + 1), oy + isoY((forest.i0 + forest.i1) / 2, forest.j0 + 1));
           callouts.push({ x: f.x, y: f.y, title: "やせいの森", sub: `ウォッチ ${watchers.length}匹`, accent: "#86efac" });
         }
-        drawCallouts(ctx, callouts, cw, chh);
+        // 全体表示(いちばん引いた段階)では研究所の札が重なって読めないので出さない(名札は出す)
+        if (zoomIdxRef.current > 0) drawCallouts(ctx, callouts, cw, chh);
       }
       nameTags.forEach((t) => {
         ctx.font = "bold 10px sans-serif";
@@ -1297,10 +1315,8 @@ function RanchKairo({ stocks, quotes, onSelect }) {
     };
     const onWheel = (e) => {
       e.preventDefault();
-      const zs = [1, 2, 3];
-      const cur = zs.indexOf(zoomRef.current);
-      const next = zs[Math.max(0, Math.min(zs.length - 1, cur + (e.deltaY < 0 ? 1 : -1)))];
-      if (next !== zoomRef.current) { zoomRef.current = next; clampPan(); setZoomTick((n) => n + 1); }
+      const next = Math.max(0, Math.min(2, zoomIdxRef.current + (e.deltaY < 0 ? 1 : -1)));
+      if (next !== zoomIdxRef.current) { zoomIdxRef.current = next; zoomRef.current = zoomLevelsRef.current[next]; clampPan(); setZoomTick((n) => n + 1); }
     };
     canvas.style.touchAction = "none";
     canvas.addEventListener("pointerdown", onDown);
@@ -1322,9 +1338,9 @@ function RanchKairo({ stocks, quotes, onSelect }) {
   }, [sceneKey]);
 
   const zoomBtn = (dir) => {
-    const zs = [1, 2, 3];
-    const cur = zs.indexOf(zoomRef.current);
-    zoomRef.current = zs[Math.max(0, Math.min(zs.length - 1, cur + dir))];
+    zoomIdxRef.current = Math.max(0, Math.min(2, zoomIdxRef.current + dir));
+    zoomRef.current = zoomLevelsRef.current[zoomIdxRef.current];
+    clampRef.current();
     setZoomTick((n) => n + 1);
   };
 
@@ -1345,7 +1361,7 @@ function RanchKairo({ stocks, quotes, onSelect }) {
             all: "unset", cursor: "pointer", width: 34, height: 34, textAlign: "center", lineHeight: "34px",
             background: "#f4e7c8", color: "#4a3a1a", fontWeight: 800, fontSize: 17,
             border: "2px solid #8a6a3a", borderRadius: 8, boxShadow: "0 2px 0 #6b5228",
-            opacity: (dir === -1 && zoomRef.current === 1) || (dir === 1 && zoomRef.current === 3) ? 0.4 : 1,
+            opacity: (dir === -1 && zoomIdxRef.current === 0) || (dir === 1 && zoomIdxRef.current === 2) ? 0.4 : 1,
           }}>{lbl}</button>
         ))}
       </div>
