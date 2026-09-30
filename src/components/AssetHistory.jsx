@@ -246,11 +246,15 @@ export function AssetHistory({ stocks, onSelect }) {
 
   /* ---- 銘柄ごとの内訳(その日の含み損益。中央の線から右が＋、左が−) ---- */
   const items = [...P.items].sort((a, b) => b.pnl - a.pnl);
-  const maxAbs = Math.max(1, ...items.map((it) => Math.abs(it.pnl)));
+  // 物差しは「表示期間の全部の日・全部の銘柄でいちばん大きい含み損益」に固定する。
+  // ⚠ その日の最大に合わせると、いちばん大きい銘柄がどの日も右端に張り付き、日をまたいだ増減が見えなかった(オーナー指摘)
+  let maxAbs = 1;
+  pts.forEach((pt) => pt.items.forEach((it) => { const a = Math.abs(it.pnl); if (a > maxAbs) maxAbs = a; }));
   const shown = items.length > 12 ? [...items.slice(0, 6), null, ...items.slice(-5)] : items;
   const breakdown = (
     <div style={{ marginTop: 10 }}>
       <div style={{ fontSize: 11, color: "#8b93b8", marginBottom: 6 }}>📋 {fullDate(P.date)} の銘柄ごとの含み損益（タップで詳細）</div>
+      <div style={{ fontSize: 10, color: "#5b6284", marginTop: -3, marginBottom: 6 }}>棒の端＝この期間でいちばん大きかった含み損益（{fmtMoney(maxAbs, cc)}）。日を動かすと棒が伸び縮みします</div>
       <div style={{ display: "grid", gap: 5 }}>
         {shown.map((it, k) => {
           if (!it) return <div key={"gap" + k} style={{ fontSize: 10.5, color: "#5b6284", textAlign: "center" }}>… ほか{items.length - 11}銘柄 …</div>;
