@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Creature, TypeChip, btnStyle } from "./ui.jsx";
+import { AssetHistory } from "./AssetHistory.jsx";
 import { TYPES } from "../data/constants.js";
 import {
   METRIC_GROUPS, METRIC_BY_KEY, ALL_METRIC_KEYS, RATING_LABEL, CHART_RANGES,
@@ -448,9 +449,12 @@ export function AnalysisView({ stocks, onSelect }) {
 
   if (actives.length === 0) {
     return (
+      <div>
+      <AssetHistory stocks={stocks} onSelect={onSelect} />
       <div style={{ textAlign: "center", padding: "50px 20px", color: "#5b6284", border: "2px dashed #2a3050", borderRadius: 16, fontSize: 13, lineHeight: 2 }}>
         <div style={{ fontSize: 34, marginBottom: 8 }}>📊</div>
         まだ銘柄がありません。図鑑で登録すると、ここで指標を見比べられます
+      </div>
       </div>
     );
   }
@@ -473,6 +477,7 @@ export function AnalysisView({ stocks, onSelect }) {
 
   return (
     <div>
+      <AssetHistory stocks={stocks} onSelect={onSelect} />
       <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 200, fontSize: 11.5, color: "#8b93b8", lineHeight: 1.7 }}>
           📊 登録銘柄の指標を並べて見比べます（見出しをタップで並べ替え）。

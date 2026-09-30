@@ -31,9 +31,34 @@ import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/
 import { sfx, soundEnabled, setSoundEnabled } from "./lib/sound.js";
 import { initSync, getSyncState, onSyncState } from "./lib/sync.js";
 import { enableTilt, disableTilt, restoreTilt, tiltOn, tiltSupported, onTiltChange } from "./lib/cardfx.js";
-import { fetchHeldQuotes, stopLossStateOf, stopLossPctOf } from "./lib/holdings.js";
+import { fetchHeldQuotes, stopLossStateOf, stopLossPctOf, pnlOf } from "./lib/holdings.js";
+import { PortfolioSummary } from "./components/PortfolioSummary.jsx";
 import { calcLevel, stageOf, freshInfo, evalAchievements } from "./lib/stock.js";
 import { today, uid, daysSince } from "./lib/util.js";
+
+/* 図鑑の並び替え。並びは見やすさのためで、銘柄の優劣やおすすめ順ではない(CLAUDE.md) */
+const SORTS = [
+  ["no", "図鑑No.順"], ["new", "登録が新しい順"], ["name", "名前順"], ["lv", "研究Lvが高い順"],
+  ["recent", "最近調べた順"], ["stale", "ご無沙汰順"],
+  ["pnlHi", "含み損益率が高い順"], ["pnlLo", "含み損益率が低い順"], ["value", "時価が大きい順"],
+];
+const sortStocks = (list, key, quotes) => {
+  const pnl = (s) => pnlOf(s, quotes[s.id]);
+  const lastBy = (f) => (a, b) => { const x = f(a), y = f(b); if (x === null && y === null) return (a.no || 0) - (b.no || 0); if (x === null) return 1; if (y === null) return -1; return y - x || (a.no || 0) - (b.no || 0); };
+  const cmp = {
+    no: (a, b) => (a.no || 0) - (b.no || 0),
+    new: (a, b) => (b.no || 0) - (a.no || 0),
+    name: (a, b) => String(a.name).localeCompare(String(b.name), "ja"),
+    lv: lastBy((s) => calcLevel(s)),
+    recent: (a, b) => String(b.lastResearch || "").localeCompare(String(a.lastResearch || "")) || (a.no || 0) - (b.no || 0),
+    stale: (a, b) => String(a.lastResearch || "").localeCompare(String(b.lastResearch || "")) || (a.no || 0) - (b.no || 0),
+    pnlHi: lastBy((s) => (pnl(s) ? pnl(s).pct : null)),
+    pnlLo: lastBy((s) => (pnl(s) ? -pnl(s).pct : null)),
+    // 円とドルは比べられないので、円の銘柄→ドルの銘柄の順にそれぞれ大きい順
+    value: lastBy((s) => { const p = pnl(s); return p ? (p.currency === "JPY" ? 1e15 : 0) + p.value : null; }),
+  }[key] || ((a, b) => (a.no || 0) - (b.no || 0));
+  return [...list].sort(cmp);
+};
 
 /* 売却の記録から空欄を落とす(保存データを汚さない) */
 const SALE_KEYS = ["buyDate", "soldAt", "avgPrice", "shares", "sellShares", "sellPrice", "sellReason"];
@@ -53,6 +78,8 @@ export default function KabuDex() {
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState(() => { try { return localStorage.getItem("kabu-dex-sort") || "no"; } catch (e) { return "no"; } });
+  const changeSort = (k) => { setSortKey(k); try { localStorage.setItem("kabu-dex-sort", k); } catch (e) { /* 表示だけ */ } };
   const [saveState, setSaveState] = useState("");
   const [getFlash, setGetFlash] = useState(null);
   const [evoFlash, setEvoFlash] = useState(null); // {stock, stage, tier} 進化セレモニー
@@ -482,11 +509,11 @@ export default function KabuDex() {
   }
 
   const selected = stocks.find((s) => s.id === selectedId) || null;
-  const filtered = stocks.filter((s) =>
+  const filtered = sortStocks(stocks.filter((s) =>
     (filterType === "all" || s.type === filterType) &&
     (filterStatus === "all" || s.status === filterStatus) &&
     (search === "" || s.name.includes(search) || String(s.code).toUpperCase().includes(search.toUpperCase()))
-  );
+  ), sortKey, quotes);
 
   const due = dueForCheck(stocks);
   const holdCount = stocks.filter((s) => s.status === "hold").length;
@@ -731,6 +758,7 @@ export default function KabuDex() {
             ))}
             {saveState && <span style={{ fontSize: 11, color: "#8b93b8", alignSelf: "center" }}>{saveState}</span>}
           </div>
+          <PortfolioSummary stocks={stocks} quotes={quotes} onOpen={() => { setView("analysis"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
           {staleCount > 0 && (
             <div style={{ marginTop: 10, fontSize: 11.5, color: "#fca5a5" }}>
               🥀 90日以上調査していない銘柄が{staleCount}件あります（記録が風化中）
@@ -868,11 +896,23 @@ export default function KabuDex() {
             <FilterChip key={k} active={filterStatus === k} onClick={() => setFilterStatus(filterStatus === k ? "all" : k)} color={s.color}>{s.icon} {s.label}</FilterChip>
           ))}
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
           <FilterChip active={filterType === "all"} onClick={() => setFilterType("all")} color="#8b93b8">全タイプ</FilterChip>
           {Object.entries(TYPES).map(([k, t]) => (
             <FilterChip key={k} active={filterType === k} onClick={() => setFilterType(filterType === k ? "all" : k)} color={t.color}>{t.icon} {t.label}</FilterChip>
           ))}
+        </div>
+
+        {/* 並び替え */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 11, color: "#5b6284" }}>{filtered.length}匹</span>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "#8b93b8" }}>
+            ↕ 並び
+            <select value={sortKey} onChange={(e) => changeSort(e.target.value)}
+              style={{ background: "#12152a", color: "#eef1ff", border: "1px solid #2a3050", borderRadius: 9, padding: "5px 8px", fontSize: 16, outline: "none" }}>
+              {SORTS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+          </label>
         </div>
 
         {/* 図鑑グリッド */}
