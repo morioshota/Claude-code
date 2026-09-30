@@ -12,7 +12,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { TYPES } from "../data/constants.js";
 import { CHART_RANGES } from "../lib/fundamentals.js";
 import { fmtMoney, fmtPct } from "../lib/holdings.js";
-import { positionsOf, fetchCharts, buildHistory, flowBetween } from "../lib/portfolio.js";
+import { positionsOf, fetchCharts, buildHistory, flowBetween, firstHoldDate, rangeForSince } from "../lib/portfolio.js";
 import { niceTicks } from "./Analysis.jsx";
 
 const PLUS = "#7dd3fc";   // 含み益の側
@@ -44,6 +44,8 @@ const fmtDate = (d, long) => {
   const [y, m, dd] = String(d).split("-");
   return long ? `${y}/${Number(m)}` : `${Number(m)}/${Number(dd)}`;
 };
+// 資産の推移だけ「全期間」(持ち始めてから今まで)を足す。銘柄のチャート(Analysis)は従来の6つのまま
+const RANGES = [...CHART_RANGES, { key: "all", label: "全期間" }];
 const fullDate = (d) => { const [y, m, dd] = String(d).split("-"); return `${y}/${Number(m)}/${Number(dd)}`; };
 
 export function AssetHistory({ stocks, onSelect }) {
@@ -62,14 +64,16 @@ export function AssetHistory({ stocks, onSelect }) {
 
   const positions = useMemo(() => positionsOf(stocks), [stocks]);
   const posSig = positions.map((p) => `${p.stock.id}:${p.shares}:${p.avg}:${p.from}:${p.to}`).join("|");
+  const since = range === "all" ? firstHoldDate(positions) : null;
+  const fetchKey = range === "all" ? rangeForSince(since) : range;
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    fetchCharts(positions, range, reload > 0).then((m) => { if (alive) { setCharts(m); setLoading(false); setIdx(null); } });
+    fetchCharts(positions, fetchKey, reload > 0).then((m) => { if (alive) { setCharts(m); setLoading(false); setIdx(null); } });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posSig, range, reload]);
+  }, [posSig, fetchKey, reload]);
 
   useEffect(() => {
     const el = boxRef.current;
@@ -85,9 +89,9 @@ export function AssetHistory({ stocks, onSelect }) {
   const hists = useMemo(() => {
     if (!charts) return {};
     const out = {};
-    ["JPY", "USD"].forEach((c) => { const h = buildHistory(positions, charts, c); if (h) out[c] = h; });
+    ["JPY", "USD"].forEach((c) => { const h = buildHistory(positions, charts, c, since); if (h) out[c] = h; });
     return out;
-  }, [charts, positions]);
+  }, [charts, positions, since]);
   const curs = Object.keys(hists);
   const cc = hists[cur] ? cur : curs[0];
   const H = cc ? hists[cc] : null;
@@ -109,11 +113,17 @@ export function AssetHistory({ stocks, onSelect }) {
           <button onClick={() => !loading && setReload((n) => n + 1)} title="株価を取り直す" style={{ ...chip(false, GOLD), opacity: loading ? 0.5 : 1 }}>🔄</button>
         </div>
       </div>
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
-        {CHART_RANGES.map((r) => (
-          <button key={r.key} onClick={() => { setRange(r.key); try { localStorage.setItem("kabu-asset-range", r.key); } catch (e) { /* 表示だけ */ } }} style={chip(range === r.key, GOLD)}>{r.label}</button>
+      {/* 7つを1列に等分(折り返すと「全期間」だけ2行目に残って半端に見えた) */}
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${RANGES.length}, minmax(0, 1fr))`, gap: 4, marginTop: 8 }}>
+        {RANGES.map((r) => (
+          <button key={r.key} onClick={() => { setRange(r.key); try { localStorage.setItem("kabu-asset-range", r.key); } catch (e) { /* 表示だけ */ } }} style={{ ...chip(range === r.key, GOLD), padding: "4px 0", textAlign: "center" }}>{r.label}</button>
         ))}
       </div>
+      {range === "all" && (
+        <div style={{ fontSize: 10, color: "#5b6284", marginTop: 5 }}>
+          {since ? <>全期間＝いちばん早い購入日（{fullDate(since)}）から今まで</> : "購入日の記録が無いため、5年ぶんを表示しています（購入日か📒売買の記録を入れると、持ち始めからになります）"}
+        </div>
+      )}
     </>
   );
 
@@ -144,7 +154,7 @@ export function AssetHistory({ stocks, onSelect }) {
   const W = Math.max(280, boxW), HH = 230, PADL = 6, PADR = 54, PADT = 14, PLOTB = HH - 46, LANE = HH - 34, AXIS = HH - 8;
   const plotR = W - PADR;
   const x = (i) => PADL + (i / Math.max(1, n - 1)) * (plotR - PADL);
-  const long = range === "3y" || range === "5y";
+  const long = ["3y", "5y", "10y", "max"].includes(fetchKey);
   const i0 = idx === null ? n - 1 : idx;
   const P = pts[i0];
   // 内わけの起点は表示期間のはじめの日。まだ何も持っていない日なら「0円から」になり、内わけの合計が上の時価・含み損益と一致する。
