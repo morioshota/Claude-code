@@ -12,6 +12,7 @@
 
 import { daysSince } from "./util.js";
 import { stopLossPctOf } from "./holdings.js";
+import { partialRealizedOf } from "./lots.js";
 
 /* 売却理由。オーナー自身が選ぶ「そのときの自分の判断の記録」 */
 export const SELL_REASONS = [
@@ -45,9 +46,11 @@ export const tradeOf = (stock) => {
   const days = daysBetween(stock.buyDate, stock.soldAt);
   const out = { avg, sell, shares, currency, days, buyDate: stock.buyDate || "", soldAt: stock.soldAt || "",
     reason: SELL_REASON_BY_KEY[stock.sellReason] || null, pnl: null, pct: null, stop: null };
+  // 一部売却(📒売買の記録)で先に確定していたぶん。実現損益の合計に含める
+  out.partial = partialRealizedOf(stock);
   if (avg && sell) {
     out.pct = ((sell - avg) / avg) * 100;
-    if (shares) out.pnl = (sell - avg) * shares;
+    if (shares) out.pnl = (sell - avg) * shares + out.partial;
   }
   // 自分で決めていた にげるライン と売却単価の位置関係(事実。守れた/守れなかったの評価はしない)
   const pct = stopLossPctOf({ ...stock, status: "hold" });

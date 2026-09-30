@@ -33,6 +33,7 @@ import { initSync, getSyncState, onSyncState } from "./lib/sync.js";
 import { enableTilt, disableTilt, restoreTilt, tiltOn, tiltSupported, onTiltChange } from "./lib/cardfx.js";
 import { fetchHeldQuotes, stopLossStateOf, stopLossPctOf, pnlOf } from "./lib/holdings.js";
 import { PortfolioSummary } from "./components/PortfolioSummary.jsx";
+import { applyTrades } from "./lib/lots.js";
 import { calcLevel, stageOf, freshInfo, evalAchievements } from "./lib/stock.js";
 import { today, uid, daysSince } from "./lib/util.js";
 
@@ -284,6 +285,11 @@ export default function KabuDex() {
       Object.keys(sale).forEach((k) => { if (sale[k] === "" || sale[k] == null) delete ns[k]; });
       return ns;
     }));
+  };
+
+  /* 売買の記録(買い増し・一部売却)。株数・平均取得単価・購入日は記録から計算し直して保存する(lib/lots.js) */
+  const saveTrades = (id, trades) => {
+    persist(stocks.map((s) => (s.id === id ? applyTrades(s, trades) : s)));
   };
 
   const saveLesson = (id, text) => {
@@ -950,6 +956,7 @@ export default function KabuDex() {
           onOpenAi={() => setPanel("ai")}
           onDeleteNote={deleteNote}
           onSaveFundamentals={saveFundamentals}
+          onSaveTrades={saveTrades}
         />
       )}
       {formMode === "add" && <StockForm onSave={addStock} onCancel={() => setFormMode(null)} />}

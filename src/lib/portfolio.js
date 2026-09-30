@@ -3,13 +3,15 @@
    為替換算はしない(円とドルは別々に集計する)。
 
    推移は「記録にある保有情報 × 過去の終値」からさかのぼって再現した試算:
-   - 保有中の銘柄: 購入日(buyDate)から今まで、今の株数・平均取得単価で持っていたものとして計算
-     (購入日が未入力なら表示期間のはじめから持っていた扱い。買い増し・一部売却の履歴は記録が無いので反映できない)
+   - 売買の記録(trades: 買い増し・一部売却。lib/lots.js)がある銘柄: 記録どおりに日ごとの株数・平均取得単価を再現する
+   - 記録が無い保有中の銘柄: 購入日(buyDate)から今まで、今の株数・平均取得単価で持っていたものとして計算
+     (購入日が未入力なら表示期間のはじめから持っていた扱い)
    - リリース(売却)済みの銘柄: 購入日〜売却日(soldAt)のあいだ、売却株数(無ければ株数)で持っていたものとして計算
    日々の記録を別に保存しないので、iPhoneとPCのどちらで開いても同じ推移になる(同期も不要)。 */
 
 import { holdingOf, pnlOf } from "./holdings.js";
 import { fetchChart } from "./fundamentals.js";
+import { hasTrades, replayTrades, stateAt } from "./lots.js";
 
 const curOfCode = (s) => (/^[0-9]/.test(String(s.code)) ? "JPY" : "USD");
 
@@ -36,9 +38,12 @@ export function positionsOf(stocks) {
   stocks.forEach((s) => {
     const shares0 = Number(s.status === "sold" ? (s.sellShares || s.shares) : s.shares);
     const avg = Number(s.avgPrice);
-    if (!(shares0 > 0) || !(avg > 0)) return;
-    if (s.status === "hold") out.push({ stock: s, shares: shares0, avg, from: s.buyDate || "", to: "" });
-    else if (s.status === "sold" && s.soldAt) out.push({ stock: s, shares: shares0, avg, from: s.buyDate || "", to: s.soldAt, sellPrice: Number(s.sellPrice) || null });
+    const timeline = hasTrades(s) ? replayTrades(s.trades).timeline : null;
+    if (!timeline && (!(shares0 > 0) || !(avg > 0))) return;
+    if (timeline && !timeline.length) return;
+    const from = timeline ? timeline[0].date : s.buyDate || "";
+    if (s.status === "hold") out.push({ stock: s, shares: shares0, avg, from, to: "", timeline });
+    else if (s.status === "sold" && s.soldAt) out.push({ stock: s, shares: shares0, avg, from, to: s.soldAt, sellPrice: Number(s.sellPrice) || null, timeline });
   });
   return out;
 }
@@ -69,11 +74,16 @@ export function buildHistory(positions, charts, currency) {
     let value = 0, cost = 0, gain = 0, loss = 0, gainN = 0, lossN = 0;
     series.forEach((p, k) => {
       while (cursor[k] + 1 < p.pts.length && p.pts[cursor[k] + 1][0] <= d) cursor[k]++;
-      if (p.from && d < p.from) return;
+      let sh = p.shares, av = p.avg;
+      if (p.timeline) { // 売買の記録どおりに、その日の株数・平均取得単価を使う
+        const st = stateAt(p.timeline, d);
+        if (!st || st.shares <= 0) return;
+        sh = st.shares; av = st.avg;
+      } else if (p.from && d < p.from) return;
       if (p.to && d >= p.to) return;
       if (cursor[k] < 0) return; // まだ株価の無い日(上場前など)
       const close = p.pts[cursor[k]][1];
-      const v = close * p.shares, c = p.avg * p.shares, pl = v - c;
+      const v = close * sh, c = av * sh, pl = v - c;
       value += v; cost += c;
       if (pl > 0) { gain += pl; gainN++; } else if (pl < 0) { loss += pl; lossN++; }
       items.push({ id: p.stock.id, value: v, cost: c, pnl: pl, pct: (pl / c) * 100, close });
@@ -84,10 +94,17 @@ export function buildHistory(positions, charts, currency) {
   // できごと: 期間内の購入日・売却日(自分の記録=事実)
   const events = [];
   series.forEach((p) => {
-    if (p.from && p.from >= first && p.from <= last) events.push({ date: p.from, kind: "buy", id: p.stock.id, name: p.stock.name, amount: p.avg * p.shares });
+    if (p.timeline) {
+      p.timeline.forEach((st) => {
+        const t = st.trade;
+        if (!t.date || t.date < first || t.date > last) return;
+        events.push({ date: t.date, kind: t.kind, id: p.stock.id, name: p.stock.name, amount: t.price * t.shares, shares: t.shares,
+          realized: t.kind === "sell" ? st.realized : null, label: t.initial ? "購入" : t.kind === "buy" ? "買い増し" : "一部売却" });
+      });
+    } else if (p.from && p.from >= first && p.from <= last) events.push({ date: p.from, kind: "buy", id: p.stock.id, name: p.stock.name, amount: p.avg * p.shares, label: "購入" });
     if (p.to && p.to >= first && p.to <= last) {
       const realized = p.sellPrice ? (p.sellPrice - p.avg) * p.shares : null;
-      events.push({ date: p.to, kind: "sell", id: p.stock.id, name: p.stock.name, amount: (p.sellPrice || 0) * p.shares, realized });
+      events.push({ date: p.to, kind: "sell", id: p.stock.id, name: p.stock.name, amount: (p.sellPrice || 0) * p.shares, realized, label: "売却（卒業）" });
     }
   });
   events.sort((a, b) => a.date.localeCompare(b.date));

@@ -69,6 +69,13 @@ function StockForm({ initial, onSave, onCancel }) {
         {f.status === "hold" && (
           <div style={{ background: "#10142a", border: "1px solid #262d4d", borderRadius: 10, padding: "4px 12px 12px", marginTop: 12 }}>
             <label style={label}>ほかく情報（任意・時価と含み損益の表示に使います）</label>
+            {Array.isArray(f.trades) && f.trades.length > 0 ? (
+              /* 売買の記録がある銘柄は、株数・平均取得単価・購入日を記録から自動で決める(lib/lots.js) */
+              <div style={{ fontSize: 12, color: "#c7cdec", lineHeight: 1.8 }}>
+                {Number(f.shares || 0).toLocaleString()}株・平均取得単価 {f.avgPrice ?? "—"}・購入日 {f.buyDate || "—"}
+                <div style={{ fontSize: 10.5, color: "#8b93b8" }}>📒 売買の記録から自動で計算しています。直すときは銘柄詳細の「売買の記録」で追加・削除してください</div>
+              </div>
+            ) : (<>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
                 <label style={{ ...label, marginTop: 0 }}>株数</label>
@@ -85,6 +92,7 @@ function StockForm({ initial, onSave, onCancel }) {
             </div>
             <label style={{ ...label, marginTop: 10 }}>購入日（任意・売却後の振り返りで保有期間に使います）</label>
             <input style={input} type="date" value={f.buyDate || ""} onChange={(e) => set("buyDate", e.target.value || "")} />
+            </>)}
             <div style={{ fontSize: 10, color: "#5b6284", marginTop: 6, lineHeight: 1.6 }}>
               日本株は円・米国株はドルで入力。時価と含み損益は事実として表示されるだけで、売買判断の指標ではありません
             </div>

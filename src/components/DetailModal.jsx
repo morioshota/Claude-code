@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { TradeSummary } from "./Album.jsx";
+import { TradeLog } from "./TradeLog.jsx";
 import { AnalysisPanel } from "./Analysis.jsx";
 import { NoteItem } from "./notes.jsx";
 import { Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay } from "./ui.jsx";
@@ -103,7 +104,7 @@ function SectionFx({ rank, color, style, children }) {
   );
 }
 
-function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, onLog, onOpenNoteEditor, onOpenAi, onDeleteNote, onSaveFundamentals }) {
+function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, onLog, onOpenNoteEditor, onOpenAi, onDeleteNote, onSaveFundamentals, onSaveTrades }) {
   const t = TYPES[stock.type] || TYPES.metal;
   const rank = rarityOf(stock);
   const r = RARITIES.find((x) => x.key === rank) || RARITIES[0];
@@ -202,6 +203,8 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
               <div style={{ fontSize: 10, color: "#5b6284", marginTop: 4 }}>編集は「✏️ カードを編集」か🎓アルバムから</div>
             </div>
           )}
+          {/* 売買の記録(買い増し・一部売却)。保有中は入力、卒業生は記録があれば表示だけ */}
+          {onSaveTrades && <TradeLog stock={stock} onSave={(trades) => onSaveTrades(stock.id, trades)} />}
           {/* ステータス */}
           <SectionFx rank={rank} color={t.color} style={section}>
             <div style={h}>STATUS ─ {stage.desc}</div>

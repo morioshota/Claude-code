@@ -17,6 +17,7 @@ import { STORAGE_KEY, noteKey, SEED } from "../data/constants.js";
 import { ACTIVITY_KEY } from "./activity.js";
 import { onStorageWrite } from "./storage.js";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
+import { applyTrades } from "./lots.js";
 
 const ON_KEY = "kabu-sync-on";
 const BASE_KEY = "kabu-sync-base";
@@ -89,12 +90,22 @@ function mergeStock(b, l, r) {
   new Set([...Object.keys(b), ...Object.keys(l), ...Object.keys(r)]).forEach((k) => {
     let v;
     if (k === "logs") v = byDate(mergeList(b.logs, l.logs, r.logs, logKey));
+    else if (k === "trades") {
+      // 売買の記録は1件ずつ合わせる。「はじめの保有」を両方の端末で別々に作っていたら、この端末のほうを1件だけ残す
+      const m = mergeList(b.trades || [], l.trades || [], r.trades || [], (x) => x && x.id);
+      const lInit = (l.trades || []).find((x) => x.initial);
+      const inits = m.filter((x) => x.initial);
+      v = inits.length > 1 ? m.filter((x) => !x.initial || x === (lInit || inits[0])) : m;
+      if (!v.length) v = undefined;
+    }
     else if (k === "lastResearch" || k === "lastTriggerCheck") v = maxStr(l[k], r[k]);
     else if (k === "shiny") v = !!(l.shiny || r.shiny) || undefined; // 色違いは一度当たったら消えない(不変条件6)
     else v = eq(l[k], b[k]) ? r[k] : l[k];
     if (v !== undefined) out[k] = v;
   });
   if (out.shiny && !out.shinyAt) out.shinyAt = l.shinyAt || r.shinyAt;
+  // 売買の記録があれば、株数・平均取得単価・購入日は合わせた記録から計算し直す
+  if (out.trades && !eq(out.trades, l.trades)) return applyTrades(out, out.trades);
   return out;
 }
 
