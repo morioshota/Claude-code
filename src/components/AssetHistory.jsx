@@ -227,7 +227,7 @@ export function AssetHistory({ stocks, onSelect }) {
   // 物差しは「期間のはじめ→どの日までの変化でも、いちばん大きかった値」に固定する(銘柄ごとの棒と同じ考え方)。
   // ⚠ その日の3本の最大に合わせると、投資額が変わらなくても株価の動きで投資額の棒が伸び縮みして見えた(オーナー指摘)
   let flowMax = 1;
-  pts.forEach((pt) => { const f = flowBetween(P0, pt); flowMax = Math.max(flowMax, Math.abs(f.dCost), Math.abs(f.dMove), Math.abs(f.dExit), Math.abs(f.dValue)); });
+  pts.forEach((pt) => { const f = flowBetween(P0, pt); flowMax = Math.max(flowMax, Math.abs(f.dCost), Math.abs(f.dPnl), Math.abs(f.dRealized), Math.abs(f.dMove), Math.abs(f.dValue)); });
   const flowRow = (label, v, color, sub) => (
     <div style={{ display: "grid", gridTemplateColumns: "108px minmax(40px,1fr) 100px", alignItems: "center", gap: 8, fontSize: 11.5 }}>
       <span style={{ color: "#8b93b8", lineHeight: 1.25, whiteSpace: "nowrap" }}>{label}{sub && <span style={{ display: "block", fontSize: 9.5, color: "#5b6284", whiteSpace: "normal" }}>{sub}</span>}</span>
@@ -239,17 +239,31 @@ export function AssetHistory({ stocks, onSelect }) {
       <span style={{ textAlign: "right", color: "#dfe4ff", fontFamily: mono, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(v, cc, true)}</span>
     </div>
   );
+  /* 2つの問いに分けて、どちらも「足し算」で合うようにする(利益は＋・損は−のまま読める)。
+     ⚠ 以前は「時価の変化＝①＋②＋③」に合わせるため、確定した利益をマイナスで出していた(ややこしい＝オーナー指摘)
+       A 損益(株価の動きの成果) = 含み損益の増減 ＋ 確定した損益(実現損益)
+       B 時価の変化            = 投資額の増減   ＋ 含み損益の増減 */
+  const secTitle = (t, sub) => (
+    <div style={{ fontSize: 11, color: "#c7cdec", fontWeight: 700 }}>{t}<span style={{ fontWeight: 400, color: "#5b6284", fontSize: 10 }}>　{sub}</span></div>
+  );
+  const sign = (v) => (v >= 0 ? PLUS : MINUS);
   const flowCard = i0 > pts.indexOf(P0) && (
     <div style={{ marginTop: 10, border: "1px solid #232a4a", borderRadius: 10, padding: "9px 11px", display: "grid", gap: 6 }}>
-      <div style={{ fontSize: 11, color: "#8b93b8" }}>🔀 {fullDate(P0.date)} → {fullDate(P.date)} の時価の変化の内わけ</div>
-      {flowRow("① 投資額の増減", flow.dCost, COST, "買った・売った取得額")}
-      {flowRow("② 値動きのぶん", flow.dMove, flow.dMove >= 0 ? PLUS : MINUS, "株価の動き")}
-      {flowRow("③ 売却で確定", flow.dExit, EXIT, flow.dRealized ? `実現損益 ${fmtMoney(flow.dRealized, cc, true)}` : "この間の売却なし")}
+      <div style={{ fontSize: 11, color: "#8b93b8" }}>🔀 {fullDate(P0.date)} → {fullDate(P.date)} の内わけ</div>
+      {secTitle("💰 損益", "株価の動きで増えた・減ったぶん")}
+      {flowRow("含み損益の増減", flow.dPnl, sign(flow.dPnl), "持っている株の評価")}
+      {flowRow("＋ 確定した損益", flow.dRealized, EXIT, flow.dRealized ? "売って確定（実現損益）" : "この間の売却なし")}
       <div style={{ borderTop: "1px dashed #2a3050" }} />
-      {flowRow("時価の変化", flow.dValue, GOLD, "①＋②＋③")}
+      {flowRow("＝ 損益の合計", flow.dMove, sign(flow.dMove))}
+      <div style={{ height: 4 }} />
+      {secTitle("💼 時価", "持っている株の評価額")}
+      {flowRow("投資額の増減", flow.dCost, COST, "買った・売った取得額")}
+      {flowRow("＋ 含み損益の増減", flow.dPnl, sign(flow.dPnl))}
+      <div style={{ borderTop: "1px dashed #2a3050" }} />
+      {flowRow("＝ 時価の変化", flow.dValue, GOLD)}
       <div style={{ fontSize: 10, color: "#5b6284", lineHeight: 1.6 }}>
-        売った株の含み損益は、売った時点で実現損益（確定した損益）に変わって時価から抜けます。それが③です（利益を確定するとマイナス、損失を確定するとプラスになります）。
-        ②は売値・最新値までの値動きです。
+        売った株の損益は、売った時点で「確定した損益」になって手元のお金に移るので、時価（持っている株の評価額）には入りません。
+        そのため時価の変化には含み損益の増減だけが入り、損益の合計には確定したぶんも足しています。
       </div>
     </div>
   );
