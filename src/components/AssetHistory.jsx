@@ -221,7 +221,10 @@ export function AssetHistory({ stocks, onSelect }) {
   );
 
   /* ---- 時価の変化の内訳(期間のはじめ → いまの日) ---- */
-  const flowMax = Math.max(Math.abs(flow.dCost), Math.abs(flow.dPnl), Math.abs(flow.dValue)) || 1;
+  // 物差しは「期間のはじめ→どの日までの変化でも、いちばん大きかった値」に固定する(銘柄ごとの棒と同じ考え方)。
+  // ⚠ その日の3本の最大に合わせると、投資額が変わらなくても株価の動きで投資額の棒が伸び縮みして見えた(オーナー指摘)
+  let flowMax = 1;
+  pts.forEach((pt) => { const f = flowBetween(P0, pt); flowMax = Math.max(flowMax, Math.abs(f.dCost), Math.abs(f.dPnl), Math.abs(f.dValue)); });
   const flowRow = (label, v, color) => (
     <div style={{ display: "grid", gridTemplateColumns: "92px 1fr 104px", alignItems: "center", gap: 8, fontSize: 11.5 }}>
       <span style={{ color: "#8b93b8" }}>{label}</span>
