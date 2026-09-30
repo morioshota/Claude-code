@@ -9,7 +9,8 @@ import { dayPnlOf, daySummary, fmtDayPct } from "../lib/daily.js";
 
 const PLUS = "#7dd3fc", MINUS = "#c4b5fd";
 const mono = "'DotGothic16', ui-monospace, monospace";
-const SORTS = [["pnlHi", "きょうの損益が大きい順"], ["pnlLo", "きょうの損益が小さい順"], ["pct", "きょうの％が大きい順"], ["no", "図鑑No.順"]];
+// 既定は％(資産の推移と同じ考え方: 金額だと保有数の多い銘柄ほど大きくなり、値動きの比較にならない=オーナー要望で統一)
+const SORTS = [["pct", "きょうの％が大きい順"], ["pctLo", "きょうの％が小さい順"], ["pnlHi", "きょうの損益額が大きい順"], ["pnlLo", "きょうの損益額が小さい順"], ["no", "図鑑No.順"]];
 const md = (d) => { if (!d) return ""; const [, m, dd] = d.split("-"); return `${Number(m)}/${Number(dd)}`; };
 const todayStr = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
 
@@ -17,7 +18,9 @@ export function DailyView({ stocks, onSelect, onQuotes }) {
   const [quotes, setQuotes] = useState({});
   const [loading, setLoading] = useState(true);
   const [at, setAt] = useState(null);
-  const [sort, setSort] = useState(() => { try { return localStorage.getItem("kabu-daily-sort") || "pnlHi"; } catch (e) { return "pnlHi"; } });
+  const [sort, setSort] = useState(() => { try { return localStorage.getItem("kabu-daily-sort2") || "pct"; } catch (e) { return "pct"; } });
+  const [barBy, setBarBy] = useState(() => { try { return localStorage.getItem("kabu-daily-bar") || "pct"; } catch (e) { return "pct"; } });
+  const metric = (d) => (barBy === "pct" ? d.pct : d.pnl);
   const held = stocks.filter((s) => holdingOf(s));
   const sig = held.map((s) => `${s.id}:${s.shares}:${s.avgPrice}:${(s.trades || []).length}`).join("|");
   const busy = useRef(false);
@@ -42,6 +45,7 @@ export function DailyView({ stocks, onSelect, onQuotes }) {
     pnlHi: (a, b) => (b.d ? b.d.pnl : -Infinity) - (a.d ? a.d.pnl : -Infinity),
     pnlLo: (a, b) => (a.d ? a.d.pnl : Infinity) - (b.d ? b.d.pnl : Infinity),
     pct: (a, b) => (b.d ? b.d.pct : -Infinity) - (a.d ? a.d.pct : -Infinity),
+    pctLo: (a, b) => (a.d ? a.d.pct : Infinity) - (b.d ? b.d.pct : Infinity),
     no: (a, b) => (a.s.no || 0) - (b.s.no || 0),
   }[sort];
   // 円とドルは混ぜずに並べる(円の銘柄→ドルの銘柄)
@@ -97,19 +101,27 @@ export function DailyView({ stocks, onSelect, onQuotes }) {
       </div>
 
       {/* 銘柄ごと */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-        <select value={sort} onChange={(e) => { setSort(e.target.value); try { localStorage.setItem("kabu-daily-sort", e.target.value); } catch (er) { /* 表示だけ */ } }}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <span style={{ fontSize: 10.5, color: "#6b7394" }}>棒</span>
+          {[["pct", "％"], ["amt", "金額"]].map(([k, l]) => (
+            <button key={k} onClick={() => { setBarBy(k); try { localStorage.setItem("kabu-daily-bar", k); } catch (er) { /* 表示だけ */ } }}
+              style={{ all: "unset", cursor: "pointer", padding: "3px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700,
+                border: `1px solid ${barBy === k ? "#dfe4ff" : "#2a3050"}`, background: barBy === k ? "#dfe4ff1f" : "transparent", color: barBy === k ? "#dfe4ff" : "#6b7394" }}>{l}</button>
+          ))}
+        </span>
+        <select value={sort} onChange={(e) => { setSort(e.target.value); try { localStorage.setItem("kabu-daily-sort2", e.target.value); } catch (er) { /* 表示だけ */ } }}
           style={{ background: "#12152a", color: "#eef1ff", border: "1px solid #2a3050", borderRadius: 9, padding: "5px 8px", fontSize: 16, outline: "none" }}>
           {SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
       </div>
       {groups.map((g) => {
-        const maxAbs = Math.max(1, ...g.rows.map((r) => (r.d ? Math.abs(r.d.pnl) : 0)));
+        const maxAbs = Math.max(barBy === "pct" ? 0.01 : 1, ...g.rows.map((r) => (r.d ? Math.abs(metric(r.d)) : 0)));
         return (
           <div key={g.c} style={{ display: "grid", gap: 8, marginBottom: 12 }}>
             {groups.length > 1 && <div style={{ fontSize: 11, color: "#8b93b8" }}>{g.c === "JPY" ? "日本株（円）" : "米国株（ドル）"}</div>}
             {g.rows.map(({ s, d }) => {
-              const w = d ? (Math.abs(d.pnl) / maxAbs) * 50 : 0;
+              const w = d ? (Math.abs(metric(d)) / maxAbs) * 50 : 0;
               return (
                 <div key={s.id} onClick={() => onSelect(s.id)} style={{ cursor: "pointer", border: "1px solid #232a4a", borderRadius: 12, background: "#10142a", padding: "10px 12px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -122,8 +134,9 @@ export function DailyView({ stocks, onSelect, onQuotes }) {
                       </div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontFamily: mono, fontSize: 16, color: "#f2f4ff", fontVariantNumeric: "tabular-nums" }}>{d ? fmtMoney(d.pnl, d.currency, true) : "—"}</div>
-                      <div style={{ fontSize: 10.5, color: "#8b93b8" }}>{d ? `きょう ${fmtDayPct(d.pct)}` : loading ? "取得中" : "株価なし"}</div>
+                      {/* 棒と同じもの(既定は％)を上に大きく、もう片方を下に小さく */}
+                      <div style={{ fontFamily: mono, fontSize: 16, color: "#f2f4ff", fontVariantNumeric: "tabular-nums" }}>{d ? (barBy === "pct" ? fmtDayPct(d.pct) : fmtMoney(d.pnl, d.currency, true)) : "—"}</div>
+                      <div style={{ fontSize: 10.5, color: "#8b93b8", fontVariantNumeric: "tabular-nums" }}>{d ? (barBy === "pct" ? fmtMoney(d.pnl, d.currency, true) : `きょう ${fmtDayPct(d.pct)}`) : loading ? "取得中" : "株価なし"}</div>
                     </div>
                   </div>
                   {d && (
