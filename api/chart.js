@@ -17,6 +17,8 @@ const RANGES = {
   "1y":  { range: "1y",  interval: "1d" },
   "3y":  { range: "3y",  interval: "1wk" },
   "5y":  { range: "5y",  interval: "1wk" },
+  "10y": { range: "10y", interval: "1wk" }, // 資産の推移の「全期間」用(持ち始めが5年より前のとき)
+  "max": { range: "max", interval: "1mo" },
 };
 const MAX_POINTS = 160; // これ以上は等間隔で間引く(折れ線の見た目は変わらない)
 
@@ -37,7 +39,7 @@ export default async function handler(req, res) {
   const rangeKey = String(url.searchParams.get("range") || "1y").trim();
   if (!SYMBOL_RE.test(symbol)) return send(res, 400, { error: "symbolが不正です（例: 7203.T / RKLB）" });
   const cfg = RANGES[rangeKey];
-  if (!cfg) return send(res, 400, { error: "rangeが不正です（1mo/3mo/6mo/1y/3y/5y）" });
+  if (!cfg) return send(res, 400, { error: "rangeが不正です（1mo/3mo/6mo/1y/3y/5y/10y/max）" });
 
   try {
     const upstream = await fetch(

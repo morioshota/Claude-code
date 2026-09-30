@@ -58,11 +58,27 @@ export async function fetchCharts(positions, range, force) {
 
 /* ある通貨の推移を組み立てる。
    返り値: { dates, points:[{date,value,cost,pnl,gain,loss,gainN,lossN,items:[{id,value,cost,pnl,pct}]}], events, assumed, skipped } */
-export function buildHistory(positions, charts, currency) {
+/* 「全期間」の起点: いちばん早い購入日(売買の記録のはじめを含む)。無ければ null */
+export function firstHoldDate(positions) {
+  const ds = positions.map((p) => p.from).filter(Boolean).sort();
+  return ds[0] || null;
+}
+
+/* 「全期間」で取りに行く足の長さ: 起点から今日までを覆う、いちばん短い期間(細かい足のほうが見やすい) */
+export function rangeForSince(since) {
+  if (!since) return "5y";
+  const days = (Date.now() - new Date(since + "T00:00:00").getTime()) / 864e5 + 7;
+  for (const [key, d] of [["1mo", 30], ["3mo", 90], ["6mo", 180], ["1y", 365], ["3y", 1095], ["5y", 1825], ["10y", 3650]]) if (days <= d) return key;
+  return "max";
+}
+
+export function buildHistory(positions, charts, currency, since) {
   const pos = positions.filter((p) => charts[p.stock.id] && (charts[p.stock.id].currency || curOfCode(p.stock)) === currency);
   const dateSet = new Set();
   pos.forEach((p) => charts[p.stock.id].points.forEach(([d]) => dateSet.add(d)));
-  const dates = [...dateSet].sort();
+  let dates = [...dateSet].sort();
+  // 全期間: 起点(最初の購入日)の直前の1点だけ残して、それより前は切る → グラフも内わけも「保有なし(0円)」から始まる
+  if (since) { const k = dates.findIndex((d) => d >= since); if (k > 1) dates = dates.slice(k - 1); }
   if (dates.length < 2) return null;
   const first = dates[0], last = dates[dates.length - 1];
 
