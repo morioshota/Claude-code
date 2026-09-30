@@ -241,8 +241,8 @@ export function AssetHistory({ stocks, onSelect }) {
   );
   /* 2つの問いに分けて、どちらも「足し算」で合うようにする(利益は＋・損は−のまま読める)。
      ⚠ 以前は「時価の変化＝①＋②＋③」に合わせるため、確定した利益をマイナスで出していた(ややこしい＝オーナー指摘)
-       A 損益(株価の動きの成果) = 含み損益の増減 ＋ 確定した損益(実現損益)
-       B 時価の変化            = 投資額の増減   ＋ 含み損益の増減 */
+       上: 時価の変化            = 投資額の増減   ＋ 含み損益の増減
+       下: 損益(株価の動きの成果) = 含み損益の増減 ＋ 確定した損益(実現損益)  (並びはオーナー指定) */
   const secTitle = (t, sub) => (
     <div style={{ fontSize: 11, color: "#c7cdec", fontWeight: 700 }}>{t}<span style={{ fontWeight: 400, color: "#5b6284", fontSize: 10 }}>　{sub}</span></div>
   );
@@ -250,17 +250,17 @@ export function AssetHistory({ stocks, onSelect }) {
   const flowCard = i0 > pts.indexOf(P0) && (
     <div style={{ marginTop: 10, border: "1px solid #232a4a", borderRadius: 10, padding: "9px 11px", display: "grid", gap: 6 }}>
       <div style={{ fontSize: 11, color: "#8b93b8" }}>🔀 {fullDate(P0.date)} → {fullDate(P.date)} の内わけ</div>
-      {secTitle("💰 損益", "株価の動きで増えた・減ったぶん")}
-      {flowRow("含み損益の増減", flow.dPnl, sign(flow.dPnl), "持っている株の評価")}
-      {flowRow("＋ 確定した損益", flow.dRealized, EXIT, flow.dRealized ? "売って確定（実現損益）" : "この間の売却なし")}
-      <div style={{ borderTop: "1px dashed #2a3050" }} />
-      {flowRow("＝ 損益の合計", flow.dMove, sign(flow.dMove))}
-      <div style={{ height: 4 }} />
       {secTitle("💼 時価", "持っている株の評価額")}
       {flowRow("投資額の増減", flow.dCost, COST, "買った・売った取得額")}
       {flowRow("＋ 含み損益の増減", flow.dPnl, sign(flow.dPnl))}
       <div style={{ borderTop: "1px dashed #2a3050" }} />
       {flowRow("＝ 時価の変化", flow.dValue, GOLD)}
+      <div style={{ height: 4 }} />
+      {secTitle("💰 損益", "株価の動きで増えた・減ったぶん")}
+      {flowRow("含み損益の増減", flow.dPnl, sign(flow.dPnl), "持っている株の評価")}
+      {flowRow("＋ 確定した損益", flow.dRealized, EXIT, flow.dRealized ? "売って確定（実現損益）" : "この間の売却なし")}
+      <div style={{ borderTop: "1px dashed #2a3050" }} />
+      {flowRow("＝ 損益の合計", flow.dMove, sign(flow.dMove))}
       <div style={{ fontSize: 10, color: "#5b6284", lineHeight: 1.6 }}>
         売った株の損益は、売った時点で「確定した損益」になって手元のお金に移るので、時価（持っている株の評価額）には入りません。
         そのため時価の変化には含み損益の増減だけが入り、損益の合計には確定したぶんも足しています。
