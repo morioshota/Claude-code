@@ -11,10 +11,12 @@ import { replayTrades, initialTradesOf, hasTrades } from "../lib/lots.js";
 import { today, uid } from "../lib/util.js";
 
 const mono = "'DotGothic16', ui-monospace, monospace";
+const FOLD = 3; // たたんだときに見せる件数(新しい順)
 const numOr = (v) => { const n = parseFloat(String(v).replace(/,/g, "")); return Number.isFinite(n) && n > 0 ? n : null; };
 
 export function TradeLog({ stock, onSave }) {
   const [form, setForm] = useState(null); // {kind, date, shares, price}
+  const [openAll, setOpenAll] = useState(false); // 既定はたたんで新しい3件だけ(オーナー要望)
   const [quote, setQuote] = useState(null);
   const [err, setErr] = useState("");
   const cur = currencyOf(stock);
@@ -114,7 +116,7 @@ export function TradeLog({ stock, onSave }) {
         </div>
       ) : (
         <div style={{ display: "grid", gap: 2 }}>
-          {[...timeline].reverse().map((st) => {
+          {[...timeline].reverse().slice(0, openAll ? undefined : FOLD).map((st) => {
             const t = st.trade;
             return (
               <div key={t.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px dashed #262d4d", fontSize: 12 }}>
@@ -139,6 +141,12 @@ export function TradeLog({ stock, onSave }) {
               </div>
             );
           })}
+          {timeline.length > FOLD && (
+            <button onClick={() => setOpenAll((v) => !v)}
+              style={{ all: "unset", cursor: "pointer", textAlign: "center", fontSize: 11.5, color: "#ffd166", padding: "7px 0 2px" }}>
+              {openAll ? "▲ たたむ（新しい3件だけ）" : `▼ すべて表示（ほか${timeline.length - FOLD}件・全${timeline.length}件）`}
+            </button>
+          )}
         </div>
       )}
       <div style={{ fontSize: 10, color: "#5b6284", marginTop: 8, lineHeight: 1.6 }}>
