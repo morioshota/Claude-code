@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { buildPixels } from "../lib/sprites.js";
+import { paintGround } from "./groundArt.js";
 import { specialsVersion } from "../lib/specials.js";
 import { calcLevel, stageOf, moveTierOf, freshInfo, evalAchievements } from "../lib/stock.js";
 import { ACHIEVEMENTS, TYPES } from "../data/constants.js";
@@ -687,61 +688,42 @@ function RanchKairo({ stocks, quotes, onSelect }) {
       }
       return null;
     };
-    for (let i = 0; i < N; i++) {
-      for (let j = 0; j < N; j++) {
-        const inside = inPlot(i, j);
-        const forestT = inForest(i, j);
-        const withered = inside ? grassAt(i, j) : null;
-        const baseHex = withered ? ((i + j) % 2 === 0 ? withered[0] : withered[1])
-          : inside ? ((i + j) % 2 === 0 ? season.g1 : season.g2) : forestT ? season.forest : season.wild;
-        const dim = !inside && (i + j) % 2 === 1 ? 0.95 : 1;
-        fillTile(g, i, j, ox, oy, shadeHex(baseHex, 0.97 * dim), dim === 1 ? baseHex : shadeHex(baseHex, dim));
-        const px = ox + isoX(i, j), py = oy + isoY(i, j);
-        if (rngTuft() < 0.35) {
-          const dark = shadeHex(baseHex, 0.78);
-          const light = shadeHex(baseHex, 1.15);
-          g.fillStyle = dark;
-          g.fillRect(px - 8 + Math.floor(rngTuft() * 12), py - 4 + Math.floor(rngTuft() * 6), 1, 3);
-          g.fillRect(px + 2 + Math.floor(rngTuft() * 8), py - 2 + Math.floor(rngTuft() * 5), 1, 3);
-          g.fillStyle = light;
-          g.fillRect(px - 3 + Math.floor(rngTuft() * 7), py - 3 + Math.floor(rngTuft() * 5), 1, 2);
-          if (season.key === "spring" && rngTuft() < 0.12) {
-            g.fillStyle = ["#ffd166", "#ff8fb3", "#ffffff"][Math.floor(rngTuft() * 3)];
-            g.fillRect(px - 6 + Math.floor(rngTuft() * 12), py - 3 + Math.floor(rngTuft() * 5), 2, 2);
-          }
-        }
-        if (forestT && rngTuft() < 0.3) {
-          g.fillStyle = shadeHex(season.forest, 0.8);
-          const bx = px - 10 + Math.floor(rngTuft() * 16), by = py - 3 + Math.floor(rngTuft() * 5);
-          g.fillRect(bx, by, 5, 2);
-          g.fillRect(bx + 1, by - 1, 3, 1);
-        }
-      }
-    }
+    // 2026-09末: 地面は1pxずつ質感を描く(groundArt.js)。タイルの種類だけここで決める
+    const groundType = new Map();
+    const gk = (i, j) => i * 4096 + j;
+    plots.forEach((p) => {
+      for (let i = p.i0 - 1; i <= p.i0 + p.size; i++) groundType.set(gk(i, Math.floor(p.frontJ)), "path");
+      for (let di = -1; di <= p.footTiles; di++) for (let dj = -1; dj <= p.footTiles; dj++) groundType.set(gk(p.i0 + di, p.j0 + dj), "floor");
+    });
     plots.forEach((p, id) => {
       const s = stocksRef.current.find((x) => x.id === id);
-      for (let i = p.i0 - 1; i <= p.i0 + p.size; i++) {
-        fillTile(g, i, Math.floor(p.frontJ), ox, oy, "#d0ba8e", "#d8c49a");
-        const px = ox + isoX(i, Math.floor(p.frontJ)), py = oy + isoY(i, Math.floor(p.frontJ));
-        if ((i * 7) % 3 === 0) { g.fillStyle = "#b8a276"; g.fillRect(px - 5 + ((i * 5) % 9), py - 2 + ((i * 3) % 4), 2, 2); }
+      if (!s || s.status !== "hold") return;
+      for (let di = 0; di < p.field.w; di++) for (let dj = 0; dj < p.field.h; dj++) {
+        const fi = p.field.i0 + di, fj = p.field.j0 + dj;
+        if (fi < p.i0 + p.size) groundType.set(gk(fi, fj), "field");
       }
-      for (let di = -1; di <= p.footTiles; di++) for (let dj = -1; dj <= p.footTiles; dj++) {
-        fillTile(g, p.i0 + di, p.j0 + dj, ox, oy, "#c1bba9", "#c8c2b0");
-        const px = ox + isoX(p.i0 + di, p.j0 + dj), py = oy + isoY(p.i0 + di, p.j0 + dj);
-        g.fillStyle = "#aaa494";
-        g.fillRect(px - 1, py - 1, 2, 1);
-      }
+    });
+    pond.forEach(([i, j]) => groundType.set(gk(i, j), "pond"));
+    paintGround(g, {
+      N, ox, oy, TW, TH, W: worldW, H: worldH, season,
+      typeAt: (i, j) => {
+        const ty = groundType.get(gk(i, j));
+        if (ty) return { type: ty };
+        if (inPlot(i, j)) { const w = grassAt(i, j); return { type: "grass", base: w ? w[0] : season.g1 }; }
+        if (inForest(i, j)) return { type: "forest", base: season.forest };
+        return { type: "wild", base: season.wild };
+      },
+    });
+    void rngTuft;
+    plots.forEach((p, id) => {
+      const s = stocksRef.current.find((x) => x.id === id);
       if (s && s.status === "hold") {
         const nc = Math.min(6, s.noteCount || 0);
         const lvl = nc >= 6 ? 3 : nc >= 3 ? 2 : nc >= 1 ? 1 : 0;
         for (let di = 0; di < p.field.w; di++) for (let dj = 0; dj < p.field.h; dj++) {
           const fi = p.field.i0 + di, fj = p.field.j0 + dj;
           if (fi >= p.i0 + p.size) continue;
-          fillTile(g, fi, fj, ox, oy, "#6b4e2c", "#7a5a33");
           const px = ox + isoX(fi, fj), py = oy + isoY(fi, fj);
-          g.fillStyle = "#5a4023";
-          g.fillRect(px - 14, py - 2, 12, 1);
-          g.fillRect(px + 2, py + 3, 12, 1);
           const green = season.key === "winter" ? "#9fb3ac" : "#4d9e55";
           const glight = season.key === "winter" ? "#b8ccc4" : "#6dc272";
           const plant = (x, y) => {
@@ -786,15 +768,6 @@ function RanchKairo({ stocks, quotes, onSelect }) {
       const F = renderFence(sz, p.bi - bI);
       g.drawImage(F.cv, Math.round(ox + isoX(bI, bJ) - F.ox), Math.round(oy + isoY(bI, bJ) - F.oy));
       void drawRailEdge; // 旧方式(1pxの線)。比較用に残す
-    });
-    pond.forEach(([i, j]) => fillTile(g, i, j, ox, oy, "#c9b98c", "#d4c498"));
-    pond.forEach(([i, j]) => {
-      fillDia(g, ox + isoX(i, j), oy + isoY(i, j) - TH / 2 + 2, TH - 4, "#3d94c4", "#4aa8d8");
-    });
-    pond.forEach(([i, j], k) => {
-      const px = ox + isoX(i, j), py = oy + isoY(i, j);
-      if (k % 3 === 0) { g.fillStyle = "#9fd8f0"; g.fillRect(px - 6, py - 2, 5, 1); }
-      if (k % 4 === 1) { g.fillStyle = "#ffffff"; g.fillRect(px + 3, py + 1, 2, 1); }
     });
     if (unlocked >= 3) {
       const cols2 = ["#ff8fb3", "#ffd166", "#c4b5fd", "#ff8f6b", "#ffffff", "#93c5fd"];

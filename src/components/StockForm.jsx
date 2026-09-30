@@ -174,7 +174,7 @@ function StockForm({ initial, onSave, onCancel }) {
         <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} defaultValue={listToText(f.bullets)}
           onChange={(e) => set("bullets", textToList(e.target.value))} placeholder={"防衛予算の拡大\nデータセンター需要"} />
 
-        <label style={label}>よわてん ＝ リスク（1行に1つ）</label>
+        <label style={label}>じゃくてん ＝ リスク（1行に1つ）</label>
         <textarea style={{ ...input, minHeight: 60, resize: "vertical" }} defaultValue={listToText(f.risks)}
           onChange={(e) => set("risks", textToList(e.target.value))} placeholder={"市況依存\n為替リスク"} />
 

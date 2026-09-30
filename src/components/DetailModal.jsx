@@ -264,7 +264,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
             </div>
           </SectionFx>
 
-          {/* わざ・よわてん */}
+          {/* わざ・じゃくてん */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
             <SectionFx rank={rank} color={t.color} style={{ ...section, marginBottom: 0 }}>
               <div style={h}>わざ（強気材料）</div>
@@ -275,7 +275,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
                 ))}
             </SectionFx>
             <SectionFx rank={rank} color={t.color} style={{ ...section, marginBottom: 0 }}>
-              <div style={h}>よわてん（リスク）</div>
+              <div style={h}>じゃくてん（リスク）</div>
               {stock.risks.length === 0
                 ? <div style={{ fontSize: 12, color: "#5b6284" }}>未把握。弱点を知らないのは危険…</div>
                 : stock.risks.map((b, i) => (
