@@ -185,6 +185,22 @@ await t("変化が無ければ書き込まない(版番号が進まない)", asy
   assert.equal(redis.m.get("kd:ver"), v);
 });
 
+await t("売買の記録: 両方で買い増ししたら両方残り、株数と平均取得単価を計算し直す", async () => {
+  edit(phone, "a", (s) => ({ ...s, status: "hold", shares: 100, avgPrice: 1000 }));
+  await sync(phone); await sync(pc);
+  const { applyTrades, initialTradesOf } = await import("../src/lib/lots.js");
+  edit(phone, "a", (s) => applyTrades(s, [...initialTradesOf(s), { id: "t1", date: "2026-09-10", kind: "buy", shares: 100, price: 2000 }]));
+  edit(pc, "a", (s) => applyTrades(s, [...initialTradesOf(s), { id: "t2", date: "2026-09-12", kind: "sell", shares: 50, price: 1800 }]));
+  await sync(phone); await sync(pc); await sync(phone);
+  for (const d of [phone, pc]) {
+    const a = stocks(d).find((s) => s.id === "a");
+    assert.equal(a.trades.filter((x) => x.initial).length, 1);
+    assert.deepEqual(a.trades.filter((x) => !x.initial).map((x) => x.id), ["t1", "t2"]);
+    assert.equal(a.shares, 150); // 100 + 100 - 50
+    assert.equal(a.avgPrice, 1500); // 移動平均: (100×1000+100×2000)/200。売っても変わらない
+  }
+});
+
 await t("「この端末で上書き」を選ぶと、クラウドがこの端末の図鑑になる", async () => {
   const fresh = await makeDevice("fresh");
   put(fresh, [st("z", 1, { logs: [{ date: "2026-09-29", text: "z" }] })]);

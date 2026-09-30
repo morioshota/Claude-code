@@ -203,7 +203,7 @@ export function AssetHistory({ stocks, onSelect }) {
       </div>
       {evAt.map((e) => (
         <div key={e.kind + e.id} style={{ fontSize: 11.5, color: "#dfe4ff", marginTop: 6 }}>
-          {e.kind === "buy" ? "📥 購入" : "📤 売却"}：{e.name}（{fmtMoney(e.amount, cc)}{e.kind === "sell" && e.realized !== null ? `・実現損益 ${fmtMoney(e.realized, cc, true)}` : ""}）
+          {e.kind === "buy" ? "📥" : "📤"} {e.label}：{e.name}（{e.shares ? `${e.shares.toLocaleString()}株・` : ""}{fmtMoney(e.amount, cc)}{e.kind === "sell" && e.realized != null ? `・実現損益 ${fmtMoney(e.realized, cc, true)}` : ""}）
         </div>
       ))}
     </div>
@@ -340,14 +340,14 @@ export function AssetHistory({ stocks, onSelect }) {
         {mode === "value" && <><span><b style={{ color: GOLD }}>━</b> 時価</span><span><b style={{ color: COST }}>┅</b> 投資額</span><span><b style={{ color: PLUS }}>■</b> 投資額より上（含み益）</span><span><b style={{ color: MINUS }}>■</b> 投資額より下（含み損）</span></>}
         {mode === "pnl" && <><span><b style={{ color: PLUS }}>■</b> 含み益の合計</span><span><b style={{ color: MINUS }}>■</b> 含み損の合計</span><span><b style={{ color: "#f2f4ff" }}>━</b> 差し引き</span></>}
         {mode === "stack" && <span>色＝銘柄のタイプ。積み上げた高さが時価の合計</span>}
-        {H.events.length > 0 && <span>買／売＝あなたが記録した購入日・売却日（タップでその日へ）</span>}
+        {H.events.length > 0 && <span>買／売＝あなたが記録した購入・買い増し・売却（タップでその日へ）</span>}
       </div>
 
       {flowCard}
       {breakdown}
 
       <div style={{ fontSize: 10, color: "#5b6284", marginTop: 10, lineHeight: 1.7 }}>
-        記録した保有情報（株数・平均取得単価・購入日・売却日）と過去の終値（遅延データ）からさかのぼって計算した<b>試算</b>です。買い増し・一部売却の履歴は記録が無いため反映されません。
+        記録した保有情報（株数・平均取得単価・購入日・売却日・売買の記録）と過去の終値（遅延データ）からさかのぼって計算した<b>試算</b>です。買い増し・一部売却は、銘柄の「📒 売買の記録」に入れたぶんが反映されます（平均取得単価は移動平均）。
         {H.assumed.length > 0 && <> 購入日が未入力の銘柄（{H.assumed.join("・")}）は、表示期間のはじめから保有していたものとして計算しています。</>}
         {H.skipped.length > 0 && <> 株価を取得できなかった銘柄（{H.skipped.join("・")}）は含まれていません。</>}
         {" "}為替換算はしていません。グラフは事実の推移で、良し悪しの判定や売買の推奨ではありません。

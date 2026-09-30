@@ -96,6 +96,7 @@ export function TradeSummary({ stock, compact = false }) {
         {row("購入日 → 売却日", `${t.buyDate || "—"} → ${t.soldAt || "—"}`)}
         {row("保有期間", fmtDays(t.days))}
         {row("平均取得単価 → 売却単価", `${t.avg ? fmtMoney(t.avg, cur) : "—"} → ${t.sell ? fmtMoney(t.sell, cur) : "—"}`, t.shares ? `× ${t.shares.toLocaleString()}株` : "")}
+        {t.partial !== 0 && row("うち一部売却で確定したぶん", fmtMoney(t.partial, cur, true), "📒売買の記録より")}
         {t.reason && row("売却の理由", `${t.reason.icon} ${t.reason.label}`)}
         {t.stop && t.sell && row(
           `にげるライン（${t.stop.pct}%）`,
