@@ -115,13 +115,13 @@ async function fromSummary(symbol) {
 }
 
 
-/* 近すぎる日付(取得元ごとに1日ずれる等)を1件にまとめる: 3日以内なら早いほうを残す */
+/* 近すぎる日付を1件にまとめる: 7日以内なら早いほうを残す(取得元ごとの1日ずれ・決算発表と説明会の重複。四半期決算は約3か月おきなので消えない) */
 export const mergeDates = (lists) => {
   const all = [...new Set(lists.flat())].sort();
   const out = [];
   for (const d of all) {
     const prev = out[out.length - 1];
-    if (prev && (Date.parse(d) - Date.parse(prev)) / 864e5 <= 3) continue;
+    if (prev && (Date.parse(d) - Date.parse(prev)) / 864e5 <= 7) continue;
     out.push(d);
   }
   return out;

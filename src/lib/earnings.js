@@ -10,7 +10,7 @@ import { symbolFor } from "./quotes.js";
 import { today } from "./util.js";
 
 const DAY = 864e5;
-const near = (a, b, days = 3) => Math.abs(Date.parse(a) - Date.parse(b)) / DAY <= days;
+const near = (a, b, days = 7) => Math.abs(Date.parse(a) - Date.parse(b)) / DAY <= days;
 
 /* 表示する決算日(消したものを除く・古い順) */
 export const earningsOf = (stock) =>
@@ -20,7 +20,7 @@ export const earningsOf = (stock) =>
 export const nextEarningsOf = (stock, now = today()) => earningsOf(stock).find((e) => e.date >= now) || null;
 
 /* 自動取得の結果を書き足す。変わらなければ null を返す
-   - 近い日(3日以内)が既にあれば足さない(取得元で1日ずれることがあるため)
+   - 近い日(7日以内)が既にあれば足さない(取得元で1日ずれることがあるため)
    - 予定(今日より後)の自動の日は、取得した予定に置き換える(会社が日程を決め直すことがあるため) */
 export function mergeAutoEarnings(stock, api, now = today()) {
   if (!api) return null;
