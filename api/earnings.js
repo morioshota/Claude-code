@@ -66,7 +66,7 @@ async function fromVisualization(symbol) {
       headers: { "User-Agent": UA, Accept: "application/json", "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}) },
       body: JSON.stringify({
         size: 60, offset: 0, sortField: "startdatetime", sortType: "DESC", entityIdType: "earnings",
-        includeFields: ["ticker", "startdatetime", "eventname"],
+        includeFields: ["ticker", "startdatetime", "eventname", "eventtype", "epsactual", "timeZoneShortName"],
         query: { operator: "eq", operands: ["ticker", symbol] },
       }),
     });
@@ -80,7 +80,7 @@ async function fromVisualization(symbol) {
   const cols = (doc.columns || []).map((c) => c.id || c.label);
   const iDt = cols.indexOf("startdatetime");
   const dates = doc.rows.map((row) => localDateOf(toMs(row[iDt]), symbol)).filter(Boolean);
-  return { status: 200, dates };
+  return { status: 200, dates, raw: { cols, head: doc.rows.slice(0, 3), tail: doc.rows.slice(-3), total: doc.total ?? (j.finance.result[0].total) } };
 }
 
 /* B. quoteSummary calendarEvents — 次の予定 */
@@ -144,7 +144,7 @@ export default async function handler(req, res) {
     past: dates.filter((d) => d <= today),
     upcoming: dates.filter((d) => d > today),
     source: "Yahoo Finance",
-    ...(debug ? { debug: { visualization: { status: a.status, n: a.dates.length }, calendar: { status: b.status, dates: b.dates }, chart: { status: c.status, n: c.dates.length } } } : {}),
+    ...(debug ? { debug: { visualization: { status: a.status, n: a.dates.length, raw: a.raw }, calendar: { status: b.status, dates: b.dates }, chart: { status: c.status, n: c.dates.length } } } : {}),
   };
   // 決算日はめったに変わらない。エッジ12時間(デバッグ時はキャッシュしない)
   res.setHeader("Cache-Control", debug ? "no-store" : "public, s-maxage=43200, stale-while-revalidate=86400");
