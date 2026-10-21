@@ -3,9 +3,11 @@
  * 銘柄の「過去の決算発表日」と「次の決算予定日」を Yahoo Finance から集めて返す。
  *
  * Yahooには決算日だけを返す公式の口が無いので、取れる所から順に集めて合わせる(どれかが壊れても残りで動く):
- *   A. visualization API(earnings) … Yahooの決算カレンダー画面が使う口。過去数年ぶん＋予定。cookie＋crumb必須
- *   B. quoteSummary calendarEvents … 次の決算予定日(だけ)。cookie＋crumb必須
- *   C. chart API の events=earn   … 過去の決算日が入ることがある(crumb不要)
+ *   A. visualization API(earnings) … Yahooの決算カレンダー画面が使う口。過去10年ほど。cookie＋crumb必須
+ *      ⚠ 2026-10時点でデータが2025年5月ごろで止まっている(Yahoo側の更新停止)。古い日付はここから取る
+ *   B. quoteSummary earnings＋calendarEvents … 直近4四半期の発表日(earningsChart.quarterly[].reportedDate)と
+ *      次の決算予定日(calendarEvents.earnings.earningsDate)。Aの抜けた直近ぶんを埋める
+ *   (chart API の events=earn は2026-10時点で何も返さなかったので使わない)
  * 日付は取引所の現地日付に直す(東証=日本時間、それ以外=米国東部時間のおおよそ)。
  *
  * 方針(CLAUDE.md): 返すのは日付という事実のみ。決算の良し悪しの判定はしない。
@@ -43,9 +45,12 @@ async function getCrumb(force) {
   return crumbCache;
 }
 
+const DAY_MS = 864e5;
 /* 時刻 → 取引所の現地日付(YYYY-MM-DD)。東証は+9時間、それ以外は米国東部(-5時間でおおよそ) */
 export const localDateOf = (ms, symbol) => {
   if (!Number.isFinite(ms)) return null;
+  // 0時ちょうど(UTC)は「日付だけ」の値。時差をずらすと前日になってしまうのでそのまま使う
+  if (ms % DAY_MS === 0) return new Date(ms).toISOString().slice(0, 10);
   const off = /\.T$/i.test(symbol) ? 9 : -5;
   return new Date(ms + off * 3600e3).toISOString().slice(0, 10);
 };
@@ -66,7 +71,7 @@ async function fromVisualization(symbol) {
       headers: { "User-Agent": UA, Accept: "application/json", "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}) },
       body: JSON.stringify({
         size: 60, offset: 0, sortField: "startdatetime", sortType: "DESC", entityIdType: "earnings",
-        includeFields: ["ticker", "startdatetime", "eventname", "eventtype", "epsactual", "timeZoneShortName"],
+        includeFields: ["ticker", "startdatetime", "eventtype"],
         query: { operator: "eq", operands: ["ticker", symbol] },
       }),
     });
@@ -78,16 +83,19 @@ async function fromVisualization(symbol) {
   const doc = j && j.finance && j.finance.result && j.finance.result[0] && j.finance.result[0].documents && j.finance.result[0].documents[0];
   if (!doc || !Array.isArray(doc.rows)) return { status: "no-rows", dates: [] };
   const cols = (doc.columns || []).map((c) => c.id || c.label);
-  const iDt = cols.indexOf("startdatetime");
-  const dates = doc.rows.map((row) => localDateOf(toMs(row[iDt]), symbol)).filter(Boolean);
-  return { status: 200, dates, raw: { cols, head: doc.rows.slice(0, 3), tail: doc.rows.slice(-3), total: doc.total ?? (j.finance.result[0].total) } };
+  const iDt = cols.indexOf("startdatetime"), iType = cols.indexOf("eventtype");
+  // eventtype: 1=決算説明会 2=決算発表 11=株主総会 など。決算(1・2)だけを使う
+  const dates = doc.rows
+    .filter((row) => iType < 0 || row[iType] == null || ["1", "2"].includes(String(row[iType])))
+    .map((row) => localDateOf(toMs(row[iDt]), symbol)).filter(Boolean);
+  return { status: 200, dates };
 }
 
-/* B. quoteSummary calendarEvents — 次の予定 */
-async function fromCalendar(symbol) {
+/* B. quoteSummary earnings＋calendarEvents — 直近4四半期の発表日と次の予定 */
+async function fromSummary(symbol) {
   const call = async (force) => {
     const { crumb, cookie } = await getCrumb(force);
-    return fetch(`${YF2}/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=calendarEvents&formatted=false&crumb=${encodeURIComponent(crumb)}`, {
+    return fetch(`${YF2}/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=earnings,calendarEvents&formatted=false&crumb=${encodeURIComponent(crumb)}`, {
       headers: { "User-Agent": UA, Accept: "application/json", ...(cookie ? { Cookie: cookie } : {}) },
     });
   };
@@ -95,24 +103,17 @@ async function fromCalendar(symbol) {
   if (r.status === 401 || r.status === 403) r = await call(true);
   if (!r.ok) return { status: r.status, dates: [] };
   const j = await r.json();
-  const ce = j && j.quoteSummary && j.quoteSummary.result && j.quoteSummary.result[0] && j.quoteSummary.result[0].calendarEvents;
-  const list = ce && ce.earnings && Array.isArray(ce.earnings.earningsDate) ? ce.earnings.earningsDate : [];
+  const q = j && j.quoteSummary && j.quoteSummary.result && j.quoteSummary.result[0];
+  if (!q) return { status: "no-result", dates: [] };
+  const reported = (q.earnings && q.earnings.earningsChart && Array.isArray(q.earnings.earningsChart.quarterly) ? q.earnings.earningsChart.quarterly : [])
+    .map((x) => localDateOf(toMs(x.reportedDate), symbol)).filter(Boolean);
+  const ce = q.calendarEvents && q.calendarEvents.earnings;
+  const list = ce && Array.isArray(ce.earningsDate) ? ce.earningsDate : [];
   // 予定が「幅」で返ることがある(2件)。はじめの日だけを使う
-  const d = list.length ? localDateOf(toMs(list[0]), symbol) : null;
-  return { status: 200, dates: d ? [d] : [] };
+  const next = list.length ? localDateOf(toMs(list[0]), symbol) : null;
+  return { status: 200, dates: [...reported, ...(next ? [next] : [])], nextIsEstimate: !!(ce && ce.isEarningsDateEstimate) };
 }
 
-/* C. chart events=earn — 過去(入っていれば) */
-async function fromChart(symbol) {
-  const r = await fetch(`${YF1}/v8/finance/chart/${encodeURIComponent(symbol)}?range=10y&interval=1mo&events=earn`, {
-    headers: { "User-Agent": UA, Accept: "application/json" },
-  });
-  if (!r.ok) return { status: r.status, dates: [] };
-  const j = await r.json();
-  const ev = j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].events && j.chart.result[0].events.earnings;
-  const dates = ev ? Object.values(ev).map((e) => localDateOf(toMs(e.date), symbol)).filter(Boolean) : [];
-  return { status: 200, dates };
-}
 
 /* 近すぎる日付(取得元ごとに1日ずれる等)を1件にまとめる: 3日以内なら早いほうを残す */
 export const mergeDates = (lists) => {
@@ -126,24 +127,6 @@ export const mergeDates = (lists) => {
   return out;
 };
 
-/* 調査用: 他の口の生データ */
-async function probe(symbol) {
-  const out = {};
-  try {
-    const { crumb, cookie } = await getCrumb(false);
-    const r = await fetch(`${YF2}/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=earnings,earningsHistory,calendarEvents&formatted=false&crumb=${encodeURIComponent(crumb)}`, {
-      headers: { "User-Agent": UA, Accept: "application/json", ...(cookie ? { Cookie: cookie } : {}) },
-    });
-    out.qs = r.ok ? (await r.json()).quoteSummary.result[0] : r.status;
-  } catch (e) { out.qs = String(e); }
-  try {
-    const r = await fetch(`${YF1}/v8/finance/chart/${encodeURIComponent(symbol)}?range=2y&interval=1d&events=div%7Csplit%7Cearn`, { headers: { "User-Agent": UA, Accept: "application/json" } });
-    const j = r.ok ? await r.json() : null;
-    out.chartEvents = j ? Object.keys((j.chart.result[0].events) || {}) : r.status;
-  } catch (e) { out.chartEvents = String(e); }
-  return out;
-}
-
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   if (req.method === "OPTIONS") { res.statusCode = 204; res.end(); return; }
@@ -151,19 +134,19 @@ export default async function handler(req, res) {
   const url = new URL(req.url, "http://localhost");
   const symbol = String(url.searchParams.get("symbol") || "").trim();
   const debug = url.searchParams.get("debug") === "1";
-  if (url.searchParams.get("debug") === "probe") { res.setHeader("Cache-Control", "no-store"); return send(res, 200, await probe(symbol)); }
   if (!SYMBOL_RE.test(symbol)) return send(res, 400, { error: "symbolが不正です（例: 7203.T / RKLB）" });
 
   const safe = (p) => p.catch((e) => ({ status: `error: ${e && e.message}`, dates: [] }));
-  const [a, b, c] = await Promise.all([safe(fromVisualization(symbol)), safe(fromCalendar(symbol)), safe(fromChart(symbol))]);
-  const dates = mergeDates([a.dates, b.dates, c.dates]);
+  const [a, b] = await Promise.all([safe(fromVisualization(symbol)), safe(fromSummary(symbol))]);
+  const dates = mergeDates([a.dates, b.dates]);
   const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
   const body = {
     symbol,
     past: dates.filter((d) => d <= today),
     upcoming: dates.filter((d) => d > today),
+    upcomingIsEstimate: !!b.nextIsEstimate, // 予定日が会社の発表前の「見込み」のとき true
     source: "Yahoo Finance",
-    ...(debug ? { debug: { visualization: { status: a.status, n: a.dates.length, raw: a.raw }, calendar: { status: b.status, dates: b.dates }, chart: { status: c.status, n: c.dates.length } } } : {}),
+    ...(debug ? { debug: { visualization: { status: a.status, n: a.dates.length }, summary: { status: b.status, dates: b.dates } } } : {}),
   };
   // 決算日はめったに変わらない。エッジ12時間(デバッグ時はキャッシュしない)
   res.setHeader("Cache-Control", debug ? "no-store" : "public, s-maxage=43200, stale-while-revalidate=86400");
