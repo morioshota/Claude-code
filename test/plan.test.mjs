@@ -50,6 +50,27 @@ t("米国株(ドル・小数)と表記ゆれ", () => {
   assert.equal(patch.nextWhat, "決算");
 });
 
+t("kabu-research の記録用サマリー(撤退ラインは書かない)", () => {
+  const text = `### 記録用サマリー(銘柄図鑑🧭つぎの一手に貼り付け)
+- ステータス: 調査済
+- 目標: 第1 5,200円
+- 次の答え合わせ日: 2026-11-07(1Q決算で受注残を確認)`;
+  const { patch, found } = parsePlanSummary(text, "2026-10-22");
+  assert.deepEqual(patch, { step: "researched", target: 5200, nextDate: "2026-11-07", nextWhat: "1Q決算で受注残を確認" });
+  assert.deepEqual(found.sort(), ["すすみぐあい", "目標", "次に見る日"].sort());
+  // 既存の計画(entry-plan で決めた撤退ラインなど)は残る
+  const merged = mergePlan({ exitPrice: 4300, entries: [{ label: "打診", price: 4800 }] }, patch);
+  assert.equal(merged.exitPrice, 4300);
+  assert.equal(merged.target, 5200);
+});
+
+t("kabu-position-decision の記録用サマリー(米国株・見直し期限)", () => {
+  const jp = parsePlanSummary("- 撤退ライン: 週足終値2,650円割れ\n- 次の答え合わせ日: 2026-11-10(2Q決算で不動産益を除く営業利益を照合)", "2026-10-22");
+  assert.deepEqual(jp.patch, { exitPrice: 2650, nextDate: "2026-11-10", nextWhat: "2Q決算で不動産益を除く営業利益を照合" });
+  const us = parsePlanSummary("- 撤退ライン: 週足終値$85.25割れ\n- 次の答え合わせ日: 2027-02-26(見直し期限)", "2026-10-22");
+  assert.deepEqual(us.patch, { exitPrice: 85.25, nextDate: "2027-02-26", nextWhat: "見直し期限" });
+});
+
 t("読めない文章は何も返さない", () => {
   const { patch, found } = parsePlanSummary("今日は大きく下げた。地合いのせいかも。");
   assert.deepEqual(patch, {});
