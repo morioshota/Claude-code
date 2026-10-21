@@ -72,13 +72,15 @@ export function rangeForSince(since) {
   return "max";
 }
 
-export function buildHistory(positions, charts, currency, since) {
+export function buildHistory(positions, charts, currency, since, until) {
   const pos = positions.filter((p) => charts[p.stock.id] && (charts[p.stock.id].currency || curOfCode(p.stock)) === currency);
   const dateSet = new Set();
   pos.forEach((p) => charts[p.stock.id].points.forEach(([d]) => dateSet.add(d)));
   let dates = [...dateSet].sort();
   // 全期間: 起点(最初の購入日)の直前の1点だけ残して、それより前は切る → グラフも内わけも「保有なし(0円)」から始まる
-  if (since) { const k = dates.findIndex((d) => d >= since); if (k > 1) dates = dates.slice(k - 1); }
+  if (since) { const k = dates.findIndex((d) => d >= since); if (k > 1) dates = dates.slice(k - 1); else if (k < 0) dates = dates.slice(-1); }
+  // 期間指定の終わり(その日まで)
+  if (until) dates = dates.filter((d) => d <= until);
   if (dates.length < 2) return null;
   const first = dates[0], last = dates[dates.length - 1];
 

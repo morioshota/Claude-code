@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from "react";
 import { Creature, TypeChip, btnStyle } from "./ui.jsx";
 import { AssetHistory } from "./AssetHistory.jsx";
 import { fetchQuote } from "../lib/quotes.js";
+import { earningsOf, fetchEarningsMoves, moveOf } from "../lib/earnings.js";
 import { fmtMoney, fmtPct } from "../lib/holdings.js";
 import { TYPES } from "../data/constants.js";
 import {
@@ -28,6 +29,9 @@ function PriceChart({ stock, color, reload }) {
   const forcedRef = useRef(0); // 「更新」1回につき1度だけキャッシュを無視する
   const boxRef = useRef(null);
   const [boxW, setBoxW] = useState(340);
+  const [moves, setMoves] = useState({}); // 決算日をはさんだ値動き { [date]: {before, after} }
+  const [pick, setPick] = useState(null); // 一覧でタップした決算日
+  const [showList, setShowList] = useState(false);
 
   // 表示幅に合わせて実寸で描く(縮小表示だと文字が潰れるため)
   useEffect(() => {
@@ -54,6 +58,18 @@ function PriceChart({ stock, color, reload }) {
     });
     return () => { alive = false; };
   }, [stock.id, stock.code, range, reload]);
+
+  // 表示中の期間に入っている決算日(🗓決算日の欄 = stock.earnings)。値動きは日足から別に取る(チャートは間引いてあるため)
+  const first = data && data.points.length ? data.points[0][0] : "", lastD = data && data.points.length ? data.points[data.points.length - 1][0] : "";
+  const earnIn = earningsOf(stock).map((e) => e.date).filter((d) => d >= first && d <= lastD);
+  const earnSig = earnIn.join(",");
+  useEffect(() => {
+    let alive = true;
+    if (!earnSig) { setMoves({}); return undefined; }
+    fetchEarningsMoves(stock, earnSig.split(","), { force: reload > 0 }).then((m) => { if (alive) setMoves(m); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stock.id, earnSig, reload]);
 
   const rangeBar = (
     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -123,6 +139,19 @@ function PriceChart({ stock, color, reload }) {
   };
 
   const h = hover !== null ? pts[hover] : null;
+  // 決算日の横位置: 間引いた点のあいだを日付で按分する
+  const tOf = (d) => Date.parse(d);
+  const xOfDate = (d) => {
+    const t = tOf(d);
+    for (let i = 1; i < pts.length; i++) {
+      if (pts[i][0] >= d) { const t0 = tOf(pts[i - 1][0]), t1 = tOf(pts[i][0]); return x(i - 1) + ((t - t0) / Math.max(1, t1 - t0)) * (x(i) - x(i - 1)); }
+    }
+    return x(pts.length - 1);
+  };
+  const earnX = earnIn.map((d) => ({ d, x: xOfDate(d) }));
+  // なぞっている所に近い決算日(12px以内)。無ければ一覧で選んだ日、それも無ければ最新の決算日
+  const nearEarn = h ? earnX.reduce((best, e) => (Math.abs(e.x - x(hover)) < 12 && (!best || Math.abs(e.x - x(hover)) < Math.abs(best.x - x(hover))) ? e : best), null) : null;
+  const focusEarn = (nearEarn && nearEarn.d) || (pick && earnIn.includes(pick) ? pick : null) || earnIn[earnIn.length - 1] || null;
   const shown = h || last;
   // なぞっている点の吹き出し。端では内側へ寄せる
   const tipW = 118, hx = h ? x(hover) : 0;
@@ -181,6 +210,14 @@ function PriceChart({ stock, color, reload }) {
               <line x1={PADL} y1={y(avg)} x2={plotR} y2={y(avg)} stroke="#c7cdec" strokeOpacity="0.55" strokeWidth="1" strokeDasharray="5 4" />
             </g>
           )}
+          {/* 決算日(自分の🗓決算日の欄=事実)。単色の点線と「決」。選んでいる日だけ少し濃く */}
+          {earnX.map((e) => (
+            <g key={e.d} pointerEvents="none">
+              <line x1={e.x} y1={PADT} x2={e.x} y2={plotB} stroke="#ffd166" strokeOpacity={e.d === focusEarn ? 0.75 : 0.32} strokeWidth="1" strokeDasharray="2 3" />
+              <rect x={e.x - 7} y={plotB - 15} width="14" height="14" rx="3" fill="#0b0e1d" stroke="#ffd166" strokeOpacity={e.d === focusEarn ? 0.9 : 0.45} />
+              <text x={e.x} y={plotB - 4.5} textAnchor="middle" fontSize="9.5" fill="#ffd166" fillOpacity={e.d === focusEarn ? 1 : 0.7}>決</text>
+            </g>
+          ))}
           <path d={area} fill={`url(#kzChart-${stock.id})`} />
           {/* 線の下に同じ色のにじみを敷いて発光して見せる(単一色のまま) */}
           <path d={line} fill="none" stroke={color} strokeWidth="4" strokeOpacity="0.45" filter={`url(#kzGlow-${stock.id})`} />
@@ -218,7 +255,50 @@ function PriceChart({ stock, color, reload }) {
           )}
         </svg>
       </div>
+      {earnIn.length > 0 && (() => {
+        const fmtPctSigned = (p) => `${p > 0 ? "+" : p < 0 ? "−" : "±"}${Math.abs(p).toFixed(1)}%`;
+        const fd = (d) => { const [, m, dd] = String(d).split("-"); return `${Number(m)}/${Number(dd)}`; };
+        const mvText = (d) => {
+          const m = moves[d], mv = moveOf(m);
+          if (!m) return <span style={{ color: "#5b6284" }}>値動きを取得中…</span>;
+          if (!mv) return <span style={{ color: "#5b6284" }}>{m.before ? "決算後の取引日がまだありません" : "前後の終値が取れませんでした"}</span>;
+          return (
+            <>
+              <span style={{ color: "#8b93b8" }}>{fd(m.before[0])}</span> {fmtVal(m.before[1])} → <span style={{ color: "#8b93b8" }}>{fd(m.after[0])}</span> {fmtVal(m.after[1])}
+              <b style={{ marginLeft: 6 }}>（{mv.diff > 0 ? "+" : mv.diff < 0 ? "−" : "±"}{fmtVal(Math.abs(mv.diff))}・{fmtPctSigned(mv.pct)}）</b>
+            </>
+          );
+        };
+        return (
+          <div style={{ marginTop: 8, border: "1px solid #3a3320", borderRadius: 10, padding: "8px 10px" }}>
+            {/* 高さを固定(なぞるたびに下の画面が上下しないように) */}
+            <div style={{ fontSize: 12, color: "#dfe4ff", lineHeight: 1.6, minHeight: 40 }}>
+              <span style={{ fontFamily: mono, color: "#ffd166", marginRight: 6 }}>決 {fmtDate(focusEarn, true)}</span>
+              <span style={{ fontSize: 10.5, color: "#8b93b8" }}>決算をはさんだ値動き（前の取引日の終値 → 次の取引日の終値）</span>
+              <div style={{ fontVariantNumeric: "tabular-nums" }}>{mvText(focusEarn)}</div>
+            </div>
+            <button onClick={() => setShowList((v) => !v)} style={{ all: "unset", cursor: "pointer", fontSize: 11, color: "#ffd166", marginTop: 4 }}>
+              {showList ? "▲ 一覧をとじる" : `▼ この期間の決算 ${earnIn.length}回の値動きを一覧で見る`}
+            </button>
+            {showList && (
+              <div style={{ marginTop: 6, display: "grid", gap: 2 }}>
+                {[...earnIn].reverse().map((d) => {
+                  const mv = moveOf(moves[d]);
+                  return (
+                    <div key={d} onClick={() => setPick(d)} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 8, alignItems: "baseline", cursor: "pointer", padding: "4px 6px", borderRadius: 6, fontSize: 12, background: d === focusEarn ? "rgba(255,209,102,.08)" : "transparent", fontVariantNumeric: "tabular-nums" }}>
+                      <span style={{ fontFamily: mono, color: "#ffd166" }}>{fmtDate(d, true)}</span>
+                      <span style={{ color: "#8b93b8", fontSize: 11, textAlign: "right" }}>{mv ? `${fmtVal(moves[d].before[1])} → ${fmtVal(moves[d].after[1])}` : "—"}</span>
+                      <b style={{ color: "#dfe4ff", minWidth: 56, textAlign: "right" }}>{mv ? fmtPctSigned(mv.pct) : ""}</b>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
       <div style={{ fontSize: 10, color: "#5b6284", marginTop: 4, lineHeight: 1.6 }}>
+        {earnIn.length > 0 && <>「決」は🗓決算日の欄の日付です。決算をはさんだ値動きは日足の終値から計算した事実で、決算の良し悪しの判定ではありません。</>}
         {data.source}・終値ベース。なぞると日付と終値が出ます。
         グラフは事実の推移で、値上がり/値下がりの判定はしていません
       </div>

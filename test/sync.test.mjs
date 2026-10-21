@@ -201,6 +201,29 @@ await t("売買の記録: 両方で買い増ししたら両方残り、株数と
   }
 });
 
+await t("決算日: 両方で足した日は両方残り、片方で消した自動取得の日は消えたまま", async () => {
+  edit(phone, "a", (s) => ({ ...s, earnings: [{ date: "2025-11-04", auto: true }, { date: "2026-02-03", auto: true }] }));
+  await sync(phone); await sync(pc);
+  edit(phone, "a", (s) => ({ ...s, earnings: [{ date: "2025-11-04", auto: true, hidden: true }, { date: "2026-02-03", auto: true }, { date: "2026-05-08" }] }));
+  edit(pc, "a", (s) => ({ ...s, earnings: [...s.earnings, { date: "2026-08-06" }] }));
+  await sync(phone); await sync(pc); await sync(phone);
+  for (const d of [phone, pc]) {
+    const e = stocks(d).find((s) => s.id === "a").earnings;
+    assert.deepEqual(e.map((x) => `${x.date}${x.hidden ? "h" : ""}`), ["2025-11-04h", "2026-02-03", "2026-05-08", "2026-08-06"]);
+  }
+});
+
+await t("クイックメモ: 片方で直したメモ・消したメモが相手にも伝わる", async () => {
+  edit(phone, "a", (s) => ({ ...s, logs: [{ date: "2026-10-01", text: "決算は11/6" }, { date: "2026-10-02", text: "消すメモ" }] }));
+  await sync(phone); await sync(pc);
+  edit(phone, "a", (s) => ({ ...s, logs: [{ date: "2026-10-01", text: "決算は11/5に変更" }] }));
+  edit(pc, "a", (s) => ({ ...s, logs: [...s.logs, { date: "2026-10-03", text: "PCで追加" }] }));
+  await sync(phone); await sync(pc); await sync(phone);
+  for (const d of [phone, pc]) {
+    assert.deepEqual(stocks(d).find((s) => s.id === "a").logs.map((l) => l.text), ["決算は11/5に変更", "PCで追加"]);
+  }
+});
+
 await t("「この端末で上書き」を選ぶと、クラウドがこの端末の図鑑になる", async () => {
   const fresh = await makeDevice("fresh");
   put(fresh, [st("z", 1, { logs: [{ date: "2026-09-29", text: "z" }] })]);

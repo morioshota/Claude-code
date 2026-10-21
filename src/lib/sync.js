@@ -98,6 +98,11 @@ function mergeStock(b, l, r) {
       v = inits.length > 1 ? m.filter((x) => !x.initial || x === (lInit || inits[0])) : m;
       if (!v.length) v = undefined;
     }
+    else if (k === "earnings") {
+      // 決算日は日付ごとに合わせる。消した印(hidden)もキーに含める=消した側の変更が相手に伝わる
+      v = mergeList(b.earnings || [], l.earnings || [], r.earnings || [], (x) => `${x && x.date}${x && x.hidden ? "\u0001h" : ""}`)
+        .sort((p, q) => String(p.date).localeCompare(String(q.date)));
+    }
     else if (k === "lastResearch" || k === "lastTriggerCheck") v = maxStr(l[k], r[k]);
     else if (k === "shiny") v = !!(l.shiny || r.shiny) || undefined; // 色違いは一度当たったら消えない(不変条件6)
     else v = eq(l[k], b[k]) ? r[k] : l[k];

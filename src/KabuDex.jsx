@@ -294,6 +294,12 @@ export default function KabuDex() {
     persist(stocks.map((s) => (s.id === id ? applyTrades(s, trades) : s)));
   };
 
+  /* 銘柄の項目をそのまま書き換える(鮮度は更新しない=不変条件3)。
+     クイックメモの編集・削除と、決算日の欄(自動取り込みを含む)で使う */
+  const patchStock = (id, patch) => {
+    persist(stocks.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  };
+
   const saveLesson = (id, text) => {
     persist(stocks.map((s) => (s.id === id ? { ...s, lesson: text } : s)));
   };
@@ -987,6 +993,7 @@ export default function KabuDex() {
           onDeleteNote={deleteNote}
           onSaveFundamentals={saveFundamentals}
           onSaveTrades={saveTrades}
+          onPatch={patchStock}
         />
       )}
       {formMode === "add" && <StockForm onSave={addStock} onCancel={() => setFormMode(null)} />}

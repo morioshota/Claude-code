@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { TradeSummary } from "./Album.jsx";
 import { TradeLog } from "./TradeLog.jsx";
+import { EarningsLog } from "./EarningsLog.jsx";
+import { fetchEarnings, mergeAutoEarnings } from "../lib/earnings.js";
 import { AnalysisPanel } from "./Analysis.jsx";
 import { NoteItem } from "./notes.jsx";
 import { Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay } from "./ui.jsx";
@@ -108,7 +110,7 @@ function SectionFx({ rank, color, style, children }) {
   );
 }
 
-function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, onLog, onOpenNoteEditor, onOpenAi, onDeleteNote, onSaveFundamentals, onSaveTrades }) {
+function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, onLog, onOpenNoteEditor, onOpenAi, onDeleteNote, onSaveFundamentals, onSaveTrades, onPatch }) {
   const t = TYPES[stock.type] || TYPES.metal;
   const rank = rarityOf(stock);
   const r = RARITIES.find((x) => x.key === rank) || RARITIES[0];
@@ -117,6 +119,33 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
   const cp = calcCP(stock);
   const fresh = freshInfo(stock);
   const [logText, setLogText] = useState("");
+  // 🗓決算日の自動取り込み: 詳細を開いたら(どのタブでも)Yahooから取り、見つかった日だけ書き足す(端末キャッシュは1日)
+  useEffect(() => {
+    if (!onPatch) return undefined;
+    let alive = true;
+    fetchEarnings(stock).then((api) => {
+      if (!alive) return;
+      const next = mergeAutoEarnings(stock, api);
+      if (next) onPatch(stock.id, { earnings: next });
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stock.id, stock.code]);
+  const [logEdit, setLogEdit] = useState(null); // {i: logsの添字, text}
+  // クイックメモの直し・消し(鮮度は更新しない=不変条件3。書いた日付はそのまま)
+  const saveLogEdit = () => {
+    if (!logEdit) return;
+    const text = logEdit.text.trim();
+    if (!text) return;
+    onPatch(stock.id, { logs: stock.logs.map((l, i) => (i === logEdit.i ? { ...l, text } : l)) });
+    setLogEdit(null);
+  };
+  const removeLog = (i) => {
+    const l = stock.logs[i];
+    if (!window.confirm(`${l.date || ""} のメモを消します。よろしいですか？\n「${l.text}」`)) return;
+    onPatch(stock.id, { logs: stock.logs.filter((_, k) => k !== i) });
+    if (logEdit && logEdit.i === i) setLogEdit(null);
+  };
   const [flash, setFlash] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [tab, setTab] = useState("research"); // 'research'|'analysis'
@@ -211,6 +240,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           {onSaveTrades && <TradeLog stock={stock} onSave={(trades) => onSaveTrades(stock.id, trades)} />}
           {/* 🧭 つぎの一手(チャットの株スキルで決めた計画の控え)。売却済みには出さない */}
           {stock.status !== "sold" && <PlanSection stock={stock} onSave={(plan) => onUpdate(plan ? { ...stock, plan } : (({ plan: _p, ...rest }) => rest)(stock))} />}
+          {onPatch && <EarningsLog stock={stock} onSave={(earnings) => onPatch(stock.id, { earnings })} />}
           {/* ステータス */}
           <SectionFx rank={rank} color={t.color} style={section}>
             <div style={h}>STATUS ─ {stage.desc}</div>
@@ -318,11 +348,31 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
             </div>
             {stock.logs.length === 0
               ? <div style={{ fontSize: 12, color: "#5b6284" }}>記録なし</div>
-              : [...stock.logs].reverse().map((l, i) => (
-                <div key={i} style={{ fontSize: 12.5, color: "#c7cdec", padding: "6px 0", borderBottom: "1px dashed #262d4d", lineHeight: 1.6 }}>
-                  <span style={{ fontFamily: "'DotGothic16', monospace", color: "#6b7394", marginRight: 8 }}>{l.date || "----"}</span>
-                  {l.text}
-                </div>
+              : stock.logs.map((l, i) => [l, i]).reverse().map(([l, i]) => (
+                logEdit && logEdit.i === i ? (
+                  <div key={i} style={{ padding: "6px 0", borderBottom: "1px dashed #262d4d" }}>
+                    <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 11, color: "#6b7394", marginBottom: 4 }}>{l.date || "----"} のメモを直す</div>
+                    <textarea value={logEdit.text} onChange={(e) => setLogEdit({ ...logEdit, text: e.target.value })} rows={2} autoFocus
+                      style={{ boxSizing: "border-box", width: "100%", background: "#0b0e1d", border: "1px solid #ffd166", borderRadius: 8, color: "#eef1ff", padding: "7px 9px", fontSize: 16, outline: "none", resize: "vertical", fontFamily: "inherit" }} />
+                    <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                      <button onClick={saveLogEdit} style={{ all: "unset", cursor: "pointer", background: "#ffd166", color: "#221a00", fontWeight: 800, fontSize: 12, borderRadius: 8, padding: "6px 12px" }}>直す</button>
+                      <button onClick={() => setLogEdit(null)} style={{ ...btnStyle("#8b93b8"), padding: "5px 10px", fontSize: 12 }}>やめる</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6, alignItems: "start", fontSize: 12.5, color: "#c7cdec", padding: "6px 0", borderBottom: "1px dashed #262d4d", lineHeight: 1.6 }}>
+                    <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                      <span style={{ fontFamily: "'DotGothic16', monospace", color: "#6b7394", marginRight: 8 }}>{l.date || "----"}</span>
+                      {l.text}
+                    </div>
+                    {onPatch && (
+                      <span style={{ display: "flex", gap: 2 }}>
+                        <button onClick={() => setLogEdit({ i, text: l.text })} title="このメモを直す" style={{ all: "unset", cursor: "pointer", color: "#8b93b8", fontSize: 13, padding: "0 5px" }}>✏️</button>
+                        <button onClick={() => removeLog(i)} title="このメモを消す" style={{ all: "unset", cursor: "pointer", color: "#5b6284", fontSize: 14, padding: "0 5px" }}>✕</button>
+                      </span>
+                    )}
+                  </div>
+                )
               ))}
           </SectionFx>
 

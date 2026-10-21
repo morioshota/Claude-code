@@ -45,7 +45,16 @@ const fmtDate = (d, long) => {
   return long ? `${y}/${Number(m)}` : `${Number(m)}/${Number(dd)}`;
 };
 // 資産の推移だけ「全期間」(持ち始めてから今まで)を足す。銘柄のチャート(Analysis)は従来の6つのまま
-const RANGES = [...CHART_RANGES, { key: "all", label: "全期間" }];
+// 年初来(前の年の最後の終値から)・📅指定(開始日〜終了日)も資産の推移だけ(2026-10・オーナー要望)
+const RANGES = [
+  ...CHART_RANGES.slice(0, 3), { key: "ytd", label: "年初来" }, CHART_RANGES[3],
+  ...CHART_RANGES.slice(4), { key: "all", label: "全期間" }, { key: "custom", label: "📅 期間指定" },
+];
+const isoDay = (t) => new Date(t + 9 * 3600e3).toISOString().slice(0, 10); // 日本時間の日付
+const loadCustom = () => {
+  try { const c = JSON.parse(localStorage.getItem("kabu-asset-custom") || "null"); if (c && c.from) return c; } catch (e) { /* 既定へ */ }
+  return { from: isoDay(Date.now() - 365 * 864e5), to: isoDay(Date.now()) };
+};
 const fullDate = (d) => { const [y, m, dd] = String(d).split("-"); return `${y}/${Number(m)}/${Number(dd)}`; };
 
 export function AssetHistory({ stocks, onSelect }) {
@@ -64,8 +73,14 @@ export function AssetHistory({ stocks, onSelect }) {
 
   const positions = useMemo(() => positionsOf(stocks), [stocks]);
   const posSig = positions.map((p) => `${p.stock.id}:${p.shares}:${p.avg}:${p.from}:${p.to}`).join("|");
-  const since = range === "all" ? firstHoldDate(positions) : null;
-  const fetchKey = range === "all" ? rangeForSince(since) : range;
+  const [custom, setCustom] = useState(loadCustom);
+  const saveCustom = (c) => { setCustom(c); try { localStorage.setItem("kabu-asset-custom", JSON.stringify(c)); } catch (e) { /* 表示だけ */ } };
+  const todayIso = isoDay(Date.now());
+  const since = range === "all" ? firstHoldDate(positions)
+    : range === "ytd" ? `${todayIso.slice(0, 4)}-01-01`
+    : range === "custom" ? custom.from : null;
+  const until = range === "custom" && custom.to && custom.to < todayIso ? custom.to : null;
+  const fetchKey = range === "all" || range === "ytd" || range === "custom" ? rangeForSince(since) : range;
 
   useEffect(() => {
     let alive = true;
@@ -89,9 +104,9 @@ export function AssetHistory({ stocks, onSelect }) {
   const hists = useMemo(() => {
     if (!charts) return {};
     const out = {};
-    ["JPY", "USD"].forEach((c) => { const h = buildHistory(positions, charts, c, since); if (h) out[c] = h; });
+    ["JPY", "USD"].forEach((c) => { const h = buildHistory(positions, charts, c, since, until); if (h) out[c] = h; });
     return out;
-  }, [charts, positions, since]);
+  }, [charts, positions, since, until]);
   const curs = Object.keys(hists);
   const cc = hists[cur] ? cur : curs[0];
   const H = cc ? hists[cc] : null;
@@ -102,6 +117,7 @@ export function AssetHistory({ stocks, onSelect }) {
     border: `1px solid ${on ? color : "#2a3050"}`, background: on ? `${color}1f` : "transparent", color: on ? color : "#6b7394",
   });
 
+  const dateInput = { background: "#0b0e1d", border: "1px solid #2a3050", borderRadius: 8, color: "#eef1ff", padding: "5px 8px", fontSize: 16, outline: "none", colorScheme: "dark" };
   const header = (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -114,14 +130,33 @@ export function AssetHistory({ stocks, onSelect }) {
         </div>
       </div>
       {/* 7つを1列に等分(折り返すと「全期間」だけ2行目に残って半端に見えた) */}
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${RANGES.length}, minmax(0, 1fr))`, gap: 4, marginTop: 8 }}>
+      {/* 9つを5列×2段に(📅期間指定は2マスぶん)。1列だとスマホで文字が詰まりすぎた */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 4, marginTop: 8 }}>
         {RANGES.map((r) => (
-          <button key={r.key} onClick={() => { setRange(r.key); try { localStorage.setItem("kabu-asset-range", r.key); } catch (e) { /* 表示だけ */ } }} style={{ ...chip(range === r.key, GOLD), padding: "4px 0", textAlign: "center" }}>{r.label}</button>
+          <button key={r.key} onClick={() => { setRange(r.key); try { localStorage.setItem("kabu-asset-range", r.key); } catch (e) { /* 表示だけ */ } }}
+            style={{ ...chip(range === r.key, GOLD), padding: "4px 0", textAlign: "center", ...(r.key === "custom" ? { gridColumn: "span 2" } : {}) }}>{r.label}</button>
         ))}
       </div>
+      {range === "custom" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 8, fontSize: 11.5, color: "#8b93b8" }}>
+          <input type="date" value={custom.from} max={custom.to || todayIso} onChange={(e) => e.target.value && saveCustom({ ...custom, from: e.target.value })} style={dateInput} />
+          〜
+          <input type="date" value={custom.to} min={custom.from} max={todayIso} onChange={(e) => saveCustom({ ...custom, to: e.target.value || todayIso })} style={dateInput} />
+          {firstHoldDate(positions) && (
+            <button onClick={() => saveCustom({ ...custom, from: firstHoldDate(positions) })} style={{ ...chip(false, GOLD), fontSize: 10.5 }}>最初の購入日から</button>
+          )}
+          <button onClick={() => saveCustom({ ...custom, to: todayIso })} style={{ ...chip(false, GOLD), fontSize: 10.5 }}>今日まで</button>
+        </div>
+      )}
       {range === "all" && (
         <div style={{ fontSize: 10, color: "#5b6284", marginTop: 5 }}>
           {since ? <>全期間＝いちばん早い購入日（{fullDate(since)}）から今まで</> : "購入日の記録が無いため、5年ぶんを表示しています（購入日か📒売買の記録を入れると、持ち始めからになります）"}
+        </div>
+      )}
+      {(range === "ytd" || range === "custom") && (
+        <div style={{ fontSize: 10, color: "#5b6284", marginTop: 5 }}>
+          {range === "ytd" ? "年初来＝去年の最後の取引日の終値から今日まで" : "開始日の前の取引日の終値を起点に、終了日までを表示します"}
+          {fetchKey === "3y" || fetchKey === "5y" || fetchKey === "10y" || fetchKey === "max" ? "（1年より長い期間は週ごとの終値です）" : ""}
         </div>
       )}
     </>
@@ -197,7 +232,7 @@ export function AssetHistory({ stocks, onSelect }) {
   const readout = (
     <div className="kzGlassPanel" style={{ padding: "10px 12px", marginTop: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-        <span style={{ fontSize: 11, color: "#8b93b8" }}>{fullDate(P.date)}{idx === null ? " 時点（最新）" : ""}・{P.items.length}銘柄</span>
+        <span style={{ fontSize: 11, color: "#8b93b8" }}>{fullDate(P.date)}{idx === null ? (until ? " 時点（期間の最後）" : " 時点（最新）") : ""}・{P.items.length}銘柄</span>
         {/* ボタンは常に置いて見えなくするだけ(出たり消えたりで高さが変わらないように) */}
         <button onClick={() => setIdx(null)} tabIndex={idx === null ? -1 : 0}
           style={{ ...chip(false, GOLD), padding: "2px 8px", fontSize: 10.5, visibility: idx === null ? "hidden" : "visible" }}>最新に戻す</button>
