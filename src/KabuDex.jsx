@@ -31,7 +31,8 @@ import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/
 import { sfx, soundEnabled, setSoundEnabled } from "./lib/sound.js";
 import { initSync, getSyncState, onSyncState } from "./lib/sync.js";
 import { enableTilt, disableTilt, restoreTilt, tiltOn, tiltSupported, onTiltChange } from "./lib/cardfx.js";
-import { fetchHeldQuotes, stopLossStateOf, stopLossPctOf, pnlOf } from "./lib/holdings.js";
+import { fetchHeldQuotes, stopLossStateOf, stopLossLabelOf, pnlOf } from "./lib/holdings.js";
+import { dueReviews } from "./lib/plan.js";
 import { PortfolioSummary } from "./components/PortfolioSummary.jsx";
 import { DailyView } from "./components/DailyView.jsx";
 import { applyTrades } from "./lib/lots.js";
@@ -550,6 +551,8 @@ export default function KabuDex() {
   stocks.forEach((s) => { const st = stopLossStateOf(s, quotes[s.id]); if (st) stopLossMap[s.id] = st; });
   const overList = stocks.filter((s) => stopLossMap[s.id] === "over");
   const nearList = stocks.filter((s) => stopLossMap[s.id] === "near");
+  // 📌 次に見る日・エントリー設計の期限(7日以内・過ぎたもの)
+  const dueList = dueReviews(stocks, 7);
 
   return (
     <div style={pageStyle}>
@@ -803,7 +806,7 @@ export default function KabuDex() {
             <span style={{ flex: 1, fontSize: 12.5, color: "#fecaca", lineHeight: 1.6, zIndex: 1 }}>
               <b>にげるラインを超えた銘柄が{overList.length}件あります</b>
               <span style={{ display: "block", fontSize: 11, color: "#fca5a5" }}>
-                {overList.map((s) => `${s.name}（${stopLossPctOf(s)}%）`).join("・")}
+                {overList.map((s) => `${s.name}（${stopLossLabelOf(s, quotes[s.id]?.currency)}）`).join("・")}
               </span>
               <span style={{ display: "block", fontSize: 10, color: "#b98a8a", marginTop: 2 }}>
                 あなたが決めたラインです。株価は遅延データのため、実際の判断は必ずご自身で確認してください
@@ -817,6 +820,24 @@ export default function KabuDex() {
             <span style={{ flex: 1, fontSize: 12.5, color: "#fcd34d", lineHeight: 1.6 }}>
               にげるラインが近い銘柄が<b>{nearList.length}件</b>あります（{nearList.map((s) => s.name).join("・")}）
             </span>
+          </div>
+        )}
+
+        {/* 📌 次に見る日(🧭つぎの一手に自分で記録した予定)。7日以内・期日を過ぎたもの。事実の表示のみ */}
+        {dueList.length > 0 && (
+          <div style={{ background: "#0f1d2b", border: "1.5px solid #7dd3fc55", borderRadius: 12, padding: "10px 14px", marginBottom: 12 }}>
+            <div style={{ fontSize: 12.5, color: "#bae6fd", fontWeight: 700, marginBottom: 4 }}>📌 次に見る日が近い銘柄</div>
+            {dueList.map((d) => (
+              <button key={d.stock.id + d.kind} onClick={() => openDetail(d.stock.id)} style={{
+                all: "unset", cursor: "pointer", display: "block", fontSize: 12, color: "#c7e7f7", lineHeight: 1.7,
+              }}>
+                <span style={{ fontFamily: "'DotGothic16', monospace", color: "#7dd3fc", marginRight: 6 }}>
+                  {+d.date.slice(5, 7)}/{+d.date.slice(8, 10)}{d.days === 0 ? "(きょう)" : d.days > 0 ? `(あと${d.days}日)` : `(${-d.days}日過ぎ)`}
+                </span>
+                <b>{d.stock.name}</b>{d.text ? `：${d.text}` : ""}
+              </button>
+            ))}
+            <div style={{ fontSize: 10, color: "#6b8aa0", marginTop: 4 }}>あなたが事前に決めた予定と条件の控えです。タップで🧭つぎの一手へ</div>
           </div>
         )}
 

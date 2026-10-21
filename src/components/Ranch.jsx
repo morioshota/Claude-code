@@ -18,9 +18,10 @@ import { ACHIEVEMENTS, TYPES } from "../data/constants.js";
 import { hashStr, mulberry32, today } from "../lib/util.js";
 import {
   pnlOf, moodOf, fmtMoney, fmtPct, fetchHeldQuotes,
-  stopLossStateOf, stopLossPctOf, marginToStopLoss,
+  stopLossStateOf, stopLossLabelOf, marginToStopLoss,
 } from "../lib/holdings.js";
 import { upcomingEvents } from "../lib/events.js";
+import { exitPriceOf } from "../lib/plan.js";
 import { streaks } from "../lib/activity.js";
 import { dueForCheck } from "./TriggerCheck.jsx";
 import { renderBuilding, renderTree, renderFence } from "./buildArt.js";
@@ -1440,12 +1441,12 @@ function RanchView({ stocks, activity, onSelect, quotes: quotesProp }) {
     // 🔥ライン超過は最優先で先頭に、⚠まもなくはその次
     actives.forEach((s) => {
       const st = stopLossStateOf(s, quotes[s.id]);
-      if (st === "over") items.unshift(`🔥 ${s.name}が にげるライン(${stopLossPctOf(s)}%)を超えています`);
+      if (st === "over") items.unshift(`🔥 ${s.name}が ${stopLossLabelOf(s, quotes[s.id]?.currency)}を超えています`);
     });
     actives.forEach((s) => {
       const st = stopLossStateOf(s, quotes[s.id]);
       const m = marginToStopLoss(s, quotes[s.id]);
-      if (st === "near" && m !== null) items.push(`⚠️ ${s.name}は にげるラインまであと${m.toFixed(1)}%`);
+      if (st === "near" && m !== null) items.push(`⚠️ ${s.name}は ${exitPriceOf(s) !== null ? "撤退ライン" : "にげるライン"}まであと${m.toFixed(1)}%`);
     });
     dueForCheck(stocks).forEach((s) => items.push(`🔔 ${s.name}のトリガー点検が30日以上あいています`));
     actives.forEach((s) => {

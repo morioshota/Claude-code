@@ -43,6 +43,7 @@ import { TYPES, RARITIES } from "../data/constants.js";
 import { calcLevel, stageOf, rarityOf, urFxOf, freshInfo } from "../lib/stock.js";
 import { registerCard, setPointer, clearPointer } from "../lib/cardfx.js";
 import { hashStr } from "../lib/util.js";
+import { PLAN_STEPS, nextReviewOf } from "../lib/plan.js";
 
 /* 損切りライン超過の警告柄(虎柄=工事現場のハザードテープ)。
    これはオーナー自身が決めたラインへの到達を知らせる目印で、売買の指示ではない */
@@ -77,6 +78,9 @@ function DexCard({ stock, onClick, stopLossState }) {
   const special = findSpecial(stock.special); // 特別キャラ(当選で永久保存)
   const fresh = freshInfo(stock);
   const sold = stock.status === "sold";
+  // 🧭 つぎの一手: ウォッチ中のすすみぐあい と、次に見る日が7日以内/過ぎている印(自分で決めた予定の事実のみ)
+  const planStep = stock.status === "watch" && stock.plan ? PLAN_STEPS[stock.plan.step] : null;
+  const review = nextReviewOf(stock);
   const over = stopLossState === "over";
   const near = stopLossState === "near";
   const tier = holoTierOf(stock);
@@ -216,8 +220,11 @@ function DexCard({ stock, onClick, stopLossState }) {
             {stock.name}
             <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 10, color: "#8b93b8", fontWeight: 400 }}>{stock.code}</div>
           </div>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 5, marginBottom: 8 }}>
             <TypeChip typeKey={stock.type} small />
+            {/* 🧭 すすみぐあい(ウォッチ中)と、次に見る日が7日以内/過ぎている印 */}
+            {planStep && <span title={`すすみぐあい: ${planStep.label}`} style={{ fontSize: 12 }}>{planStep.icon}</span>}
+            {review && review.days <= 7 && <span title={`次に見る日 ${review.date}`} style={{ fontSize: 12 }}>📌</span>}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <StatusBadge status={stock.status} />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { btnStyle, Overlay } from "./ui.jsx";
 import { TYPES, STATUSES } from "../data/constants.js";
 import { DEFAULT_STOP_LOSS_PCT, stopLossPctOf, stopLossPriceOf } from "../lib/holdings.js";
+import { exitPriceOf } from "../lib/plan.js";
 import { SaleFields, TradeSummary } from "./Album.jsx";
 import { replayTrades } from "../lib/lots.js";
 import { uid } from "../lib/util.js";
@@ -173,9 +174,17 @@ function StockForm({ initial, onSave, onCancel }) {
               }}>初期値に戻す</button>
             </div>
             {(() => {
-              const price = stopLossPriceOf(f);
               const pct = stopLossPctOf(f);
               const jp = /^[0-9]/.test(String(f.code || ""));
+              const exit = exitPriceOf(f);
+              if (exit !== null) {
+                return (
+                  <div style={{ fontSize: 11.5, color: "#7dd3fc", marginTop: 6, lineHeight: 1.7 }}>
+                    🧭 つぎの一手に記録した撤退ライン <b>{jp ? `${Math.round(exit).toLocaleString("ja-JP")}円` : `$${exit.toFixed(2)}`}</b> を優先して使っています（ここの%は使いません）。変更は銘柄詳細の🧭つぎの一手から
+                  </div>
+                );
+              }
+              const price = stopLossPriceOf(f);
               if (pct === null) {
                 return <div style={{ fontSize: 11, color: "#8b93b8", marginTop: 6 }}>この銘柄は にげるラインの判定をしません</div>;
               }

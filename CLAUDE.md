@@ -42,6 +42,7 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
 - `src/lib/sprites.js` — 銘柄→クリーチャーの色格子（`buildPixels`。種族・色・模様・左右反転の決定論的抽選＋個体差の色＋進化装飾＋色違い＋✦のきらめき）
 - `src/lib/cardfx.js` — 図鑑カードのホロ演出ドライバ（スクロール/指/ジャイロ→CSS変数。1つのrAFループに集約）
 - `src/lib/sound.js` — レトロ効果音（Web Audioで自前生成。`kabu-sound` キーでミュート永続化）
+- `src/lib/plan.js` / `src/components/PlanSection.jsx` — 🧭つぎの一手（チャットの株スキルで決めた計画の控え。下記）
 - `src/lib/trade.js` — リリース銘柄の売買の記録・実現損益・振り返り用の事実（事実のみ・評価なし）
 - `src/lib/activity.js` — 研究活動の記録（草カレンダー用。`kabu-activity-v1` キー）
 - `src/lib/sync.js` / `src/components/SyncPanel.jsx` / `api/sync.js` — ☁️ iPhone⇄PC同期（下記「同期」）
@@ -71,7 +72,9 @@ claude.aiのアーティファクトとして開発され、Claude Codeでの継
   "soldAt": "YYYY-MM-DD (卒業=リリース日=売却日)", "buyDate": "YYYY-MM-DD (購入日)", "sellPrice": 1780, "sellShares": 100, "sellReason": "trigger|stoploss|target|swap|need|other", "lesson": "この銘柄から学んだこと(卒業アルバム用)",
   "shares": 633, "avgPrice": 3952, "stopLossPct": -8,
   "trades": [{"id":"...","date":"YYYY-MM-DD","kind":"buy|sell","shares":100,"price":3952,"initial":true}],
-  "fundamentals": { "per": 10.2, "roe": 0.102, "...": "分析タブの手入力指標(自動取得より優先)" }
+  "fundamentals": { "per": 10.2, "roe": 0.102, "...": "分析タブの手入力指標(自動取得より優先)" },
+  "plan": { "step": "todo|researched|designed", "entries": [{"label":"打診","price":3200}], "exitPrice": 2650, "target": 4000,
+            "validUntil": "YYYY-MM-DD", "nextDate": "YYYY-MM-DD", "nextWhat": "2Q決算で照合", "updatedAt": "YYYY-MM-DD" }
 } ] }
 ```
 ⚠ `rarity` は**保存しない**（2026-09に廃止）。レアリティは研究レベルから毎回導出する（下記「レアリティ＝研究ステージ」）。
@@ -175,6 +178,15 @@ npm run build    # 本番ビルド(dist/)
 - **表示は事実のみ**: 「割安/割高」の判定・色分け、おすすめ順の並べ替えはしない。チャートも単一色で描き、騰落の色分け・矢印は入れない（オーナー方針）
 - **見比べ表の目標株価**（2026-09末・オーナー要望）: 表の右端に「株価（参考・遅延）／目標株価（アナリスト平均）／目標株価との差（目標−今の株価を金額と、今の株価に対する％）」の3列。⚠ この3列は**並べ替えない**（差の大きい順に並べると「おすすめ順」に見えるため）・色は中立（＋/−の色分けなし）。表の下に「第三者の意見で、この図鑑からの売買推奨ではない」を必ず出す。列が増えたので銘柄の列は `position:sticky` で左に固定（横スクロールしても、どの銘柄か分かるように）
 - **市場の見方**: 目標株価とアナリスト評価は「第三者の意見」という事実として表示し、**「この図鑑からの売買推奨ではない」旨を必ず併記する**（2026-07オーナー承認）。この免責を削除しないこと
+
+## 🧭 つぎの一手（2026-10・オーナー要望）
+
+- チャット側の株スキル（kabu-research / kabu-entry-plan / kabu-position-decision / kabu-navi）が出す**記録用サマリー**を、銘柄詳細の研究タブ「🧭 つぎの一手」に貼り付けて `stock.plan` に控える（📋サマリーを貼る→🔎読み取る→確認して✓反映。✏️手で直すも可）。読み取りは `lib/plan.js` の `parsePlanSummary`（「項目名: 値」の行。指値/撤退ライン/目標/設計の有効期限/次の答え合わせ日/ステータス、株ナビの「次: …」の一行）。⚠ スキル側のサマリーの書式を変えたら `test/plan.test.mjs` にケースを足すこと
+- **すすみぐあい**（`plan.step`: 未調査🔍/調査済📘/設計済📐）はウォッチ中だけの段階。⚠ 研究ステージ（レアリティ）とは別物なので「ステージ」と呼ばない
+- **撤退ライン（`plan.exitPrice`）は にげるライン(%) より優先**（`holdings.js` の `stopLossRuleOf`）。チャット側の取り決めで「撤退ラインは kabu-entry-plan が買う時点で1本だけ決める＝全スキル共通の正本」になったため。判定は本来**週足終値**だが、図鑑では遅延の参考株価と比べる旨を画面に明記。ラインの呼び名は `stopLossLabelOf`（「撤退ライン 2,650円」/「にげるライン -8%」）に統一。撤退ラインを消せば従来の%に戻る
+- **次に見る日（`plan.nextDate`/`nextWhat`）と設計の有効期限（`validUntil`）**: 図鑑ヘッダーの📌バナー（7日以内・過ぎたもの。タップで詳細へ）、図鑑カードの印（タイプの横に📐/📘と📌）、牧場の🗓（`events.js`。同じ日のクイックメモより計画を優先）に出る
+- 表示は**事実のみ**: 自分で決めた値・日付・今の参考株価との距離だけ。色分け・「買い時」等の文言は入れない。抽選・ガチャ・鮮度には関与しない（不変条件3・5）。同期は `plan` をひとかたまりの項目として従来の項目ごとマージで合わせる
+- テスト: `node test/plan.test.mjs`
 
 ## レアリティ＝研究ステージ（5段階）
 

@@ -99,7 +99,7 @@ export function TradeSummary({ stock, compact = false }) {
         {t.partial !== 0 && row("うち一部売却で確定したぶん", fmtMoney(t.partial, cur, true), "📒売買の記録より")}
         {t.reason && row("売却の理由", `${t.reason.icon} ${t.reason.label}`)}
         {t.stop && t.sell && row(
-          `にげるライン（${t.stop.pct}%）`,
+          t.stop.price ? `撤退ライン（平均比 ${t.stop.pct.toFixed(1)}%）` : `にげるライン（${t.stop.pct}%）`,
           fmtMoney(t.stop.line, cur),
           t.stop.sellBelow ? "／売却単価はラインより下" : "／売却単価はラインより上",
         )}

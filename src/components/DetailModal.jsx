@@ -12,8 +12,9 @@ import { registerCard } from "../lib/cardfx.js";
 import { fetchQuote } from "../lib/quotes.js";
 import {
   holdingOf, pnlOf, moodOf, fmtMoney, fmtPct,
-  stopLossPctOf, stopLossPriceOf, stopLossStateOf, marginToStopLoss,
+  stopLossRuleOf, stopLossStateOf, marginToStopLoss,
 } from "../lib/holdings.js";
+import { PlanSection } from "./PlanSection.jsx";
 
 /* 参考株価と保有情報(表示のみ・推奨なし)。取得できないときは株価行を出さない。
    色付けや前日比・矢印などの演出は意図的に入れない(事実の提示のみ) */
@@ -63,10 +64,9 @@ function QuoteRow({ stock }) {
 /* にげるライン(損切りライン)の到達価格と現在地。
    オーナー自身が決めたルールへの到達を事実として伝えるだけで、売買の指示はしない */
 function StopLossRow({ stock, quote }) {
-  const pct = stopLossPctOf(stock);
-  const price = stopLossPriceOf(stock);
+  const rule = stopLossRuleOf(stock);
   const state = stopLossStateOf(stock, quote);
-  if (pct === null || price === null) return null;
+  if (!rule) return null;
 
   const cur = (quote && quote.currency) || "JPY";
   const margin = marginToStopLoss(stock, quote);
@@ -79,13 +79,17 @@ function StopLossRow({ stock, quote }) {
   return (
     <div style={{ background: box.bg, border: `1px solid ${box.border}`, borderRadius: 9, padding: "7px 10px", marginTop: 6 }}>
       <div style={{ fontSize: 11.5, color: box.color, lineHeight: 1.7 }}>
-        {box.icon} にげるライン <b>{pct}%</b> ＝ <b>{fmtMoney(price, cur)}</b>
+        {rule.kind === "price"
+          ? <>{box.icon} 撤退ライン <b>{fmtMoney(rule.price, cur)}</b></>
+          : <>{box.icon} にげるライン <b>{rule.pct}%</b> ＝ <b>{fmtMoney(rule.price, cur)}</b></>}
         {quote && <span style={{ color: "#8b93b8" }}>　現在 {fmtMoney(quote.close, cur)}</span>}
         {state === "over" && <b style={{ marginLeft: 6 }}>・超過中</b>}
         {state === "near" && margin !== null && <b style={{ marginLeft: 6 }}>・あと{margin.toFixed(1)}%</b>}
       </div>
       <div style={{ fontSize: 9.5, color: "#5b6284", marginTop: 3, lineHeight: 1.6 }}>
-        あなたが決めたラインです（編集で変更できます）。株価は遅延データのため、実際の執行判断には使えません
+        {rule.kind === "price"
+          ? "🧭つぎの一手に記録した、あなたが決めたラインです（判定は週足の終値で行う前提。ここでは遅延の参考株価と比べています）。実際の執行判断には使えません"
+          : "あなたが決めたラインです（編集で変更できます）。株価は遅延データのため、実際の執行判断には使えません"}
       </div>
     </div>
   );
@@ -205,6 +209,8 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           )}
           {/* 売買の記録(買い増し・一部売却)。保有中は入力、卒業生は記録があれば表示だけ */}
           {onSaveTrades && <TradeLog stock={stock} onSave={(trades) => onSaveTrades(stock.id, trades)} />}
+          {/* 🧭 つぎの一手(チャットの株スキルで決めた計画の控え)。売却済みには出さない */}
+          {stock.status !== "sold" && <PlanSection stock={stock} onSave={(plan) => onUpdate(plan ? { ...stock, plan } : (({ plan: _p, ...rest }) => rest)(stock))} />}
           {/* ステータス */}
           <SectionFx rank={rank} color={t.color} style={section}>
             <div style={h}>STATUS ─ {stage.desc}</div>

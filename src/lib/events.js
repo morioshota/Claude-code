@@ -2,6 +2,7 @@
    事実(あなた自身が書いた予定)のリマインドのみ。予測・推奨はしない */
 
 import { today } from "./util.js";
+import { nextReviewOf, planExpiryOf } from "./plan.js";
 
 const DAY_MS = 86400000;
 
@@ -41,5 +42,19 @@ export const upcomingEvents = (stock, horizon = 21) => {
       out.push({ m: dt.getUTCMonth() + 1, d: dt.getUTCDate(), days, text: clipText(text) });
     }
   }
+  // 🧭 つぎの一手に記録した「次に見る日」と「設計の有効期限」(自分で決めた予定の事実)。
+  // クイックメモと同じ日なら計画のほうを残す(何を確認する日かが書いてあるため)
+  const planned = [
+    nextReviewOf(stock) && { ...nextReviewOf(stock), text: `📌 ${nextReviewOf(stock).what || "次に見る日"}` },
+    planExpiryOf(stock) && { ...planExpiryOf(stock), text: "📐 エントリー設計の有効期限" },
+  ].filter(Boolean);
+  planned.forEach((p) => {
+    if (p.days < 0 || p.days > horizon) return;
+    const dt = new Date(Date.parse(p.date));
+    const m = dt.getUTCMonth() + 1, d = dt.getUTCDate();
+    const i = out.findIndex((e) => e.m === m && e.d === d);
+    const ev = { m, d, days: p.days, text: clipText(p.text), plan: true };
+    if (i >= 0) out[i] = ev; else out.push(ev);
+  });
   return out.sort((a, b) => a.days - b.days);
 };

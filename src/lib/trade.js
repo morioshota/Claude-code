@@ -12,6 +12,7 @@
 
 import { daysSince } from "./util.js";
 import { stopLossPctOf } from "./holdings.js";
+import { exitPriceOf } from "./plan.js";
 import { partialRealizedOf } from "./lots.js";
 
 /* 売却理由。オーナー自身が選ぶ「そのときの自分の判断の記録」 */
@@ -53,8 +54,12 @@ export const tradeOf = (stock) => {
     if (shares) out.pnl = (sell - avg) * shares + out.partial;
   }
   // 自分で決めていた にげるライン と売却単価の位置関係(事実。守れた/守れなかったの評価はしない)
+  const exit = exitPriceOf(stock);
   const pct = stopLossPctOf({ ...stock, status: "hold" });
-  if (avg && pct !== null) {
+  if (avg && exit !== null) {
+    // 撤退ライン(価格)を記録していた銘柄はそれを使う。%は平均取得単価からの位置として出す
+    out.stop = { pct: (exit / avg - 1) * 100, line: exit, sellBelow: sell ? sell <= exit : null, price: true };
+  } else if (avg && pct !== null) {
     const line = avg * (1 + pct / 100);
     out.stop = { pct, line, sellBelow: sell ? sell <= line : null };
   }

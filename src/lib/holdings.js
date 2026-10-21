@@ -4,6 +4,7 @@
    抽選(色違い・進化・演出ガチャ)には一切関与しない(不変条件5)。 */
 
 import { fetchQuote } from "./quotes.js";
+import { exitPriceOf } from "./plan.js";
 
 /* 保有情報が入力済みなら {shares, avg} を返す(保有ステータスのみ) */
 export const holdingOf = (s) => {
@@ -58,30 +59,54 @@ export const stopLossPctOf = (stock) => {
   return DEFAULT_STOP_LOSS_PCT;
 };
 
-/* ラインに到達する株価(平均取得単価から計算)。保有情報がなければnull */
-export const stopLossPriceOf = (stock) => {
+/* ラインの決め方。チャットの kabu-entry-plan で決めた「撤退ライン(価格)」が記録されていれば
+   それを優先し(全スキル共通の正本)、無ければ従来の にげるライン(%)。
+   { kind: "price", price } | { kind: "pct", pct, price } | null(判定しない/保有情報なし) */
+export const stopLossRuleOf = (stock) => {
   const h = holdingOf(stock);
+  if (!h) return null;
+  const exit = exitPriceOf(stock);
+  if (exit !== null) return { kind: "price", price: exit };
   const pct = stopLossPctOf(stock);
-  if (!h || pct === null) return null;
-  return h.avg * (1 + pct / 100);
+  if (pct === null) return null;
+  return { kind: "pct", pct, price: h.avg * (1 + pct / 100) };
+};
+
+/* ラインに到達する株価。保有情報がなければnull */
+export const stopLossPriceOf = (stock) => {
+  const rule = stopLossRuleOf(stock);
+  return rule ? rule.price : null;
+};
+
+/* 画面に出すラインの呼び名: 「にげるライン -8%」/「撤退ライン 2,650円」 */
+export const stopLossLabelOf = (stock, currency = "JPY") => {
+  const rule = stopLossRuleOf(stock);
+  if (!rule) return "";
+  return rule.kind === "price" ? `撤退ライン ${fmtMoney(rule.price, currency)}` : `にげるライン ${rule.pct}%`;
+};
+
+/* ラインまであと何%か(今の株価に対して。nearの予告文用)。超過済みなら0 */
+export const marginToStopLoss = (stock, quote) => {
+  const rule = stopLossRuleOf(stock);
+  const pnl = pnlOf(stock, quote);
+  if (!rule || !pnl) return null;
+  if (rule.kind === "pct") return Math.max(0, pnl.pct - rule.pct);
+  return Math.max(0, ((quote.close - rule.price) / quote.close) * 100);
 };
 
 /* 状態: null(対象外) | "ok" | "near"(あと2%以内) | "over"(超過) */
 export const stopLossStateOf = (stock, quote) => {
+  const rule = stopLossRuleOf(stock);
   const pnl = pnlOf(stock, quote);
-  const pct = stopLossPctOf(stock);
-  if (!pnl || pct === null) return null;
-  if (pnl.pct <= pct) return "over";
-  if (pnl.pct <= pct + NEAR_MARGIN_PCT) return "near";
+  if (!rule || !pnl) return null;
+  if (rule.kind === "pct") {
+    if (pnl.pct <= rule.pct) return "over";
+    if (pnl.pct <= rule.pct + NEAR_MARGIN_PCT) return "near";
+    return "ok";
+  }
+  if (quote.close <= rule.price) return "over";
+  if (marginToStopLoss(stock, quote) <= NEAR_MARGIN_PCT) return "near";
   return "ok";
-};
-
-/* ラインまであと何%か(nearの予告文用)。超過済みなら0 */
-export const marginToStopLoss = (stock, quote) => {
-  const pnl = pnlOf(stock, quote);
-  const pct = stopLossPctOf(stock);
-  if (!pnl || pct === null) return null;
-  return Math.max(0, pnl.pct - pct);
 };
 
 /* 通貨ごとの表示(為替換算はしない=事実のみ) */export const fmtMoney = (v, currency, signed = false) => {
