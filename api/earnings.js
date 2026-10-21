@@ -126,6 +126,24 @@ export const mergeDates = (lists) => {
   return out;
 };
 
+/* 調査用: 他の口の生データ */
+async function probe(symbol) {
+  const out = {};
+  try {
+    const { crumb, cookie } = await getCrumb(false);
+    const r = await fetch(`${YF2}/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=earnings,earningsHistory,calendarEvents&formatted=false&crumb=${encodeURIComponent(crumb)}`, {
+      headers: { "User-Agent": UA, Accept: "application/json", ...(cookie ? { Cookie: cookie } : {}) },
+    });
+    out.qs = r.ok ? (await r.json()).quoteSummary.result[0] : r.status;
+  } catch (e) { out.qs = String(e); }
+  try {
+    const r = await fetch(`${YF1}/v8/finance/chart/${encodeURIComponent(symbol)}?range=2y&interval=1d&events=div%7Csplit%7Cearn`, { headers: { "User-Agent": UA, Accept: "application/json" } });
+    const j = r.ok ? await r.json() : null;
+    out.chartEvents = j ? Object.keys((j.chart.result[0].events) || {}) : r.status;
+  } catch (e) { out.chartEvents = String(e); }
+  return out;
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   if (req.method === "OPTIONS") { res.statusCode = 204; res.end(); return; }
@@ -133,6 +151,7 @@ export default async function handler(req, res) {
   const url = new URL(req.url, "http://localhost");
   const symbol = String(url.searchParams.get("symbol") || "").trim();
   const debug = url.searchParams.get("debug") === "1";
+  if (url.searchParams.get("debug") === "probe") { res.setHeader("Cache-Control", "no-store"); return send(res, 200, await probe(symbol)); }
   if (!SYMBOL_RE.test(symbol)) return send(res, 400, { error: "symbolが不正です（例: 7203.T / RKLB）" });
 
   const safe = (p) => p.catch((e) => ({ status: `error: ${e && e.message}`, dates: [] }));

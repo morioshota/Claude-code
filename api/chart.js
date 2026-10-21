@@ -38,6 +38,9 @@ export default async function handler(req, res) {
   const symbol = String(url.searchParams.get("symbol") || "").trim();
   const rangeKey = String(url.searchParams.get("range") || "1y").trim();
   if (!SYMBOL_RE.test(symbol)) return send(res, 400, { error: "symbolが不正です（例: 7203.T / RKLB）" });
+  // 決算日をはさんだ値動き: ?around=YYYY-MM-DD,YYYY-MM-DD,... (日足・間引きなし)
+  const around = String(url.searchParams.get("around") || "").trim();
+  if (around) return aroundHandler(res, symbol, around);
   const cfg = RANGES[rangeKey];
   if (!cfg) return send(res, 400, { error: "rangeが不正です（1mo/3mo/6mo/1y/3y/5y/10y/max）" });
 
@@ -85,6 +88,49 @@ export default async function handler(req, res) {
       points,
       source: "Yahoo Finance（遅延）",
     });
+  } catch (e) {
+    return send(res, 502, { error: "株価サーバーへの接続に失敗しました" });
+  }
+}
+
+/* ---- 決算日をはさんだ値動き(2026-10・オーナー承認) ----
+   各日付について「その日より前の最後の終値」と「その日より後の最初の終値」を返す。
+   東証は引け後の発表が多く、米国は寄り前/引け後のどちらもあるので、前後の取引日の終値で
+   どちらの発表時刻でも決算をまたぐ。返すのは終値という事実だけ(良し悪しの判定はしない) */
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const movesAround = (pairs, dates) => dates.map((d) => {
+  let before = null, after = null;
+  for (const p of pairs) {
+    if (p[0] < d) before = p;
+    else if (p[0] > d) { after = p; break; }
+  }
+  return { date: d, before, after };
+});
+
+async function aroundHandler(res, symbol, around) {
+  const dates = [...new Set(around.split(",").map((x) => x.trim()).filter((x) => DATE_RE.test(x)))].sort().slice(-80);
+  if (!dates.length) return send(res, 400, { error: "aroundの日付が不正です（YYYY-MM-DD）" });
+  try {
+    const p1 = Math.floor(Date.parse(dates[0]) / 1000) - 20 * 86400;
+    const p2 = Math.floor(Date.now() / 1000) + 86400;
+    const upstream = await fetch(
+      `${YF_BASE}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&period1=${p1}&period2=${p2}`,
+      { headers: { "User-Agent": "Mozilla/5.0 (compatible; kabu-dex/1.0; personal use)", Accept: "application/json" } }
+    );
+    if (upstream.status === 404) return send(res, 404, { error: "この銘柄の株価データが見つかりません", symbol });
+    if (!upstream.ok) return send(res, 502, { error: `取得失敗 (${upstream.status})` });
+    const data = await upstream.json();
+    const result = data && data.chart && Array.isArray(data.chart.result) ? data.chart.result[0] : null;
+    const meta = result && result.meta ? result.meta : {};
+    const ts = result && Array.isArray(result.timestamp) ? result.timestamp : [];
+    const closes = result && result.indicators && result.indicators.quote && result.indicators.quote[0] ? result.indicators.quote[0].close || [] : [];
+    const pairs = [];
+    for (let i = 0; i < ts.length; i++) {
+      const c = closes[i];
+      if (typeof c === "number" && Number.isFinite(c)) pairs.push([new Date((ts[i] + (meta.gmtoffset || 0)) * 1000).toISOString().slice(0, 10), Math.round(c * 100) / 100]);
+    }
+    res.setHeader("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=21600");
+    return send(res, 200, { symbol, currency: meta.currency || (symbol.endsWith(".T") ? "JPY" : "USD"), moves: movesAround(pairs, dates), source: "Yahoo Finance（遅延）" });
   } catch (e) {
     return send(res, 502, { error: "株価サーバーへの接続に失敗しました" });
   }
