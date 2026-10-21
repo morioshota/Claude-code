@@ -15,7 +15,7 @@
 const YF1 = process.env.YAHOO_BASE_URL || "https://query1.finance.yahoo.com";
 const YF2 = process.env.YAHOO2_BASE_URL || "https://query2.finance.yahoo.com";
 const FC = process.env.YAHOO_FC_URL || "https://fc.yahoo.com";
-const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+const UA = "Mozilla/5.0 (compatible; kabu-dex/1.0; personal use)"; // ⚠ ブラウザ風のUAだとYahooが429を返した(2026-10)
 const SYMBOL_RE = /^[A-Za-z0-9][A-Za-z0-9.\-^]{0,11}$/;
 
 const send = (res, status, body) => {
