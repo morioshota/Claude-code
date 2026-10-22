@@ -841,7 +841,7 @@ export default function KabuDex() {
                 all: "unset", cursor: "pointer", display: "block", fontSize: 12, color: "#c7e7f7", lineHeight: 1.7,
               }}>
                 <span style={{ fontFamily: "'DotGothic16', monospace", color: "#7dd3fc", marginRight: 6 }}>
-                  {+d.date.slice(5, 7)}/{+d.date.slice(8, 10)}{d.days === 0 ? "(きょう)" : d.days > 0 ? `(あと${d.days}日)` : `(${-d.days}日過ぎ)`}
+                  {+d.date.slice(5, 7)}/{+d.date.slice(8, 10)}{d.days === 0 ? "(今日)" : d.days > 0 ? `(あと${d.days}日)` : `(${-d.days}日過ぎ)`}
                 </span>
                 <b>{d.stock.name}</b>{d.text ? `：${d.text}` : ""}
               </button>
@@ -887,7 +887,7 @@ export default function KabuDex() {
         {/* ビュー切り替え(均等グリッド。スマホで高さが凸凹しないよう1行1段に固定) */}
         {/* タブが5つになったので、📱🔊は右端の1列に上下2段で置く(タブの幅を確保するため) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr) 38px", gridTemplateRows: "auto auto", gap: 6, marginBottom: 10 }}>
-          {[["dex", "📕", "図鑑"], ["today", "📅", "きょう"], ["ranch", "🏞", "ぼくじょう"], ["analysis", "📊", "分析"], ["album", "🎓", "アルバム"]].map(([k, icon, label]) => (
+          {[["dex", "📕", "図鑑"], ["today", "📅", "今日"], ["ranch", "🏞", "牧場"], ["analysis", "📊", "分析"], ["album", "🎓", "アルバム"]].map(([k, icon, label]) => (
             <PressButton key={k} color="#ffd166" active={view === k} onClick={() => setView(k)}
               style={{ gridRow: "1 / 3", flexDirection: "column", gap: 1, padding: "7px 0", fontFamily: "'DotGothic16', monospace", fontSize: 11, letterSpacing: 0, whiteSpace: "nowrap" }}>
               <span style={{ fontSize: 15, lineHeight: 1 }}>{icon}</span>

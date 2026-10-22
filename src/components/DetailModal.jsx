@@ -10,7 +10,7 @@ import { NoteItem } from "./notes.jsx";
 import { Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay } from "./ui.jsx";
 import { TYPES, RARITIES, STAGES } from "../data/constants.js";
 import { calcLevel, calcCP, stageOf, rarityOf, urFxOf, freshInfo } from "../lib/stock.js";
-import { registerCard } from "../lib/cardfx.js";
+import { SectionFx } from "./SectionFx.jsx";
 import { fetchQuote } from "../lib/quotes.js";
 import {
   holdingOf, pnlOf, moodOf, fmtMoney, fmtPct,
@@ -99,23 +99,15 @@ function StopLossRow({ stock, quote }) {
 
 /* 説明欄の枠を光が走る。強さは研究レベル由来のレアリティ(1〜5)で変わる。
    位置はスクロールに連動する(cardfx.jsが --hp を書き込む) */
-function SectionFx({ rank, color, style, children }) {
-  const ref = useRef(null);
-  useEffect(() => registerCard(ref.current), []);
-  if (rank <= 1) return <div className="kzSecWrap" style={style}>{children}</div>;
-  return (
-    <div ref={ref} className={`kzSecWrap kzSecFx kzSecFx${Math.min(5, rank)}`} style={{ ...style, "--kzSecCol": color }}>
-      {children}
-    </div>
-  );
-}
-
 /* 研究タブの区切りの小見出し(①確認事項 ②記録 ③投資の根拠 ④その他) */
-function GroupHead({ children }) {
+// グループごとの色(枠の光・小見出し)。②記録は生態調査記録の緑に合わせた(オーナー要望 2026-10)
+const GROUP_COL = { check: "#ffd166", record: "#4ade80", thesis: "#60a5fa", other: "#c084fc" };
+
+function GroupHead({ color, children }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "18px 2px 8px", fontSize: 11.5, fontWeight: 700, color: "#c7cdec", letterSpacing: 1 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "18px 2px 8px", fontSize: 11.5, fontWeight: 700, color, letterSpacing: 1 }}>
       {children}
-      <span style={{ flex: 1, height: 1, background: "linear-gradient(90deg, #3a4270, transparent)" }} />
+      <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${color}66, transparent)` }} />
     </div>
   );
 }
@@ -237,27 +229,27 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           </div>
 
           {tab === "analysis" && (
-            <AnalysisPanel stock={stock} onSaveFundamentals={onSaveFundamentals} />
+            <AnalysisPanel stock={stock} onSaveFundamentals={onSaveFundamentals} rank={rank} />
           )}
 
           {tab === "research" && (<>
           {/* 並びはオーナー指定(2026-10): ①確認事項 ②記録 ③投資の根拠 ④その他 */}
-          <GroupHead>① 確認事項</GroupHead>
+          <GroupHead color={GROUP_COL.check}>① 確認事項</GroupHead>
           {/* 🧭 つぎの一手(チャットの株スキルで決めた計画の控え)。売却済みには出さない */}
           {/* 部品ごとの枠もほかの節と同じく、スクロールで枠の光が走るように SectionFx で包む(kzSecWrap=中の枠の下余白を外に出す) */}
           {stock.status !== "sold" && (
-            <SectionFx rank={rank} color={t.color} style={wrapFx}>
+            <SectionFx rank={rank} color={GROUP_COL.check} style={wrapFx}>
               <PlanSection stock={stock} onSave={(plan) => onUpdate(plan ? { ...stock, plan } : (({ plan: _p, ...rest }) => rest)(stock))} />
             </SectionFx>
           )}
           {onPatch && (
-            <SectionFx rank={rank} color={t.color} style={wrapFx}>
+            <SectionFx rank={rank} color={GROUP_COL.check} style={wrapFx}>
               <EarningsLog stock={stock} onSave={(earnings) => onPatch(stock.id, { earnings })} />
             </SectionFx>
           )}
-          <GroupHead>② 記録</GroupHead>
+          <GroupHead color={GROUP_COL.record}>② 記録</GroupHead>
           {/* 生態調査記録 */}
-          <SectionFx rank={rank} color="#4ade80" style={{ ...section, border: "1px solid #2d5a3d" }}>
+          <SectionFx rank={rank} color={GROUP_COL.record} style={{ ...section, border: "1px solid #2d5a3d" }}>
             <div style={{ ...h, color: "#4ade80" }}>🔬 生態調査記録<span style={sub}>投資メモの保管庫</span></div>
             <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
               <button onClick={onOpenNoteEditor} style={{ ...btnStyle("#4ade80"), padding: "7px 12px", fontSize: 12 }}>＋ 記録を追加（＋3Lv）</button>
@@ -281,13 +273,13 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           )}
           {/* 売買の記録(買い増し・一部売却)。保有中は入力、卒業生は記録があれば表示だけ */}
           {onSaveTrades && (
-            <SectionFx rank={rank} color={t.color} style={wrapFx}>
+            <SectionFx rank={rank} color={GROUP_COL.record} style={wrapFx}>
               <TradeLog stock={stock} onSave={(trades) => onSaveTrades(stock.id, trades)} />
             </SectionFx>
           )}
-          <GroupHead>③ 投資の根拠</GroupHead>
+          <GroupHead color={GROUP_COL.thesis}>③ 投資の根拠</GroupHead>
           {/* マクロ仮説 */}
-          <SectionFx rank={rank} color={t.color} style={section}>
+          <SectionFx rank={rank} color={GROUP_COL.thesis} style={section}>
             <div style={h}>マクロ仮説<span style={sub}>とくせい</span></div>
             <div style={{ fontSize: 13, color: "#dfe4ff", lineHeight: 1.7 }}>
               {stock.hypothesis || <span style={{ color: "#5b6284" }}>未設定（編集から追加できます）</span>}
@@ -297,7 +289,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           {/* わざ・じゃくてん */}
           <div style={{ ...h, marginBottom: 6, paddingLeft: 2 }}>わざ・じゃくてん</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
-            <SectionFx rank={rank} color={t.color} style={{ ...section, marginBottom: 0 }}>
+            <SectionFx rank={rank} color={GROUP_COL.thesis} style={{ ...section, marginBottom: 0 }}>
               <div style={h}>わざ<span style={sub}>強気材料</span></div>
               {stock.bullets.length === 0
                 ? <div style={{ fontSize: 12, color: "#5b6284" }}>まだ覚えていない。リサーチで習得しよう</div>
@@ -305,7 +297,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
                   <div key={i} style={{ fontSize: 13, color: "#fca5a5", padding: "4px 0", borderBottom: i < stock.bullets.length - 1 ? "1px dashed #262d4d" : "none" }}>🔥 {b}</div>
                 ))}
             </SectionFx>
-            <SectionFx rank={rank} color={t.color} style={{ ...section, marginBottom: 0 }}>
+            <SectionFx rank={rank} color={GROUP_COL.thesis} style={{ ...section, marginBottom: 0 }}>
               <div style={h}>じゃくてん<span style={sub}>リスク</span></div>
               {stock.risks.length === 0
                 ? <div style={{ fontSize: 12, color: "#5b6284" }}>未把握。弱点を知らないのは危険…</div>
@@ -316,7 +308,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           </div>
 
           {/* 見直しトリガー */}
-          <SectionFx rank={rank} color={t.color} style={section}>
+          <SectionFx rank={rank} color={GROUP_COL.thesis} style={section}>
             <div style={h}>にげるタイミング<span style={sub}>前提が崩れる条件</span></div>
             {(!stock.triggers || stock.triggers.length === 0)
               ? <div style={{ fontSize: 12, color: "#5b6284" }}>未設定。「何が起きたら見直すか」を決めておくと安心</div>
@@ -325,9 +317,9 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
               ))}
           </SectionFx>
 
-          <GroupHead>④ その他</GroupHead>
+          <GroupHead color={GROUP_COL.other}>④ その他</GroupHead>
           {/* ステータス */}
-          <SectionFx rank={rank} color={t.color} style={section}>
+          <SectionFx rank={rank} color={GROUP_COL.other} style={section}>
             <div style={h}>ステータス<span style={sub}>{stage.desc}</span></div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ fontFamily: "'DotGothic16', monospace", color: "#ffd166", fontSize: 16 }}>Lv.{lv}</span>
@@ -365,7 +357,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           </SectionFx>
 
           {/* クイックメモ */}
-          <SectionFx rank={rank} color={t.color} style={section}>
+          <SectionFx rank={rank} color={GROUP_COL.other} style={section}>
             <div style={h}>クイックメモ<span style={sub}>ひとこと記録・＋1Lv</span></div>
             <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
               <input

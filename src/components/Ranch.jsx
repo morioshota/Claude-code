@@ -538,7 +538,7 @@ function bubblePool(stock, mood, phase, events) {
   const lastLog = (stock.logs || []).slice(-1)[0];
   if (lastLog && lastLog.text) arr.push("📝" + clip(lastLog.text, 14));
   (events || []).forEach((ev) => {
-    const line = `🗓${ev.m}/${ev.d} ${ev.days === 0 ? "きょう！" : `あと${ev.days}日`}`;
+    const line = `🗓${ev.m}/${ev.d} ${ev.days === 0 ? "今日！" : `あと${ev.days}日`}`;
     arr.push(line, line);
   });
   const greet = phase === "night" ? "こんばんは〜" : phase === "dusk" ? "ゆうやけだ〜" : "こんにちは！";
@@ -1435,7 +1435,7 @@ function RanchView({ stocks, activity, onSelect, quotes: quotesProp }) {
     const items = [];
     actives.forEach((s) => {
       upcomingEvents(s).forEach((ev) => {
-        items.push(`🗓 ${ev.m}/${ev.d}${ev.days === 0 ? "(きょう)" : `(あと${ev.days}日)`} ${s.name}: ${ev.text}`);
+        items.push(`🗓 ${ev.m}/${ev.d}${ev.days === 0 ? "(今日)" : `(あと${ev.days}日)`} ${s.name}: ${ev.text}`);
       });
     });
     // 🔥ライン超過は最優先で先頭に、⚠まもなくはその次
@@ -1459,7 +1459,7 @@ function RanchView({ stocks, activity, onSelect, quotes: quotesProp }) {
       if (mood && mood.key === "tired") items.push(`💧 ${s.name}はおつかれぎみです`);
     });
     if (current > 0) items.push(`🔥 研究れんぞく${current}日目！`);
-    if (items.length === 0) items.push("☀️ きょうもぼくじょうは平和です");
+    if (items.length === 0) items.push("☀️ 今日も牧場は平和です");
     return items;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stocks, quotes, current]);
@@ -1475,7 +1475,7 @@ function RanchView({ stocks, activity, onSelect, quotes: quotesProp }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
         <div style={panel}>{d.getMonth() + 1}月{d.getDate()}日・{season.label}・{phase.label}{rainy ? "・☔" : ""}</div>
         <div style={panel}>なかま {actives.length}匹</div>
-        <div style={{ ...panel, marginLeft: "auto" }}>🌱きょうの研究 {todayN}件{current > 0 ? `・🔥${current}日` : ""}</div>
+        <div style={{ ...panel, marginLeft: "auto" }}>🌱今日の研究 {todayN}件{current > 0 ? `・🔥${current}日` : ""}</div>
       </div>
 
       <DigestTicker items={digest} />

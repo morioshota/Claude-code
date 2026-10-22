@@ -20,7 +20,7 @@ const label = { fontSize: 11, color: "#8b93b8", margin: "8px 0 3px" };
 const row = { display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5, color: "#c7cdec", padding: "5px 0", borderBottom: "1px dashed #262d4d", lineHeight: 1.6 };
 
 const fmtDate = (d) => (d ? `${+d.slice(5, 7)}/${+d.slice(8, 10)}` : "");
-const whenText = (days) => (days === 0 ? "きょう" : days > 0 ? `あと${days}日` : `${-days}日過ぎています`);
+const whenText = (days) => (days === 0 ? "今日" : days > 0 ? `あと${days}日` : `${-days}日過ぎています`);
 const distText = (price, close) => {
   if (!close) return "";
   const pct = (price / close - 1) * 100;

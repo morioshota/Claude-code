@@ -9,6 +9,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Creature, TypeChip, btnStyle } from "./ui.jsx";
 import { AssetHistory } from "./AssetHistory.jsx";
+import { SectionFx, PAGE_FX_RANK } from "./SectionFx.jsx";
 import { fetchQuote } from "../lib/quotes.js";
 import { earningsOf, fetchEarningsMoves, moveOf } from "../lib/earnings.js";
 import { fmtMoney, fmtPct } from "../lib/holdings.js";
@@ -399,7 +400,7 @@ function ManualEditor({ stock, currency, onSave, onClose }) {
 
 /* ---- 分析パネル(銘柄詳細の「📊 分析」タブ) ---- */
 
-export function AnalysisPanel({ stock, onSaveFundamentals }) {
+export function AnalysisPanel({ stock, onSaveFundamentals, rank = 0 }) {
   const t = TYPES[stock.type] || TYPES.metal;
   const [auto, setAuto] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -428,26 +429,26 @@ export function AnalysisPanel({ stock, onSaveFundamentals }) {
 
   return (
     <div>
-      {/* チャート */}
-      <div style={section}>
+      {/* チャート。枠は研究タブと同じく、研究ステージに応じてスクロールで光る(2026-10) */}
+      <SectionFx rank={rank} color={t.color} style={section}>
         <PriceChart stock={stock} color={t.color} reload={reload} />
-      </div>
+      </SectionFx>
 
       {/* 指標カード */}
       {METRIC_GROUPS.map((g) => (
-        <div key={g.key} style={section}>
+        <SectionFx key={g.key} rank={rank} color={t.color} style={section}>
           <div style={{ ...head, marginBottom: 8 }}>{g.icon} {g.label}</div>
           <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
             {g.metrics.map((m) => (
               <MetricCard key={m.key} metric={m} cell={cells[m.key]} currency={currency} color={t.color} />
             ))}
           </div>
-        </div>
+        </SectionFx>
       ))}
 
       {/* 市場の見方(第三者の評価)。アプリからの推奨ではないことを必ず明記する */}
       {hasMarketView && (
-        <div style={{ ...section, border: "1px dashed #3b4470" }}>
+        <SectionFx rank={rank} color={t.color} style={{ ...section, border: "1px dashed #3b4470" }}>
           <div style={head}>👥 市場の見方（第三者の評価）</div>
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
             {Number.isFinite(auto.targetPrice) && (
@@ -474,7 +475,7 @@ export function AnalysisPanel({ stock, onSaveFundamentals }) {
             ⚠️ これは<b style={{ color: "#c7cdec" }}>証券アナリストなど第三者の意見</b>であり、この図鑑からの売買推奨ではありません。
             外れることもよくあります。あなた自身の仮説と「にげるタイミング」で判断してください。
           </div>
-        </div>
+        </SectionFx>
       )}
 
       {/* 手入力 */}
@@ -582,7 +583,9 @@ export function AnalysisView({ stocks, onSelect }) {
           {loading ? "🔄 更新中…" : "🔄 更新"}
         </button>
       </div>
-      <div style={{ overflowX: "auto", border: "1px solid #262d4d", borderRadius: 12, background: "#10142a" }}>
+      <SectionFx rank={PAGE_FX_RANK} color="#60a5fa" style={{ border: "1px solid #262d4d", borderRadius: 12, background: "#10142a" }}>
+        {/* 光る枠(外)と横スクロール(内)を分ける: overflow の内側では枠の光が切れるため */}
+        <div style={{ overflowX: "auto", borderRadius: 12 }}>
         <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 760 }}>
           <thead>
             <tr style={{ borderBottom: "1px solid #262d4d" }}>
@@ -652,7 +655,8 @@ export function AnalysisView({ stocks, onSelect }) {
             })}
           </tbody>
         </table>
-      </div>
+        </div>
+      </SectionFx>
       <div style={{ fontSize: 10, color: "#8b93b8", lineHeight: 1.7, marginTop: 10, background: "#0b0e1d", borderRadius: 8, padding: "8px 10px" }}>
         ⚠️ 目標株価は<b style={{ color: "#c7cdec" }}>証券アナリストなど第三者の意見</b>（平均）で、この図鑑からの売買推奨ではありません。外れることもよくあります。
         「目標株価との差」は、目標株価 − 今の参考株価（遅延）を金額と、今の株価に対する％で示した計算結果です。

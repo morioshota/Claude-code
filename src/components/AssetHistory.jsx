@@ -14,6 +14,7 @@ import { CHART_RANGES } from "../lib/fundamentals.js";
 import { fmtMoney, fmtPct } from "../lib/holdings.js";
 import { positionsOf, fetchCharts, buildHistory, flowBetween, firstHoldDate, rangeForSince } from "../lib/portfolio.js";
 import { niceTicks } from "./Analysis.jsx";
+import { SectionFx, PAGE_FX_RANK } from "./SectionFx.jsx";
 
 const PLUS = "#7dd3fc";   // 含み益の側
 const MINUS = "#c4b5fd";  // 含み損の側
@@ -164,22 +165,22 @@ export function AssetHistory({ stocks, onSelect }) {
 
   if (positions.length === 0) {
     return (
-      <div style={box}>
+      <SectionFx rank={PAGE_FX_RANK} color={GOLD} style={box}>
         {header}
         <div style={{ fontSize: 12, color: "#8b93b8", lineHeight: 1.8, marginTop: 10 }}>
           保有中の銘柄に「株数」と「平均取得単価」を入れると、ここに資産の推移が出ます（銘柄の編集画面から。購入日も入れると、その日から数えます）。
         </div>
-      </div>
+      </SectionFx>
     );
   }
   if (loading || !H) {
     return (
-      <div style={box}>
+      <SectionFx rank={PAGE_FX_RANK} color={GOLD} style={box}>
         {header}
         <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#5b6284", border: "1px dashed #262d4d", borderRadius: 10, marginTop: 10 }}>
           {loading ? "株価の履歴を集めています…" : "この期間の株価データを取得できませんでした"}
         </div>
-      </div>
+      </SectionFx>
     );
   }
 
@@ -379,7 +380,7 @@ export function AssetHistory({ stocks, onSelect }) {
   );
 
   return (
-    <div style={box}>
+    <SectionFx rank={PAGE_FX_RANK} color={GOLD} style={box}>
       {header}
       <div style={{ display: "flex", gap: 4, marginTop: 8, flexWrap: "wrap" }}>
         {MODES.map((m) => <button key={m.key} onClick={() => setMode(m.key)} style={chip(mode === m.key, "#dfe4ff")}>{m.label}</button>)}
@@ -463,6 +464,6 @@ export function AssetHistory({ stocks, onSelect }) {
         {H.skipped.length > 0 && <> 株価を取得できなかった銘柄（{H.skipped.join("・")}）は含まれていません。</>}
         {" "}為替換算はしていません。グラフは事実の推移で、良し悪しの判定や売買の推奨ではありません。
       </div>
-    </div>
+    </SectionFx>
   );
 }

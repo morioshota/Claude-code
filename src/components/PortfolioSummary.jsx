@@ -34,7 +34,7 @@ export function PortfolioSummary({ stocks, quotes, onOpen, onOpenToday }) {
             {days[c.currency] && (
               <div onClick={(e) => { if (onOpenToday) { e.stopPropagation(); onOpenToday(); } }}
                 style={{ fontSize: 12, color: "#dfe4ff", marginTop: 3, fontVariantNumeric: "tabular-nums" }}>
-                📅 きょう <b>{fmtMoney(days[c.currency].pnl, c.currency, true)}</b>
+                📅 今日 <b>{fmtMoney(days[c.currency].pnl, c.currency, true)}</b>
                 <span style={{ color: "#8b93b8" }}>（{fmtDayPct(days[c.currency].pct)}）＋{days[c.currency].upN}・−{days[c.currency].downN}銘柄 ›</span>
               </div>
             )}

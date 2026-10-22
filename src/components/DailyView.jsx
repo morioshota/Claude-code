@@ -4,13 +4,19 @@
    方針(CLAUDE.md): 事実の表示のみ。＋と−は赤/緑にせず空色/薄紫(資産の推移と同じ)。矢印・評価の言葉は使わない */
 import { useState, useEffect, useRef } from "react";
 import { Creature } from "./ui.jsx";
+import { SectionFx, PAGE_FX_RANK } from "./SectionFx.jsx";
+import { TYPES } from "../data/constants.js";
+import { rarityOf } from "../lib/stock.js";
 import { fetchHeldQuotes, holdingOf, fmtMoney, fmtPct } from "../lib/holdings.js";
 import { dayPnlOf, daySummary, fmtDayPct } from "../lib/daily.js";
+
+// 枠の光の色(今日のタブ)。銘柄ごとの行は、その銘柄のタイプ色と研究ステージで光る
+const FX_COL = "#ffd166";
 
 const PLUS = "#7dd3fc", MINUS = "#c4b5fd";
 const mono = "'DotGothic16', ui-monospace, monospace";
 // 既定は％(資産の推移と同じ考え方: 金額だと保有数の多い銘柄ほど大きくなり、値動きの比較にならない=オーナー要望で統一)
-const SORTS = [["pct", "きょうの％が大きい順"], ["pctLo", "きょうの％が小さい順"], ["pnlHi", "きょうの損益額が大きい順"], ["pnlLo", "きょうの損益額が小さい順"], ["no", "図鑑No.順"]];
+const SORTS = [["pct", "今日の％が大きい順"], ["pctLo", "今日の％が小さい順"], ["pnlHi", "今日の損益額が大きい順"], ["pnlLo", "今日の損益額が小さい順"], ["no", "図鑑No.順"]];
 const md = (d) => { if (!d) return ""; const [, m, dd] = d.split("-"); return `${Number(m)}/${Number(dd)}`; };
 const todayStr = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
 
@@ -55,18 +61,18 @@ export function DailyView({ stocks, onSelect, onQuotes }) {
 
   if (held.length === 0) {
     return (
-      <div style={{ ...box, fontSize: 12.5, color: "#8b93b8", lineHeight: 1.8 }}>
-        📅 保有中の銘柄に「株数」と「平均取得単価」を入れると、ここで銘柄ごとのきょうの損益が見られます。
-      </div>
+      <SectionFx rank={PAGE_FX_RANK} color={FX_COL} style={{ ...box, fontSize: 12.5, color: "#8b93b8", lineHeight: 1.8 }}>
+        📅 保有中の銘柄に「株数」と「平均取得単価」を入れると、ここで銘柄ごとの今日の損益が見られます。
+      </SectionFx>
     );
   }
 
   return (
     <div>
       {/* 保有全体のきょう */}
-      <div style={box}>
+      <SectionFx rank={PAGE_FX_RANK} color={FX_COL} style={box}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-          <span style={{ fontFamily: mono, fontSize: 14, color: "#f2f4ff", letterSpacing: 1 }}>📅 きょうの損益</span>
+          <span style={{ fontFamily: mono, fontSize: 14, color: "#f2f4ff", letterSpacing: 1 }}>📅 今日の損益</span>
           <button onClick={load} disabled={loading} style={{ all: "unset", cursor: "pointer", fontSize: 11, color: "#ffd166", border: "1px solid #ffd16666", borderRadius: 8, padding: "4px 10px", opacity: loading ? 0.5 : 1 }}>
             {loading ? "取得中…" : "🔄 更新"}
           </button>
@@ -98,7 +104,7 @@ export function DailyView({ stocks, onSelect, onQuotes }) {
             </div>
           );
         })}
-      </div>
+      </SectionFx>
 
       {/* 銘柄ごと */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -123,7 +129,7 @@ export function DailyView({ stocks, onSelect, onQuotes }) {
             {g.rows.map(({ s, d }) => {
               const w = d ? (Math.abs(metric(d)) / maxAbs) * 50 : 0;
               return (
-                <div key={s.id} onClick={() => onSelect(s.id)} style={{ cursor: "pointer", border: "1px solid #232a4a", borderRadius: 12, background: "#10142a", padding: "10px 12px" }}>
+                <SectionFx key={s.id} rank={rarityOf(s)} color={(TYPES[s.type] || TYPES.metal).color} style={{ cursor: "pointer", border: "1px solid #232a4a", borderRadius: 12, background: "#10142a", padding: "10px 12px" }} onClick={() => onSelect(s.id)}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <Creature stock={s} size={34} shadow={false} />
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -136,7 +142,7 @@ export function DailyView({ stocks, onSelect, onQuotes }) {
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
                       {/* 棒と同じもの(既定は％)を上に大きく、もう片方を下に小さく */}
                       <div style={{ fontFamily: mono, fontSize: 16, color: "#f2f4ff", fontVariantNumeric: "tabular-nums" }}>{d ? (barBy === "pct" ? fmtDayPct(d.pct) : fmtMoney(d.pnl, d.currency, true)) : "—"}</div>
-                      <div style={{ fontSize: 10.5, color: "#8b93b8", fontVariantNumeric: "tabular-nums" }}>{d ? (barBy === "pct" ? fmtMoney(d.pnl, d.currency, true) : `きょう ${fmtDayPct(d.pct)}`) : loading ? "取得中" : "株価なし"}</div>
+                      <div style={{ fontSize: 10.5, color: "#8b93b8", fontVariantNumeric: "tabular-nums" }}>{d ? (barBy === "pct" ? fmtMoney(d.pnl, d.currency, true) : `今日 ${fmtDayPct(d.pct)}`) : loading ? "取得中" : "株価なし"}</div>
                     </div>
                   </div>
                   {d && (
@@ -152,14 +158,14 @@ export function DailyView({ stocks, onSelect, onQuotes }) {
                       </div>
                     </>
                   )}
-                </div>
+                </SectionFx>
               );
             })}
           </div>
         );
       })}
       <div style={{ fontSize: 10, color: "#5b6284", lineHeight: 1.7 }}>
-        きょうの損益＝（最新値 − 前の取引日の終値）× 株数。その日に買い増し・一部売却した株は約定単価から数えます（📒売買の記録）。
+        今日の損益＝（最新値 − 前の取引日の終値）× 株数。その日に買い増し・一部売却した株は約定単価から数えます（📒売買の記録）。
         株価はYahoo Financeの遅延データです{at ? `（最終取得 ${at.getHours()}:${String(at.getMinutes()).padStart(2, "0")}・表示中は3分ごとに更新）` : ""}。為替換算はしていません。
         事実の表示で、良し悪しの判定や売買の推奨ではありません。
       </div>

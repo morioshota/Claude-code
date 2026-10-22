@@ -13,6 +13,7 @@ import { fetchChart } from "../lib/fundamentals.js";
 import { SELL_REASONS, tradeOf, reviewRangeOf, reviewFactsOf, daysBetween } from "../lib/trade.js";
 import { today } from "../lib/util.js";
 import { niceTicks } from "./Analysis.jsx";
+import { SectionFx, PAGE_FX_RANK } from "./SectionFx.jsx";
 
 const mono = "'DotGothic16', monospace";
 const labelStyle = { fontFamily: mono, fontSize: 11, color: "#8b93b8", letterSpacing: 1.5, display: "block", marginTop: 12, marginBottom: 4 };
@@ -281,7 +282,7 @@ function AlbumCard({ stock, onSelect, onSaveLesson, onSaveTrade }) {
   const jp = /^[0-9]/.test(String(stock.code || ""));
 
   return (
-    <div style={{ background: "linear-gradient(160deg, #141830 0%, #0e1122 70%)", border: "1.5px solid #2a3050", borderRadius: 14, padding: 14 }}>
+    <SectionFx rank={PAGE_FX_RANK} color={t.color} style={{ background: "linear-gradient(160deg, #141830 0%, #0e1122 70%)", border: "1.5px solid #2a3050", borderRadius: 14, padding: 14 }}>
       <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
         <button onClick={() => onSelect(stock.id)} style={{ all: "unset", cursor: "pointer", filter: `drop-shadow(0 0 8px ${t.color}66)` }} title="詳細を開く">
           <Creature stock={stock} size={62} />
@@ -356,7 +357,7 @@ function AlbumCard({ stock, onSelect, onSaveLesson, onSaveTrade }) {
           </div>
         )}
       </div>
-    </div>
+    </SectionFx>
   );
 }
 
@@ -375,7 +376,7 @@ function AlbumTotals({ grads }) {
   if (curs.length === 0 && days.length === 0) return null;
   const avgDays = days.length ? Math.round(days.reduce((a, b) => a + b, 0) / days.length) : null;
   return (
-    <div className="kzGlassPanel" style={{ padding: "10px 14px", marginBottom: 12, display: "flex", flexWrap: "wrap", gap: "6px 22px", alignItems: "baseline" }}>
+    <SectionFx rank={PAGE_FX_RANK} color="#c084fc" className="kzGlassPanel" style={{ borderRadius: 14, padding: "10px 14px", marginBottom: 12, display: "flex", flexWrap: "wrap", gap: "6px 22px", alignItems: "baseline" }}>
       {curs.map((c) => (
         <div key={c}>
           <div style={{ fontSize: 10, color: "#8b93b8" }}>実現損益の合計（{c === "JPY" ? "円" : "ドル"}・{by[c].n}銘柄）</div>
@@ -388,7 +389,7 @@ function AlbumTotals({ grads }) {
           <div style={{ fontFamily: mono, fontSize: 18, color: "#f2f4ff" }}>{fmtDays(avgDays)}</div>
         </div>
       )}
-    </div>
+    </SectionFx>
   );
 }
 

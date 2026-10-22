@@ -67,7 +67,7 @@ export function EarningsLog({ stock, onSave }) {
       {next && (
         <div style={{ fontSize: 13, color: "#f2f4ff", marginBottom: 8 }}>
           次の決算 <b style={{ fontFamily: mono }}>{fullDate(next.date)}</b>
-          <span style={{ color: "#8b93b8", fontSize: 11.5 }}>（{daysTo(next.date) === 0 ? "きょう" : `あと${daysTo(next.date)}日`}）</span>
+          <span style={{ color: "#8b93b8", fontSize: 11.5 }}>（{daysTo(next.date) === 0 ? "今日" : `あと${daysTo(next.date)}日`}）</span>
         </div>
       )}
       {upcoming.slice(1).map((e) => row(e, true))}
