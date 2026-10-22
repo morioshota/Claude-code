@@ -71,7 +71,7 @@ export function TradeLog({ stock, onSave }) {
 
   return (
     <div style={{ background: "#141830", border: "1px solid #3a3320", borderRadius: 12, padding: 14, marginBottom: 12 }}>
-      <div style={{ fontFamily: mono, fontSize: 12, color: "#ffd166", letterSpacing: 2, marginBottom: 6 }}>📒 売買の記録（買い増し・一部売却）</div>
+      <div style={{ fontFamily: mono, fontSize: 12, color: "#ffd166", letterSpacing: 2, marginBottom: 6 }}>📒 売買の記録<span style={{ fontFamily: "inherit", fontSize: 10, color: "#5b6284", letterSpacing: 0, marginLeft: 8 }}>買い増し・一部売却</span></div>
       <div style={{ fontSize: 12, color: "#c7cdec", marginBottom: 8 }}>
         いま {nowShares.toLocaleString()}株・平均取得単価 {nowShares > 0 ? fmtMoney(nowAvg, cur) : "—"}
         {Math.abs(realized) > 0 && <span style={{ color: "#8b93b8" }}>・一部売却の実現損益 {fmtMoney(realized, cur, true)}</span>}

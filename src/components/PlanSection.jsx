@@ -183,7 +183,7 @@ function PlanSection({ stock, onSave }) {
 
   return (
     <div style={box}>
-      <div style={head}>🧭 つぎの一手（自分で決めた計画の控え）</div>
+      <div style={head}>🧭 つぎの一手<span style={{ fontFamily: "inherit", fontSize: 10, color: "#5b6284", letterSpacing: 0, marginLeft: 8 }}>自分で決めた計画の控え</span></div>
       {mode === "paste" && <PastePanel stock={stock} onApply={apply} onCancel={() => setMode("view")} />}
       {mode === "edit" && <EditPanel stock={stock} onApply={apply} onCancel={() => setMode("view")} />}
       {mode === "view" && (<>

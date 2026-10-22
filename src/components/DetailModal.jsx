@@ -110,6 +110,16 @@ function SectionFx({ rank, color, style, children }) {
   );
 }
 
+/* 研究タブの区切りの小見出し(①確認事項 ②記録 ③投資の根拠 ④その他) */
+function GroupHead({ children }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "18px 2px 8px", fontSize: 11.5, fontWeight: 700, color: "#c7cdec", letterSpacing: 1 }}>
+      {children}
+      <span style={{ flex: 1, height: 1, background: "linear-gradient(90deg, #3a4270, transparent)" }} />
+    </div>
+  );
+}
+
 function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, onLog, onOpenNoteEditor, onOpenAi, onDeleteNote, onSaveFundamentals, onSaveTrades, onPatch }) {
   const t = TYPES[stock.type] || TYPES.metal;
   const rank = rarityOf(stock);
@@ -160,6 +170,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
 
   const section = { background: "#141830", border: "1px solid #262d4d", borderRadius: 12, padding: 14, marginBottom: 12 };
   const h = { fontFamily: "'DotGothic16', monospace", fontSize: 12, color: "#8b93b8", letterSpacing: 2, marginBottom: 8 };
+  const sub = { fontFamily: "inherit", fontSize: 10, color: "#5b6284", letterSpacing: 0, marginLeft: 8 }; // 見出しの横の小さな説明
 
   return (
     <Overlay onClose={onClose}>
@@ -229,7 +240,29 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           )}
 
           {tab === "research" && (<>
-          {/* リリース済みなら売買の記録(事実)を先頭に */}
+          {/* 並びはオーナー指定(2026-10): ①確認事項 ②記録 ③投資の根拠 ④その他 */}
+          <GroupHead>① 確認事項</GroupHead>
+          {/* 🧭 つぎの一手(チャットの株スキルで決めた計画の控え)。売却済みには出さない */}
+          {stock.status !== "sold" && <PlanSection stock={stock} onSave={(plan) => onUpdate(plan ? { ...stock, plan } : (({ plan: _p, ...rest }) => rest)(stock))} />}
+          {onPatch && <EarningsLog stock={stock} onSave={(earnings) => onPatch(stock.id, { earnings })} />}
+          <GroupHead>② 記録</GroupHead>
+          {/* 生態調査記録 */}
+          <SectionFx rank={rank} color="#4ade80" style={{ ...section, border: "1px solid #2d5a3d" }}>
+            <div style={{ ...h, color: "#4ade80" }}>🔬 生態調査記録<span style={sub}>投資メモの保管庫</span></div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <button onClick={onOpenNoteEditor} style={{ ...btnStyle("#4ade80"), padding: "7px 12px", fontSize: 12 }}>＋ 記録を追加（＋3Lv）</button>
+              <button onClick={onOpenAi} style={{ ...btnStyle("#c084fc"), padding: "7px 12px", fontSize: 12 }}>🤖 AIに下書きを頼む</button>
+            </div>
+            {notesLoading
+              ? <div style={{ fontSize: 12, color: "#5b6284" }}>記録を読み込み中…</div>
+              : notes.length === 0
+                ? <div style={{ fontSize: 12, color: "#5b6284", lineHeight: 1.7 }}>まだ調査記録がありません。チャットで作った投資メモを貼り付けて、この銘柄の「生態」を記録しよう。</div>
+                : [...notes].reverse().map((n, i) => (
+                  <NoteItem key={n.id} note={n} index={i} total={notes.length} onDelete={onDeleteNote} />
+                ))}
+          </SectionFx>
+
+          {/* リリース済みなら卒業の売買の記録(事実)も記録に並べる */}
           {stock.status === "sold" && (
             <div style={{ marginBottom: 12 }}>
               <TradeSummary stock={stock} />
@@ -238,12 +271,50 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           )}
           {/* 売買の記録(買い増し・一部売却)。保有中は入力、卒業生は記録があれば表示だけ */}
           {onSaveTrades && <TradeLog stock={stock} onSave={(trades) => onSaveTrades(stock.id, trades)} />}
-          {/* 🧭 つぎの一手(チャットの株スキルで決めた計画の控え)。売却済みには出さない */}
-          {stock.status !== "sold" && <PlanSection stock={stock} onSave={(plan) => onUpdate(plan ? { ...stock, plan } : (({ plan: _p, ...rest }) => rest)(stock))} />}
-          {onPatch && <EarningsLog stock={stock} onSave={(earnings) => onPatch(stock.id, { earnings })} />}
+          <GroupHead>③ 投資の根拠</GroupHead>
+          {/* マクロ仮説 */}
+          <SectionFx rank={rank} color={t.color} style={section}>
+            <div style={h}>マクロ仮説<span style={sub}>とくせい</span></div>
+            <div style={{ fontSize: 13, color: "#dfe4ff", lineHeight: 1.7 }}>
+              {stock.hypothesis || <span style={{ color: "#5b6284" }}>未設定（編集から追加できます）</span>}
+            </div>
+          </SectionFx>
+
+          {/* わざ・じゃくてん */}
+          <div style={{ ...h, marginBottom: 6, paddingLeft: 2 }}>わざ・じゃくてん</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
+            <SectionFx rank={rank} color={t.color} style={{ ...section, marginBottom: 0 }}>
+              <div style={h}>わざ<span style={sub}>強気材料</span></div>
+              {stock.bullets.length === 0
+                ? <div style={{ fontSize: 12, color: "#5b6284" }}>まだ覚えていない。リサーチで習得しよう</div>
+                : stock.bullets.map((b, i) => (
+                  <div key={i} style={{ fontSize: 13, color: "#fca5a5", padding: "4px 0", borderBottom: i < stock.bullets.length - 1 ? "1px dashed #262d4d" : "none" }}>🔥 {b}</div>
+                ))}
+            </SectionFx>
+            <SectionFx rank={rank} color={t.color} style={{ ...section, marginBottom: 0 }}>
+              <div style={h}>じゃくてん<span style={sub}>リスク</span></div>
+              {stock.risks.length === 0
+                ? <div style={{ fontSize: 12, color: "#5b6284" }}>未把握。弱点を知らないのは危険…</div>
+                : stock.risks.map((b, i) => (
+                  <div key={i} style={{ fontSize: 13, color: "#93c5fd", padding: "4px 0", borderBottom: i < stock.risks.length - 1 ? "1px dashed #262d4d" : "none" }}>⚠️ {b}</div>
+                ))}
+            </SectionFx>
+          </div>
+
+          {/* 見直しトリガー */}
+          <SectionFx rank={rank} color={t.color} style={section}>
+            <div style={h}>にげるタイミング<span style={sub}>前提が崩れる条件</span></div>
+            {(!stock.triggers || stock.triggers.length === 0)
+              ? <div style={{ fontSize: 12, color: "#5b6284" }}>未設定。「何が起きたら見直すか」を決めておくと安心</div>
+              : stock.triggers.map((b, i) => (
+                <div key={i} style={{ fontSize: 13, color: "#fcd34d", padding: "4px 0" }}>🚪 {b}</div>
+              ))}
+          </SectionFx>
+
+          <GroupHead>④ その他</GroupHead>
           {/* ステータス */}
           <SectionFx rank={rank} color={t.color} style={section}>
-            <div style={h}>STATUS ─ {stage.desc}</div>
+            <div style={h}>ステータス<span style={sub}>{stage.desc}</span></div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ fontFamily: "'DotGothic16', monospace", color: "#ffd166", fontSize: 16 }}>Lv.{lv}</span>
               <span style={{ fontFamily: "'DotGothic16', monospace", color: t.color, fontSize: 16 }}>CP {cp}</span>
@@ -279,63 +350,9 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
             </div>
           </SectionFx>
 
-          {/* 生態調査記録 */}
-          <SectionFx rank={rank} color="#4ade80" style={{ ...section, border: "1px solid #2d5a3d" }}>
-            <div style={{ ...h, color: "#4ade80" }}>🔬 生態調査記録（投資メモの保管庫）</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-              <button onClick={onOpenNoteEditor} style={{ ...btnStyle("#4ade80"), padding: "7px 12px", fontSize: 12 }}>＋ 記録を追加（＋3Lv）</button>
-              <button onClick={onOpenAi} style={{ ...btnStyle("#c084fc"), padding: "7px 12px", fontSize: 12 }}>🤖 AIに下書きを頼む</button>
-            </div>
-            {notesLoading
-              ? <div style={{ fontSize: 12, color: "#5b6284" }}>記録を読み込み中…</div>
-              : notes.length === 0
-                ? <div style={{ fontSize: 12, color: "#5b6284", lineHeight: 1.7 }}>まだ調査記録がありません。チャットで作った投資メモを貼り付けて、この銘柄の「生態」を記録しよう。</div>
-                : [...notes].reverse().map((n, i) => (
-                  <NoteItem key={n.id} note={n} index={i} total={notes.length} onDelete={onDeleteNote} />
-                ))}
-          </SectionFx>
-
-          {/* マクロ仮説 */}
-          <SectionFx rank={rank} color={t.color} style={section}>
-            <div style={h}>マクロ仮説（とくせい）</div>
-            <div style={{ fontSize: 13, color: "#dfe4ff", lineHeight: 1.7 }}>
-              {stock.hypothesis || <span style={{ color: "#5b6284" }}>未設定（編集から追加できます）</span>}
-            </div>
-          </SectionFx>
-
-          {/* わざ・じゃくてん */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
-            <SectionFx rank={rank} color={t.color} style={{ ...section, marginBottom: 0 }}>
-              <div style={h}>わざ（強気材料）</div>
-              {stock.bullets.length === 0
-                ? <div style={{ fontSize: 12, color: "#5b6284" }}>まだ覚えていない。リサーチで習得しよう</div>
-                : stock.bullets.map((b, i) => (
-                  <div key={i} style={{ fontSize: 13, color: "#fca5a5", padding: "4px 0", borderBottom: i < stock.bullets.length - 1 ? "1px dashed #262d4d" : "none" }}>🔥 {b}</div>
-                ))}
-            </SectionFx>
-            <SectionFx rank={rank} color={t.color} style={{ ...section, marginBottom: 0 }}>
-              <div style={h}>じゃくてん（リスク）</div>
-              {stock.risks.length === 0
-                ? <div style={{ fontSize: 12, color: "#5b6284" }}>未把握。弱点を知らないのは危険…</div>
-                : stock.risks.map((b, i) => (
-                  <div key={i} style={{ fontSize: 13, color: "#93c5fd", padding: "4px 0", borderBottom: i < stock.risks.length - 1 ? "1px dashed #262d4d" : "none" }}>⚠️ {b}</div>
-                ))}
-            </SectionFx>
-          </div>
-
-          {/* 見直しトリガー */}
-          <SectionFx rank={rank} color={t.color} style={section}>
-            <div style={h}>にげるタイミング（前提が崩れる条件）</div>
-            {(!stock.triggers || stock.triggers.length === 0)
-              ? <div style={{ fontSize: 12, color: "#5b6284" }}>未設定。「何が起きたら見直すか」を決めておくと安心</div>
-              : stock.triggers.map((b, i) => (
-                <div key={i} style={{ fontSize: 13, color: "#fcd34d", padding: "4px 0" }}>🚪 {b}</div>
-              ))}
-          </SectionFx>
-
           {/* クイックメモ */}
           <SectionFx rank={rank} color={t.color} style={section}>
-            <div style={h}>クイックメモ（ひとこと記録・＋1Lv）</div>
+            <div style={h}>クイックメモ<span style={sub}>ひとこと記録・＋1Lv</span></div>
             <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
               <input
                 value={logText}
