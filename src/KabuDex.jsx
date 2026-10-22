@@ -718,6 +718,9 @@ export default function KabuDex() {
         /* ---- 説明欄の枠を走る光(詳細画面) ----
            研究レベル由来のレアリティで強さが変わる。位置(--hp)はスクロール連動 */
         .kzSecFx { position: relative; }
+        /* 部品(つぎの一手・決算日・売買の記録)は自前の枠に下余白を持つので、包んだ枠の中では0に(光る枠と中の枠をぴったり重ねる) */
+        .kzSecWrap > div:only-child { margin-bottom: 0 !important; }
+        .kzSecWrap:empty { display: none; }
         .kzSecFx::before { content:""; position:absolute; inset:-1px; border-radius:inherit; pointer-events:none;
           padding:1.5px; background: linear-gradient(100deg,
             transparent 38%, var(--kzSecCol,#8b93b8) 47%, #ffffff 50%, var(--kzSecCol,#8b93b8) 53%, transparent 62%);

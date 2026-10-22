@@ -102,9 +102,9 @@ function StopLossRow({ stock, quote }) {
 function SectionFx({ rank, color, style, children }) {
   const ref = useRef(null);
   useEffect(() => registerCard(ref.current), []);
-  if (rank <= 1) return <div style={style}>{children}</div>;
+  if (rank <= 1) return <div className="kzSecWrap" style={style}>{children}</div>;
   return (
-    <div ref={ref} className={`kzSecFx kzSecFx${Math.min(5, rank)}`} style={{ ...style, "--kzSecCol": color }}>
+    <div ref={ref} className={`kzSecWrap kzSecFx kzSecFx${Math.min(5, rank)}`} style={{ ...style, "--kzSecCol": color }}>
       {children}
     </div>
   );
@@ -170,6 +170,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
 
   const section = { background: "#141830", border: "1px solid #262d4d", borderRadius: 12, padding: 14, marginBottom: 12 };
   const h = { fontFamily: "'DotGothic16', monospace", fontSize: 12, color: "#8b93b8", letterSpacing: 2, marginBottom: 8 };
+  const wrapFx = { borderRadius: 12, marginBottom: 12 }; // 部品(つぎの一手・決算日・売買の記録)を包む枠
   const sub = { fontFamily: "inherit", fontSize: 10, color: "#5b6284", letterSpacing: 0, marginLeft: 8 }; // 見出しの横の小さな説明
 
   return (
@@ -243,8 +244,17 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
           {/* 並びはオーナー指定(2026-10): ①確認事項 ②記録 ③投資の根拠 ④その他 */}
           <GroupHead>① 確認事項</GroupHead>
           {/* 🧭 つぎの一手(チャットの株スキルで決めた計画の控え)。売却済みには出さない */}
-          {stock.status !== "sold" && <PlanSection stock={stock} onSave={(plan) => onUpdate(plan ? { ...stock, plan } : (({ plan: _p, ...rest }) => rest)(stock))} />}
-          {onPatch && <EarningsLog stock={stock} onSave={(earnings) => onPatch(stock.id, { earnings })} />}
+          {/* 部品ごとの枠もほかの節と同じく、スクロールで枠の光が走るように SectionFx で包む(kzSecWrap=中の枠の下余白を外に出す) */}
+          {stock.status !== "sold" && (
+            <SectionFx rank={rank} color={t.color} style={wrapFx}>
+              <PlanSection stock={stock} onSave={(plan) => onUpdate(plan ? { ...stock, plan } : (({ plan: _p, ...rest }) => rest)(stock))} />
+            </SectionFx>
+          )}
+          {onPatch && (
+            <SectionFx rank={rank} color={t.color} style={wrapFx}>
+              <EarningsLog stock={stock} onSave={(earnings) => onPatch(stock.id, { earnings })} />
+            </SectionFx>
+          )}
           <GroupHead>② 記録</GroupHead>
           {/* 生態調査記録 */}
           <SectionFx rank={rank} color="#4ade80" style={{ ...section, border: "1px solid #2d5a3d" }}>
@@ -270,7 +280,11 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
             </div>
           )}
           {/* 売買の記録(買い増し・一部売却)。保有中は入力、卒業生は記録があれば表示だけ */}
-          {onSaveTrades && <TradeLog stock={stock} onSave={(trades) => onSaveTrades(stock.id, trades)} />}
+          {onSaveTrades && (
+            <SectionFx rank={rank} color={t.color} style={wrapFx}>
+              <TradeLog stock={stock} onSave={(trades) => onSaveTrades(stock.id, trades)} />
+            </SectionFx>
+          )}
           <GroupHead>③ 投資の根拠</GroupHead>
           {/* マクロ仮説 */}
           <SectionFx rank={rank} color={t.color} style={section}>
