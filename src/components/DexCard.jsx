@@ -44,6 +44,7 @@ import { calcLevel, stageOf, rarityOf, urFxOf, freshInfo } from "../lib/stock.js
 import { registerCard, setPointer, clearPointer } from "../lib/cardfx.js";
 import { hashStr } from "../lib/util.js";
 import { PLAN_STEPS, nextReviewOf } from "../lib/plan.js";
+import { AIM_COLOR } from "../lib/aim.js";
 
 /* 損切りライン超過の警告柄(虎柄=工事現場のハザードテープ)。
    これはオーナー自身が決めたラインへの到達を知らせる目印で、売買の指示ではない */
@@ -69,7 +70,7 @@ const UR_OPACITY = { spangle: 1, ember: 0.5, aurora: 0.34, prism: 0.9, rays: 0.5
    N(演出なし)とR(光沢だけ)の差がひと目で分かる */
 const BEAM_OPACITY = [0, 0, 0.55, 0.7, 0.85, 1];
 
-function DexCard({ stock, onClick, stopLossState }) {
+function DexCard({ stock, onClick, stopLossState, aimState }) {
   const t = TYPES[stock.type] || TYPES.metal;
   const rank = rarityOf(stock);
   const r = RARITIES.find((x) => x.key === rank) || RARITIES[0];
@@ -83,6 +84,8 @@ function DexCard({ stock, onClick, stopLossState }) {
   const review = nextReviewOf(stock);
   const over = stopLossState === "over";
   const near = stopLossState === "near";
+  // 👀 ねらいめライン(ウォッチ中・自分で決めた指値への到達/5%以内)。損切りとは別の色(ミント)
+  const aimHit = aimState === "hit", aimNear = aimState === "near";
   const tier = holoTierOf(stock);
   const urFx = urFxOf(stock);
   const rootRef = useRef(null);
@@ -121,10 +124,13 @@ function DexCard({ stock, onClick, stopLossState }) {
             : `linear-gradient(160deg, ${t.dark} 0%, #12152a 70%)`,
           border: over ? "2px solid #f87171"
             : near ? "2px dashed #fbbf24"
+            : aimHit ? `2px solid ${AIM_COLOR}`
+            : aimNear ? `2px dashed ${AIM_COLOR}`
             : stage.no >= 4 ? "none"
             : `${stage.no >= 2 ? 2 : 1.5}px solid ${sold ? "#374151" : t.color}${stage.no >= 3 ? "aa" : "66"}`,
           boxSizing: "border-box",
           boxShadow: over ? "0 0 18px rgba(248,113,113,.45)"
+            : aimHit ? "0 0 18px rgba(94,234,212,.45)"
             : !sold && stage.no >= 3 ? r.glow : "none",
         }} />
         {over && (
@@ -177,6 +183,16 @@ function DexCard({ stock, onClick, stopLossState }) {
               animation: over ? "kzAura 1.1s ease-in-out infinite" : "none",
             }}>
               {over ? "⚠ ライン超過" : "⚠ まもなく"}
+            </span>
+          )}
+          {!over && !near && (aimHit || aimNear) && (
+            <span style={{
+              position: "absolute", top: -6, left: -6, zIndex: 3,
+              fontFamily: "'DotGothic16', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5,
+              background: AIM_COLOR, color: "#042f2a", borderRadius: 5, padding: "1px 6px",
+              animation: aimHit ? "kzAura 1.1s ease-in-out infinite" : "none",
+            }}>
+              {aimHit ? "👀 ねらいめ到達" : "👀 ねらいめ間近"}
             </span>
           )}
           {stage.no >= 3 && !sold && (

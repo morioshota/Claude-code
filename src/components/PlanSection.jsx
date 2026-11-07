@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { btnStyle } from "./ui.jsx";
 import { fetchQuote } from "../lib/quotes.js";
 import { fmtMoney } from "../lib/holdings.js";
+import { AIM_COLOR, AIM_NEAR_PCT } from "../lib/aim.js";
 import {
   PLAN_STEPS, PLAN_STEP_KEYS, ENTRY_LABELS, cleanPlan, mergePlan, parsePlanSummary,
   nextReviewOf, planExpiryOf,
@@ -21,6 +22,16 @@ const row = { display: "flex", justifyContent: "space-between", gap: 10, fontSiz
 
 const fmtDate = (d) => (d ? `${+d.slice(5, 7)}/${+d.slice(8, 10)}` : "");
 const whenText = (days) => (days === 0 ? "今日" : days > 0 ? `あと${days}日` : `${-days}日過ぎています`);
+/* 👀 ねらいめライン(ウォッチ中): 指値までの距離。5%以内・到達はミント色で目立たせる(事実のみ・推奨しない) */
+const aimLine = (price, close) => {
+  const d = (close / price - 1) * 100; // 正 = あと何%下がれば届く
+  const hit = d <= 0, near = !hit && d <= AIM_NEAR_PCT;
+  return (
+    <span style={{ display: "block", fontSize: 10.5, color: hit || near ? AIM_COLOR : "#6b7394", fontWeight: hit || near ? 700 : 400 }}>
+      {hit ? "👀 ねらいめに到達" : `${near ? "👀 " : ""}ねらいめまであと${d.toFixed(1)}%`}
+    </span>
+  );
+};
 const distText = (price, close) => {
   if (!close) return "";
   const pct = (price / close - 1) * 100;
@@ -140,7 +151,7 @@ function PlanView({ stock, plan, cur, quote, compact }) {
           <span>指値（{e.label}）</span>
           <span style={{ textAlign: "right" }}>
             <span style={{ color: "#dfe4ff" }}>{fmtMoney(e.price, cur)}</span>
-            {close && !compact && <span style={{ display: "block", fontSize: 10.5, color: "#6b7394" }}>{distText(e.price, close)}</span>}
+            {close && !compact && (stock.status === "watch" ? aimLine(e.price, close) : <span style={{ display: "block", fontSize: 10.5, color: "#6b7394" }}>{distText(e.price, close)}</span>)}
           </span>
         </div>
       ))}

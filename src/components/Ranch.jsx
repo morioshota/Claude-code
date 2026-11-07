@@ -26,6 +26,7 @@ import { streaks } from "../lib/activity.js";
 import { dueForCheck } from "./TriggerCheck.jsx";
 import { renderBuilding, renderTree, renderFence } from "./buildArt.js";
 import { createCinema, drawCallouts, cinemaSaved, saveCinema } from "./ranchCinema.js";
+import { aimStateOf, aimTextOf } from "../lib/aim.js";
 
 /* ---- 実時間の演出パラメータ ---- */
 
@@ -1448,6 +1449,10 @@ function RanchView({ stocks, activity, onSelect, quotes: quotesProp }) {
       const m = marginToStopLoss(s, quotes[s.id]);
       if (st === "near" && m !== null) items.push(`⚠️ ${s.name}は ${exitPriceOf(s) !== null ? "撤退ライン" : "にげるライン"}まであと${m.toFixed(1)}%`);
     });
+    // 👀 ねらいめライン(ウォッチ中・自分で決めた指値への到達/5%以内)。到達を先に
+    const aims = actives.map((s) => [s, aimStateOf(s, quotes[s.id])]).filter(([, a]) => a && a.state !== "far");
+    aims.filter(([, a]) => a.state === "hit").forEach(([s, a]) => items.push(`🎯 ${s.name}が ${aimTextOf(a, quotes[s.id]?.currency)}しています`));
+    aims.filter(([, a]) => a.state === "near").forEach(([s, a]) => items.push(`👀 ${s.name}は ${aimTextOf(a, quotes[s.id]?.currency)}`));
     dueForCheck(stocks).forEach((s) => items.push(`🔔 ${s.name}のトリガー点検が30日以上あいています`));
     actives.forEach((s) => {
       const f = freshInfo(s);

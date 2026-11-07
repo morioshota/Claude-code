@@ -119,6 +119,14 @@ export const fmtPct = (pct) => `${pct > 0 ? "+" : ""}${pct.toFixed(1)}%`;
 
 /* 保有情報のある銘柄の株価をまとめて取得(quotes.jsのキャッシュに乗る)。
    返り値: { [stockId]: quote } 。失敗した銘柄は含まれない */
+/* 指定した銘柄の株価をまとめて取得(👀ねらいめラインのウォッチ銘柄など)。返り値は fetchHeldQuotes と同じ形 */
+export const fetchQuotesOf = async (list, opts) => {
+  const results = await Promise.all(list.map((s) => fetchQuote(s, opts).catch(() => null)));
+  const map = {};
+  list.forEach((s, i) => { if (results[i]) map[s.id] = results[i]; });
+  return map;
+};
+
 export const fetchHeldQuotes = async (stocks, opts) => {
   const held = stocks.filter((s) => holdingOf(s));
   const results = await Promise.all(held.map((s) => fetchQuote(s, opts).catch(() => null)));

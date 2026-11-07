@@ -31,7 +31,8 @@ import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/
 import { sfx, soundEnabled, setSoundEnabled } from "./lib/sound.js";
 import { initSync, getSyncState, onSyncState } from "./lib/sync.js";
 import { enableTilt, disableTilt, restoreTilt, tiltOn, tiltSupported, onTiltChange } from "./lib/cardfx.js";
-import { fetchHeldQuotes, stopLossStateOf, stopLossLabelOf, pnlOf } from "./lib/holdings.js";
+import { fetchHeldQuotes, fetchQuotesOf, stopLossStateOf, stopLossLabelOf, pnlOf, fmtMoney } from "./lib/holdings.js";
+import { hasAim, aimStateOf, aimTextOf, AIM_COLOR } from "./lib/aim.js";
 import { dueReviews } from "./lib/plan.js";
 import { PortfolioSummary } from "./components/PortfolioSummary.jsx";
 import { DailyView } from "./components/DailyView.jsx";
@@ -189,12 +190,14 @@ export default function KabuDex() {
 
   /* 保有情報のある銘柄の参考株価をまとめて取得。失敗しても本体には影響しない */
   const holdSig = (stocks || [])
-    .map((s) => `${s.id}:${s.status}:${s.shares}:${s.avgPrice}:${s.stopLossPct}`)
+    .map((s) => `${s.id}:${s.status}:${s.shares}:${s.avgPrice}:${s.stopLossPct}:${hasAim(s) ? "aim" : ""}`)
     .join("|");
   useEffect(() => {
     if (!stocks) return;
     let alive = true;
-    fetchHeldQuotes(stocks).then((m) => { if (alive) setQuotes(m); });
+    // 保有銘柄に加えて、👀ねらいめライン(指値)のあるウォッチ銘柄の株価も取る
+    Promise.all([fetchHeldQuotes(stocks), fetchQuotesOf(stocks.filter(hasAim))])
+      .then(([held, aim]) => { if (alive) setQuotes({ ...aim, ...held }); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [holdSig]);
@@ -557,6 +560,10 @@ export default function KabuDex() {
   stocks.forEach((s) => { const st = stopLossStateOf(s, quotes[s.id]); if (st) stopLossMap[s.id] = st; });
   const overList = stocks.filter((s) => stopLossMap[s.id] === "over");
   const nearList = stocks.filter((s) => stopLossMap[s.id] === "near");
+  // 👀 ねらいめライン(ウォッチ中の銘柄の、自分で決めた指値への接近・到達)。事実の表示のみで、売買は勧めない
+  const aimMap = {};
+  stocks.forEach((s) => { const a = aimStateOf(s, quotes[s.id]); if (a && a.state !== "far") aimMap[s.id] = a; });
+  const aimList = stocks.filter((s) => aimMap[s.id]).sort((a, b) => (aimMap[a.id].state === "hit" ? 0 : 1) - (aimMap[b.id].state === "hit" ? 0 : 1) || aimMap[a.id].dist - aimMap[b.id].dist);
   // 📌 次に見る日・エントリー設計の期限(7日以内・過ぎたもの)
   const dueList = dueReviews(stocks, 7);
 
@@ -832,6 +839,25 @@ export default function KabuDex() {
           </div>
         )}
 
+        {/* 👀 ねらいめライン: ウォッチ中の銘柄が、自分で決めた指値に近づいた(5%以内)/届いた。事実のみ・推奨しない */}
+        {aimList.length > 0 && (
+          <div style={{ background: "#0d2522", border: `1.5px solid ${AIM_COLOR}66`, borderRadius: 12, padding: "10px 14px", marginBottom: 12 }}>
+            <div style={{ fontSize: 12.5, color: AIM_COLOR, fontWeight: 700, marginBottom: 4 }}>👀 ねらいめラインに近い・到達した銘柄</div>
+            {aimList.map((s) => {
+              const a = aimMap[s.id], cur = quotes[s.id] && quotes[s.id].currency;
+              return (
+                <button key={s.id} onClick={() => openDetail(s.id)} style={{ all: "unset", cursor: "pointer", display: "block", fontSize: 12, color: "#ccf5ee", lineHeight: 1.7 }}>
+                  {a.state === "hit" ? "🎯 " : "👀 "}<b>{s.name}</b>：{aimTextOf(a, cur)}
+                  <span style={{ color: "#7fb8ae", fontSize: 11 }}>（今 {fmtMoney(a.close, cur)}{a.state === "hit" && a.next ? `・次の${a.next.entry.label}まであと${a.next.dist.toFixed(1)}%` : ""}）</span>
+                </button>
+              );
+            })}
+            <div style={{ fontSize: 10, color: "#6fa39a", marginTop: 4, lineHeight: 1.6 }}>
+              🧭つぎの一手に控えた、あなたが決めた指値までの距離です。売買の推奨ではありません。株価は遅延データのため、実際の判断は必ずご自身で確認してください。タップで詳細へ
+            </div>
+          </div>
+        )}
+
         {/* 📌 次に見る日(🧭つぎの一手に自分で記録した予定)。7日以内・期日を過ぎたもの。事実の表示のみ */}
         {dueList.length > 0 && (
           <div style={{ background: "#0f1d2b", border: "1.5px solid #7dd3fc55", borderRadius: 12, padding: "10px 14px", marginBottom: 12 }}>
@@ -969,7 +995,7 @@ export default function KabuDex() {
         ) : (
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))" }}>
             {filtered.map((s) => (
-              <DexCard key={s.id} stock={s} onClick={() => openDetail(s.id)} stopLossState={stopLossMap[s.id]} />
+              <DexCard key={s.id} stock={s} onClick={() => openDetail(s.id)} stopLossState={stopLossMap[s.id]} aimState={aimMap[s.id] && aimMap[s.id].state} />
             ))}
           </div>
         )}
