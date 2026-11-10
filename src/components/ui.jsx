@@ -234,4 +234,4 @@ const pageStyle = {
   fontFamily: "'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', sans-serif",
 };
 
-export { inlineBold, MdView, Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, PressButton, Overlay, FilterChip, pageStyle };
+export { inlineBold, MdView, gridImage, Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, PressButton, Overlay, FilterChip, pageStyle };

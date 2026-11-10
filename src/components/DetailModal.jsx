@@ -9,7 +9,10 @@ import { AnalysisPanel } from "./Analysis.jsx";
 import { NoteItem } from "./notes.jsx";
 import { Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay } from "./ui.jsx";
 import { TYPES, RARITIES, STAGES } from "../data/constants.js";
-import { calcLevel, calcCP, stageOf, rarityOf, urFxOf, freshInfo } from "../lib/stock.js";
+import { calcLevel, calcCP, stageOf, rarityOf, urFxOf, freshInfo, speciesIndexOf } from "../lib/stock.js";
+import { SPECIES_POOL } from "../data/species.js";
+import { EVO_KINDS } from "../data/evolution.js";
+import { sfx } from "../lib/sound.js";
 import { SectionFx } from "./SectionFx.jsx";
 import { fetchQuote } from "../lib/quotes.js";
 import {
@@ -112,6 +115,42 @@ function GroupHead({ color, children }) {
   );
 }
 
+/* 📇 カードのうら面: この子との研究の歩み。自分の記録から分かる事実だけを並べる(評価・推奨はしない) */
+function CardBack({ stock, notes, t, stage, lv, fresh }) {
+  const fmt = (d) => (d ? `${d.slice(0, 4)}/${+d.slice(5, 7)}/${+d.slice(8, 10)}` : null);
+  const sp = stock.special ? null : SPECIES_POOL[speciesIndexOf(stock).type][speciesIndexOf(stock).index];
+  // 出会った日: 登録日(2026-11以降の登録で保存)。無ければ、残っているいちばん古い記録の日付
+  const dates = [...(stock.logs || []).map((l) => l.date), ...(notes || []).map((n) => n.date), ...(stock.trades || []).map((x) => x.date), stock.buyDate].filter(Boolean).sort();
+  const met = stock.createdAt ? fmt(stock.createdAt) : dates[0] ? `${fmt(dates[0])}（いちばん古い記録）` : "記録なし";
+  const rows = [
+    ["しゅぞく", stock.special ? "🌟 とくべつ" : sp ? sp.name : "—"],
+    ["であった日", met],
+    ["研究レベル", `Lv.${lv}（ST${stage.no} ${stage.name}）`],
+    ["生態調査記録", `${stock.noteCount || 0}件`],
+    ["クイックメモ", `${(stock.logs || []).length}件`],
+    ["さいごに調べた日", stock.lastResearch ? `${fmt(stock.lastResearch)}${fresh && fresh.days !== null ? `（${fresh.days}日前）` : ""}` : "まだ"],
+    stage.no >= 2 && !stock.special ? ["しんかのかざり", stock.evoPattern && EVO_KINDS[stock.evoPattern] ? EVO_KINDS[stock.evoPattern].name : "—"] : null,
+    stock.evoFxBest ? ["しんか演出のさいこう", { normal: "ふつう", rare: "レア", ultra: "超レア" }[stock.evoFxBest] || stock.evoFxBest] : null,
+    stock.shiny ? ["いろちがい", stock.shinyAt ? `✨ ${fmt(stock.shinyAt)} に当選` : "✨"] : null,
+    stock.lastTriggerCheck ? ["さいごの点検", fmt(stock.lastTriggerCheck)] : null,
+    stock.status === "sold" && stock.soldAt ? ["そつぎょう", fmt(stock.soldAt)] : null,
+  ].filter(Boolean);
+  return (
+    <div className="kzFlipIn" style={{ position: "relative", zIndex: 1, paddingRight: 24, paddingBottom: 22 }}>
+      <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 12, color: t.color, letterSpacing: 2, marginBottom: 6 }}>📇 研究の歩み — {stock.name}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "3px 12px", fontSize: 12 }}>
+        {rows.map(([k, v]) => (
+          <div key={k} style={{ display: "contents" }}>
+            <span style={{ color: "#8b93b8" }}>{k}</span>
+            <span style={{ color: "#f2f4ff", fontFamily: "'DotGothic16', monospace" }}>{v}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 9.5, color: "#5b6284", marginTop: 6 }}>研究の積み重ねの記録です。銘柄の良し悪しとは関係ありません</div>
+    </div>
+  );
+}
+
 function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, onLog, onOpenNoteEditor, onOpenAi, onDeleteNote, onSaveFundamentals, onSaveTrades, onPatch }) {
   const t = TYPES[stock.type] || TYPES.metal;
   const rank = rarityOf(stock);
@@ -150,6 +189,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
   };
   const [flash, setFlash] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [back, setBack] = useState(false); // 📇 カードのうら面(研究の歩み)を見ているか
   const [tab, setTab] = useState("research"); // 'research'|'analysis'
 
   const addLog = () => {
@@ -184,7 +224,13 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
               style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.5 }} />
           )}
           <button onClick={onClose} style={{ position: "absolute", top: 10, right: 12, all: "unset", cursor: "pointer", color: "#8b93b8", fontSize: 20, lineHeight: 1, padding: 6, zIndex: 2 }}>✕</button>
-          <div style={{ display: "flex", gap: 14, alignItems: "center", position: "relative", zIndex: 1 }}>
+          {/* 🔄 カードを裏返す: うら面は「研究の歩み」(自分の記録から分かる事実だけ) */}
+          <button onClick={() => { setBack((v) => !v); sfx("flip"); }} title="カードを裏返す"
+            style={{ all: "unset", cursor: "pointer", position: "absolute", right: 12, top: 12, zIndex: 3, fontSize: 11, color: "#c7cdec", border: "1px solid #3b4470", borderRadius: 999, padding: "3px 10px", background: "rgba(10,13,28,.6)" }}>
+            🔄 {back ? "おもて" : "うら面"}
+          </button>
+          {back && <CardBack stock={stock} notes={notes} t={t} stage={stage} lv={lv} fresh={fresh} />}
+          <div key={back ? "b" : "f"} className="kzFlipIn" style={{ display: back ? "none" : "flex", gap: 14, alignItems: "center", position: "relative", zIndex: 1 }}>
             <div style={{
               filter: `drop-shadow(0 0 ${8 + stage.no * 4}px ${t.color}99)`,
               animation: flash ? "kzBounce .6s ease" : stage.no >= 4 ? "kzAura 2.4s ease-in-out infinite" : "none",

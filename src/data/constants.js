@@ -62,6 +62,22 @@ const ACHIEVEMENTS = [
   { id: "shiny1",   icon: "✨", name: "いろちがいハンター", desc: "色違いの銘柄を手に入れる（記録保存ごとに5%）" },
   { id: "ultraEvo", icon: "🌈", name: "ゴッドえんしゅつ",   desc: "超レア進化演出（5%）を引き当てる" },
   { id: "check1",   icon: "🔔", name: "てんけんたい",       desc: "トリガー点検をおこなう" },
+  { id: "species10", icon: "🔍", name: "しゅぞくウォッチャー", desc: "10種族と出会う（種族図鑑）" },
+  { id: "species30", icon: "🗺️", name: "しゅぞくはかせ",     desc: "30種族と出会う（全60種族の半分）" },
+  { id: "memo30",    icon: "📝", name: "メモま",             desc: "クイックメモを合計30件" },
+  { id: "lesson1",   icon: "🎓", name: "ふりかえり上手",     desc: "卒業アルバムに「学んだこと」を残す" },
+  { id: "plan1",     icon: "🧭", name: "じゅんびばんたん",   desc: "🧭つぎの一手に計画を控える" },
+];
+
+/* 称号: 実績バッジの数で上がる(研究の積み重ねの遊び指標。投資の成績・銘柄の良し悪しとは無関係) */
+const TITLES = [
+  { min: 0,  name: "みならい調査員" },
+  { min: 3,  name: "かけだし調査員" },
+  { min: 6,  name: "フィールド調査員" },
+  { min: 9,  name: "ベテラン調査員" },
+  { min: 12, name: "しゅにん研究員" },
+  { min: 15, name: "カブはかせ" },
+  { min: 18, name: "でんせつのはかせ" },
 ];
 
 const SEED = [
@@ -131,4 +147,4 @@ const MEMO_TEMPLATE = `# 投資メモ: [銘柄名]([コード])
 
 const BACKUP_FORMAT = 2; // 2: activity(草カレンダー)を含む。1のファイルも読み込み可
 
-export { STORAGE_KEY, noteKey, TYPES, RARITIES, STATUSES, STAGES, ACHIEVEMENTS, SEED, MEMO_TEMPLATE, BACKUP_FORMAT };
+export { STORAGE_KEY, noteKey, TYPES, RARITIES, STATUSES, STAGES, ACHIEVEMENTS, TITLES, SEED, MEMO_TEMPLATE, BACKUP_FORMAT };

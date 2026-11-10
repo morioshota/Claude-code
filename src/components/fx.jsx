@@ -3,9 +3,9 @@
    演出はすべて「研究行動」の結果にだけ反応する(株価・市場とは無関係)。
    prefers-reduced-motion の端末ではパーティクルを出さず静かなフェードに落とす。 */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Creature } from "./ui.jsx";
-import { TYPES } from "../data/constants.js";
+import { TYPES, STAGES } from "../data/constants.js";
 import { EVO_KINDS } from "../data/evolution.js";
 import { sfx } from "../lib/sound.js";
 
@@ -88,6 +88,7 @@ export function FxLayer() {
 
 /* ============ 進化セレモニー(演出ガチャ: 通常70% / レア25% / 超レア5%) ============ */
 
+const PRE_MS = 1300; // 進化まえの「ため」の長さ
 const TIER_STYLE = {
   normal: { dur: 2600, label: "", border: "linear-gradient(120deg,#f0abfc,#ffd166,#4ade80,#60a5fa,#f0abfc)" },
   rare:   { dur: 3600, label: "★ レア演出 ★", border: "linear-gradient(120deg,#ffd166,#fff7d6,#ffd166,#f59e0b,#ffd166)" },
@@ -98,22 +99,33 @@ export function EvoCeremony({ evo, onDone }) {
   // evo: { stock, stage, tier }
   const doneRef = useRef(false);
   const style = TIER_STYLE[evo.tier] || TIER_STYLE.normal;
+  // 2段構え(2026-11): ①進化まえの姿がふるえて光をためる「おや…？」→ ②白く光って新しい姿が現れる
+  const [phase, setPhase] = useState("before");
+  // 進化まえの姿: ひとつ前のステージのレベルにした仮の銘柄で描く(保存データは触らない)
+  const prevStage = STAGES[Math.max(0, evo.stage.no - 2)];
+  const beforeStock = { ...evo.stock, noteCount: 0, logs: new Array(Math.max(0, prevStage.min - 1)).fill({ date: "", text: "" }) };
 
   useEffect(() => {
-    sfx(evo.tier === "ultra" ? "evoUltra" : evo.tier === "rare" ? "evoRare" : "evo");
-    if (evo.tier === "rare") { flashScreen(); burstConfetti(50); }
-    if (evo.tier === "ultra") {
-      flashScreen("rgba(255,209,102,.6)");
-      shakeScreen();
-      burstConfetti(140);
-      burstStars(20);
-      const t2 = setTimeout(() => { burstConfetti(80); burstStars(14); }, 1200);
-      return () => clearTimeout(t2);
-    }
+    sfx("charge");
+    const timers = [];
+    timers.push(setTimeout(() => {
+      setPhase("after");
+      sfx(evo.tier === "ultra" ? "evoUltra" : evo.tier === "rare" ? "evoRare" : "evo");
+      flashScreen(evo.tier === "ultra" ? "rgba(255,209,102,.6)" : "rgba(255,255,255,.55)");
+      burstStars(evo.tier === "normal" ? 8 : 0);
+      if (evo.tier === "rare") burstConfetti(50);
+      if (evo.tier === "ultra") {
+        shakeScreen();
+        burstConfetti(140);
+        burstStars(20);
+        timers.push(setTimeout(() => { burstConfetti(80); burstStars(14); }, 1200));
+      }
+    }, PRE_MS));
+    return () => timers.forEach(clearTimeout);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const t = setTimeout(() => { if (!doneRef.current) { doneRef.current = true; onDone(); } }, style.dur);
+    const t = setTimeout(() => { if (!doneRef.current) { doneRef.current = true; onDone(); } }, PRE_MS + style.dur);
     return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -135,9 +147,18 @@ export function EvoCeremony({ evo, onDone }) {
         backgroundOrigin: "border-box", backgroundClip: "padding-box, border-box",
         border: "2px solid transparent",
         boxShadow: evo.tier === "ultra" ? "0 0 90px rgba(255,209,102,.7)" : evo.tier === "rare" ? "0 0 60px rgba(255,209,102,.5)" : "0 0 50px rgba(240,171,252,.4)",
-        animation: `kzPop ${style.dur / 1000}s ease forwards`,
+        // ⚠ kzPop は「left/top 50%に置いた要素」用(translate(-50%,-50%)入り)。flexで中央に置いたこの箱に使うと左上へずれる
+        animation: `kzEvoBox ${(PRE_MS + style.dur) / 1000}s ease forwards`,
       }}>
-        <div style={{ padding: "20px 30px", textAlign: "center" }}>
+        {phase === "before" ? (
+          <div style={{ padding: "20px 30px", textAlign: "center", minWidth: 190 }}>
+            <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 14, color: "#dfe4ff", marginBottom: 8 }}>おや…？ {evo.stock.name} のようすが…</div>
+            <div className="kzEvoCharge" style={{ display: "flex", justifyContent: "center" }}>
+              <Creature stock={beforeStock} size={84} />
+            </div>
+          </div>
+        ) : (
+        <div className="kzEvoReveal" style={{ padding: "20px 30px", textAlign: "center" }}>
           {style.label && (
             <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: evo.tier === "ultra" ? 16 : 13, color: evo.tier === "ultra" ? "#ffd166" : "#fcd34d", marginBottom: 6, animation: "kzAura 1s ease-in-out infinite" }}>
               {style.label}
@@ -156,6 +177,7 @@ export function EvoCeremony({ evo, onDone }) {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );
@@ -180,7 +202,7 @@ export function ShinyCeremony({ stock, onDone }) {
         backgroundImage: "linear-gradient(#0e1122,#0e1122), linear-gradient(120deg,#f0abfc,#ffffff,#c4b5fd,#f0abfc)",
         backgroundOrigin: "border-box", backgroundClip: "padding-box, border-box",
         border: "2px solid transparent", boxShadow: "0 0 80px rgba(240,171,252,.6)",
-        animation: "kzPop 4.2s ease forwards",
+        animation: "kzEvoBox 4.2s ease forwards",
       }}>
         <div style={{ padding: "22px 34px", textAlign: "center" }}>
           <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 15, color: "#f0abfc", animation: "kzAura 1s ease-in-out infinite" }}>
@@ -219,7 +241,7 @@ export function SpecialCeremony({ stock, onDone }) {
         backgroundImage: "linear-gradient(#0e1122,#0e1122), linear-gradient(120deg,#ffd166,#ffffff,#f0abfc,#7dd3fc,#ffd166)",
         backgroundOrigin: "border-box", backgroundClip: "padding-box, border-box",
         border: "2px solid transparent", boxShadow: "0 0 90px rgba(255,209,102,.6)",
-        animation: "kzPop 5.6s ease forwards",
+        animation: "kzEvoBox 5.6s ease forwards",
       }}>
         <div style={{ padding: "22px 34px", textAlign: "center" }}>
           <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 15, color: "#ffd166", animation: "kzAura 1s ease-in-out infinite" }}>

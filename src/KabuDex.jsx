@@ -37,7 +37,8 @@ import { dueReviews } from "./lib/plan.js";
 import { PortfolioSummary } from "./components/PortfolioSummary.jsx";
 import { DailyView } from "./components/DailyView.jsx";
 import { applyTrades } from "./lib/lots.js";
-import { calcLevel, stageOf, freshInfo, evalAchievements } from "./lib/stock.js";
+import { calcLevel, stageOf, freshInfo, evalAchievements, discoveredSpecies, speciesKey, SPECIES_TOTAL, titleOf } from "./lib/stock.js";
+import { SpeciesDexModal } from "./components/SpeciesDex.jsx";
 import { today, uid, daysSince } from "./lib/util.js";
 
 /* 図鑑の並び替え。並びは見やすさのためで、銘柄の優劣やおすすめ順ではない(CLAUDE.md) */
@@ -242,7 +243,7 @@ export default function KabuDex() {
 
   const addStock = (f) => {
     const maxNo = stocks.reduce((m, s) => Math.max(m, s.no || 0), 0);
-    let ns = { ...f, id: uid(), no: maxNo + 1, logs: f.logs || [], noteCount: 0, lastResearch: "" };
+    let ns = { ...f, id: uid(), no: maxNo + 1, logs: f.logs || [], noteCount: 0, lastResearch: "", createdAt: today() }; // createdAt=であった日(カードのうら面)
     // 特別キャラの抽選は「初めて登録したとき」の1回だけ(オーナー要望: 愛着が湧いた頃に姿が変わるのはショック)。
     // 外れたら従来どおり証券コードで決まるセクターの種族。当選は永久保存(不変条件6)
     const pool = getSpecials(); // とくべつパックを読み込んだ端末でだけ抽選される
@@ -252,10 +253,13 @@ export default function KabuDex() {
     setFormMode(null);
     recordActivity().then(setActivity);
     if (wonSpecial) { setSpecialFlash(ns); return; } // 当選時は登録の演出の代わりに特別キャラのセレモニー
-    setGetFlash({ icon: "🎉", text: `${ns.name} を図鑑に登録した！` });
+    // 🔍 はじめて出会う種族なら、ひとこと添える(種族図鑑)
+    const newSpecies = !discoveredSpecies(stocks).has(speciesKey(ns));
+    setGetFlash({ icon: "🎉", text: `${ns.name} を図鑑に登録した！${newSpecies ? "\n🔍 あたらしい種族と出会った！" : ""}` });
     sfx("get");
+    if (newSpecies) setTimeout(() => sfx("dexFound"), 450);
     burstConfetti(30);
-    setTimeout(() => setGetFlash(null), 2000);
+    setTimeout(() => setGetFlash(null), newSpecies ? 2800 : 2000);
   };
 
   const updateStock = (updated, openEdit) => {
@@ -521,7 +525,7 @@ export default function KabuDex() {
     return { stockCount: added.length, noteCount: countNotes(addedNotes), skipped };
   };
 
-  const openDetail = (id) => { setSelectedId(id); loadNotes(id); };
+  const openDetail = (id) => { sfx("tap"); setSelectedId(id); loadNotes(id); };
 
   if (stocks === null) {
     return (
@@ -606,6 +610,17 @@ export default function KabuDex() {
             rgba(255,255,255,.10) 0 2px, rgba(255,255,255,0) 2px 7px);
           background-size: 220% 220%; mix-blend-mode: overlay; opacity: .32;
           animation: kzHoloDrift 9s linear infinite; }
+        /* タイプごとの箔の模様(2026-11)。kzHoloFine の縞をタイプらしい柄に差し替える(ST4以上) */
+        .kzHoloT-cosmo  { background-image: radial-gradient(circle, rgba(255,255,255,.34) 0 1.1px, transparent 1.7px), radial-gradient(circle, rgba(255,255,255,.2) 0 .8px, transparent 1.3px); background-size: 19px 19px, 11px 13px; }
+        .kzHoloT-metal  { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.13) 0 1.5px, transparent 1.5px 7px), repeating-linear-gradient(-45deg, rgba(255,255,255,.13) 0 1.5px, transparent 1.5px 7px); background-size: auto; }
+        .kzHoloT-spark  { background-image: linear-gradient(135deg, rgba(255,255,255,.2) 25%, transparent 25%), linear-gradient(225deg, rgba(255,255,255,.2) 25%, transparent 25%); background-size: 14px 14px; }
+        .kzHoloT-build  { background-image: linear-gradient(rgba(255,255,255,.16) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,.16) 1.5px, transparent 1.5px); background-size: 18px 9px, 18px 18px; }
+        .kzHoloT-play   { background-image: radial-gradient(circle, rgba(255,255,255,.2) 0 3.2px, transparent 3.8px); background-size: 16px 16px; }
+        .kzHoloT-drive  { background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.17) 0 1.5px, transparent 1.5px 6px, rgba(255,255,255,.08) 6px 7px, transparent 7px 15px); background-size: auto; }
+        .kzHoloT-life   { background-image: radial-gradient(ellipse 60% 100% at 50% 0%, rgba(255,255,255,.2) 0 55%, transparent 60%); background-size: 16px 12px; }
+        .kzHoloT-tech   { background-image: linear-gradient(rgba(255,255,255,.14) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.14) 1px, transparent 1px), radial-gradient(circle, rgba(255,255,255,.3) 0 1.4px, transparent 2px); background-size: 12px 12px, 12px 12px, 24px 24px; }
+        .kzHoloT-money  { background-image: radial-gradient(circle, transparent 0 3px, rgba(255,255,255,.22) 3px 4.4px, transparent 5px); background-size: 15px 15px; }
+        .kzHoloT-market { background-image: linear-gradient(45deg, rgba(255,255,255,.15) 25%, transparent 25% 75%, rgba(255,255,255,.15) 75%), linear-gradient(45deg, rgba(255,255,255,.15) 25%, transparent 25% 75%, rgba(255,255,255,.15) 75%); background-size: 16px 16px; background-position: 0 0, 8px 8px; }
         @keyframes kzHoloDrift { from{background-position:0% 0%} to{background-position:220% 220%} }
         /* 走査光。ステージ2から出す。出だしは銘柄ごとにずらす(DexCard側のanimationDelay) */
         .kzHoloBeam { background: linear-gradient(105deg,
@@ -686,6 +701,14 @@ export default function KabuDex() {
         /* ✦のまたたき(オーラ進化・色違い)。sprites.jsが返した座標に重ねる */
         /* ---- クリーチャーの生きている動き(ui.jsx の Creature live) ----
            足元(下辺の中央)を軸に動かす。しぐさは研究の鮮度で変わる */
+        /* 進化の演出: ため(ふるえながら白く光る)→あらわれる */
+        @keyframes kzEvoBox { 0%{opacity:0; transform:scale(.7)} 7%{opacity:1; transform:scale(1.04)} 12%{transform:scale(1)} 90%{opacity:1; transform:scale(1)} 100%{opacity:0; transform:scale(1)} }
+        .kzEvoCharge { animation: kzEvoCharge 1.3s ease-in forwards; }
+        @keyframes kzEvoCharge { 0%{transform:translateX(0); filter:brightness(1)} 15%{transform:translateX(-2px)} 30%{transform:translateX(2px)} 45%{transform:translateX(-3px); filter:brightness(1.6)} 60%{transform:translateX(3px)} 75%{transform:translateX(-4px) scale(1.04); filter:brightness(3) saturate(.4)} 90%{transform:translateX(4px) scale(1.08)} 100%{transform:scale(1.14); filter:brightness(9) saturate(0)} }
+        .kzEvoReveal { animation: kzEvoReveal .5s ease-out; }
+        @keyframes kzEvoReveal { 0%{filter:brightness(8) saturate(0); transform:scale(1.12)} 100%{filter:brightness(1); transform:scale(1)} }
+        .kzFlipIn { animation: kzFlipIn .38s ease-out; transform-origin: 50% 50%; }
+        @keyframes kzFlipIn { 0%{ transform: perspective(700px) rotateY(88deg); opacity: 0 } 100%{ transform: perspective(700px) rotateY(0); opacity: 1 } }
         .kzCr { transform-origin: 50% 100%; transform-box: fill-box; }
         .kzCr0 { animation: kzCrHop 1.9s ease-in-out infinite; }
         .kzCr0.kzCrHappy { animation-duration: 1.1s; }
@@ -771,7 +794,7 @@ export default function KabuDex() {
       {getFlash && (
         <div style={{ position: "fixed", top: "40%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 100, background: "#0e1122", border: "2px solid #ffd166", borderRadius: 16, padding: "18px 28px", textAlign: "center", boxShadow: "0 0 40px rgba(255,209,102,.4)", animation: "kzPop 2.4s ease forwards", pointerEvents: "none" }}>
           <div style={{ fontSize: 34 }}>{getFlash.icon}</div>
-          <div style={{ fontFamily: "'DotGothic16', monospace", color: "#ffd166", fontSize: 16, marginTop: 4 }}>{getFlash.text}</div>
+          <div style={{ fontFamily: "'DotGothic16', monospace", color: "#ffd166", fontSize: 16, marginTop: 4, whiteSpace: "pre-line" }}>{getFlash.text}</div>
         </div>
       )}
 
@@ -793,6 +816,10 @@ export default function KabuDex() {
             📕 銘柄図鑑 <span style={{ color: "#ffd166" }}>KABU DEX</span>
           </div>
           <div style={{ fontSize: 12, color: "#8b93b8", marginTop: 2 }}>集めて、調べて、育てる。生態調査記録つき図鑑</div>
+          {/* 称号(実績バッジの数で上がる遊びの指標)。タップで実績へ */}
+          <button onClick={() => setPanel("badges")} style={{ all: "unset", cursor: "pointer", display: "inline-block", marginTop: 8, fontFamily: "'DotGothic16', monospace", fontSize: 11.5, color: "#ffd166", border: "1px solid #ffd16655", borderRadius: 999, padding: "2px 10px", background: "#ffd1660f" }}>
+            🎖 {titleOf(unlockedCount).name}
+          </button>
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 12 }}>
             {[
               ["トレーナーLv", trainerLv, "#ffd166"],
@@ -806,6 +833,12 @@ export default function KabuDex() {
                 <span style={{ color: c, fontSize: 15 }}>{v}</span>
               </div>
             ))}
+            {/* 🔍 種族図鑑(出会った種族/全60)。タップで一覧へ */}
+            <button onClick={() => setPanel("species")} style={{ all: "unset", cursor: "pointer", fontFamily: "'DotGothic16', monospace", fontSize: 12 }}>
+              <span style={{ color: "#5b6284" }}>🔍 種族 </span>
+              <span style={{ color: "#5eead4", fontSize: 15 }}>{discoveredSpecies(stocks).size}/{SPECIES_TOTAL}</span>
+              <span style={{ color: "#5b6284" }}> ›</span>
+            </button>
             {saveState && <span style={{ fontSize: 11, color: "#8b93b8", alignSelf: "center" }}>{saveState}</span>}
           </div>
           <PortfolioSummary stocks={stocks} quotes={quotes} onOpen={() => { setView("analysis"); window.scrollTo({ top: 0, behavior: "smooth" }); }} onOpenToday={() => setView("today")} />
@@ -932,7 +965,7 @@ export default function KabuDex() {
         {/* タブが5つになったので、📱🔊は右端の1列に上下2段で置く(タブの幅を確保するため) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr) 38px", gridTemplateRows: "auto auto", gap: 6, marginBottom: 10 }}>
           {[["dex", "📕", "図鑑"], ["today", "📅", "今日"], ["ranch", "🏞", "牧場"], ["analysis", "📊", "分析"], ["album", "🎓", "アルバム"]].map(([k, icon, label]) => (
-            <PressButton key={k} color="#ffd166" active={view === k} onClick={() => setView(k)}
+            <PressButton key={k} color="#ffd166" active={view === k} onClick={() => { if (view !== k) sfx("tab"); setView(k); }}
               style={{ gridRow: "1 / 3", flexDirection: "column", gap: 1, padding: "7px 0", fontFamily: "'DotGothic16', monospace", fontSize: 11, letterSpacing: 0, whiteSpace: "nowrap" }}>
               <span style={{ fontSize: 15, lineHeight: 1 }}>{icon}</span>
               <span>{label}</span>
@@ -946,7 +979,7 @@ export default function KabuDex() {
           </PressButton>
           <PressButton
             color="#60a5fa" active={soundOn} title={soundOn ? "効果音オン" : "効果音オフ"}
-            onClick={() => { const next = !soundOn; setSoundOn(next); setSoundEnabled(next); if (next) sfx("sparkle"); }}
+            onClick={() => { const next = !soundOn; setSoundOn(next); setSoundEnabled(next); if (next) sfx("sparkle"); window.dispatchEvent(new Event("kz-sound")); }}
             style={{ padding: "2px 0", fontSize: 13 }}>
             {soundOn ? "🔊" : "🔇"}
           </PressButton>
@@ -1052,6 +1085,7 @@ export default function KabuDex() {
         <AiAssistant stock={selected} onSaveAsNote={saveAiDraft} onClose={() => setPanel(null)} />
       )}
       {panel === "party" && <PartyModal stocks={stocks} onClose={() => setPanel(null)} />}
+      {panel === "species" && <SpeciesDexModal stocks={stocks} onSelect={openDetail} onClose={() => setPanel(null)} />}
       {panel === "badges" && <BadgeModal stocks={stocks} onClose={() => setPanel(null)} />}
       {panel === "data" && <DataPortModal stocks={stocks} onExport={exportAll} onImport={importAll} onBackupDone={markBackupDone} specials={getSpecials()} specialsVer={specialsVer} onSpecialPack={importSpecialPack} onClearSpecials={removeSpecialPack} onClose={() => setPanel(null)} />}
       {panel === "check" && <TriggerCheckModal due={due} onAnswer={answerTriggerCheck} onClose={() => setPanel(null)} />}

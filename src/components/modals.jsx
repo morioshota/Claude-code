@@ -4,7 +4,8 @@ import { useState, useRef } from "react";
 import { Gauge, btnStyle, Overlay } from "./ui.jsx";
 import { SyncPanel } from "./SyncPanel.jsx";
 import { TYPES, ACHIEVEMENTS } from "../data/constants.js";
-import { evalAchievements } from "../lib/stock.js";
+import { evalAchievements, titleOf } from "../lib/stock.js";
+import { TITLES } from "../data/constants.js";
 import { today } from "../lib/util.js";
 
 function PartyModal({ stocks, onClose }) {
@@ -72,6 +73,19 @@ function BadgeModal({ stocks, onClose }) {
           </div>
           <button onClick={onClose} style={{ all: "unset", cursor: "pointer", color: "#8b93b8", fontSize: 18, padding: 4 }}>✕</button>
         </div>
+        {/* 称号: バッジの数で上がる。次の称号まであと何個かを出す */}
+        {(() => {
+          const cur = titleOf(unlocked.size), next = TITLES.find((t) => t.min > unlocked.size);
+          return (
+            <div style={{ marginTop: 12, border: "1.5px solid #ffd16655", borderRadius: 12, padding: "10px 12px", background: "#1c160a" }}>
+              <div style={{ fontSize: 10.5, color: "#8b93b8" }}>いまの称号</div>
+              <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 17, color: "#ffd166" }}>🎖 {cur.name}</div>
+              <div style={{ fontSize: 10.5, color: "#8b93b8", marginTop: 2 }}>
+                {next ? `つぎの称号「${next.name}」まで あとバッジ${next.min - unlocked.size}個` : "最高の称号です"}
+              </div>
+            </div>
+          );
+        })()}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, marginTop: 14 }}>
           {ACHIEVEMENTS.map((a) => {
             const got = unlocked.has(a.id);

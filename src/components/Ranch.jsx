@@ -27,6 +27,7 @@ import { dueForCheck } from "./TriggerCheck.jsx";
 import { renderBuilding, renderTree, renderFence } from "./buildArt.js";
 import { createCinema, drawCallouts, cinemaSaved, saveCinema } from "./ranchCinema.js";
 import { aimStateOf, aimTextOf } from "../lib/aim.js";
+import { startAmbience, stopAmbience } from "../lib/sound.js";
 
 /* ---- 実時間の演出パラメータ ---- */
 
@@ -1410,6 +1411,16 @@ function RanchView({ stocks, activity, onSelect, quotes: quotesProp }) {
   const season = seasonOf(new Date().getMonth() + 1);
   const rainy = isRainyToday();
   const actives = stocks.filter((s) => s.status !== "sold");
+
+  // 環境音(昼=小鳥 / 夜=虫 / 雨=雨音)。牧場を開いているあいだだけ。冬の雨の日は雪なので静かに
+  useEffect(() => {
+    const ph = dayPhase();
+    startAmbience({ night: ph === "night", rain: rainy && season.key !== "winter" });
+    const onSound = () => startAmbience({ night: dayPhase() === "night", rain: rainy && season.key !== "winter" });
+    window.addEventListener("kz-sound", onSound); // 🔊を切り替えたら止める/鳴らし直す
+    return () => { window.removeEventListener("kz-sound", onSound); stopAmbience(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (quotesProp) return; // 本体から渡されていれば取り直さない

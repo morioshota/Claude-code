@@ -1,7 +1,8 @@
 /* 銘柄の派生値: Lv/CP/ステージ/鮮度/実績判定/動きの元気さ
    いずれも「研究の蓄積量」の遊び指標であり売買推奨ではない */
 
-import { STAGES } from "../data/constants.js";
+import { STAGES, TITLES } from "../data/constants.js";
+import { SPECIES_POOL } from "../data/species.js";
 import { daysSince, hashStr, mulberry32 } from "./util.js";
 
 const calcLevel = (s) => 1 + (s.logs?.length || 0) + (s.noteCount || 0) * 3;
@@ -39,6 +40,25 @@ const freshInfo = (stock) => {
   return { icon: "🥀", label: "要再調査", color: "#f87171", pct: 12, days };
 };
 
+/* ---- 種族(集める楽しさ) ----
+   銘柄がどの種族か=証券コードで決まる(不変条件1と同じ抽選。sprites.js の buildPixels と必ず同じ結果になること) */
+const speciesIndexOf = (stock) => {
+  const type = SPECIES_POOL[stock.type] ? stock.type : "metal";
+  const seedSrc = String(stock.code || stock.name || "??").toUpperCase().trim();
+  return { type, index: Math.floor(mulberry32(hashStr(seedSrc))() * SPECIES_POOL[type].length) };
+};
+const speciesKey = (stock) => { const { type, index } = speciesIndexOf(stock); return `${type}:${index}`; };
+/* 出会った種族(卒業生も含む=一度出会えば図鑑に残る)。Map<"type:index", 銘柄[]> */
+const discoveredSpecies = (stocks) => {
+  const m = new Map();
+  stocks.forEach((s) => { const k = speciesKey(s); m.set(k, [...(m.get(k) || []), s]); });
+  return m;
+};
+const SPECIES_TOTAL = Object.values(SPECIES_POOL).reduce((a, p) => a + p.length, 0);
+
+/* 称号: 実績バッジの数で決まる(研究の積み重ねの遊び指標。銘柄の良し悪しとは無関係) */
+const titleOf = (unlockedCount) => [...TITLES].reverse().find((t) => unlockedCount >= t.min) || TITLES[0];
+
 /* ---- 実績バッジ(データから毎回導出。保存不要) ---- */
 
 const evalAchievements = (stocks) => {
@@ -59,6 +79,13 @@ const evalAchievements = (stocks) => {
   if (stocks.some((s) => s.shiny)) unlocked.add("shiny1");
   if (stocks.some((s) => s.evoFxBest === "ultra")) unlocked.add("ultraEvo");
   if (stocks.some((s) => s.lastTriggerCheck)) unlocked.add("check1");
+  // 2026-11 追加(集める楽しさ)。どれも研究・記録の行動だけで決まる
+  const species = discoveredSpecies(stocks).size;
+  if (species >= 10) unlocked.add("species10");
+  if (species >= 30) unlocked.add("species30");
+  if (stocks.reduce((a, s) => a + (s.logs || []).length, 0) >= 30) unlocked.add("memo30");
+  if (stocks.some((s) => s.status === "sold" && (s.lesson || "").trim())) unlocked.add("lesson1");
+  if (stocks.some((s) => s.plan)) unlocked.add("plan1");
   return unlocked;
 };
 
@@ -73,4 +100,4 @@ const moveTierOf = (stock) => {
 
 // 実時間→時間帯(端末の時計を使用)
 
-export { calcLevel, calcCP, stageOf, rarityOf, urFxOf, UR_FX, freshInfo, evalAchievements, moveTierOf };
+export { calcLevel, calcCP, stageOf, rarityOf, urFxOf, UR_FX, freshInfo, evalAchievements, moveTierOf, speciesIndexOf, speciesKey, discoveredSpecies, SPECIES_TOTAL, titleOf };

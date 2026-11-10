@@ -465,11 +465,4 @@ function buildSpeciesPixels(type, index, { stageNo = 1, evoKind = null } = {}) {
   if (!SPECIES_CACHE.has(key)) SPECIES_CACHE.set(key, buildPixelsRaw({ type, code: `${type}:${index}`, name: "" }, false, { force: { index, stageNo, evoKind } }));
   return SPECIES_CACHE.get(key);
 }
-/* 銘柄がどの種族か(タイプと、タイプ内の番号)。特別キャラは null */
-function speciesIndexOf(stock) {
-  const pool = SPECIES_POOL[stock.type] || SPECIES_POOL.metal;
-  const seedSrc = String(stock.code || stock.name || "??").toUpperCase().trim();
-  return { type: SPECIES_POOL[stock.type] ? stock.type : "metal", index: Math.floor(mulberry32(hashStr(seedSrc))() * pool.length) };
-}
-
-export { buildPixels, spriteCanvasFor, buildSpeciesPixels, speciesIndexOf };
+export { buildPixels, spriteCanvasFor, buildSpeciesPixels };

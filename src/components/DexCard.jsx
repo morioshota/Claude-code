@@ -138,7 +138,7 @@ function DexCard({ stock, onClick, stopLossState, aimState }) {
         )}
         {/* 虹の反射はステージ3(SR)から。位置(--hp)はスクロール・傾きに連動する */}
         {tier >= 3 && !sold && <div className="kzHoloSheet" style={{ ...layer, opacity: HOLO_OPACITY[tier] }} />}
-        {tier >= 4 && !sold && <div className="kzHoloFine" style={{ ...layer, opacity: FINE_OPACITY[tier] }} />}
+        {tier >= 4 && !sold && <div className={`kzHoloFine kzHoloT-${stock.type}`} style={{ ...layer, opacity: FINE_OPACITY[tier] }} />}
         {/* 枠内の内枠。ステージ5は代わりに特別演出(下)が入るので出さない */}
         {tier >= 3 && tier < 5 && !sold && (
           <div style={{
