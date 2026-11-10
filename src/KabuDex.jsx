@@ -684,6 +684,24 @@ export default function KabuDex() {
           animation: kzUrRays 6s linear infinite; }
         @keyframes kzUrRays { from{ background-position: 140% 0; opacity:.25 } 45%{ opacity:.85 } to{ background-position: -60% 0; opacity:.25 } }
         /* ✦のまたたき(オーラ進化・色違い)。sprites.jsが返した座標に重ねる */
+        /* ---- クリーチャーの生きている動き(ui.jsx の Creature live) ----
+           足元(下辺の中央)を軸に動かす。しぐさは研究の鮮度で変わる */
+        .kzCr { transform-origin: 50% 100%; transform-box: fill-box; }
+        .kzCr0 { animation: kzCrHop 1.9s ease-in-out infinite; }
+        .kzCr0.kzCrHappy { animation-duration: 1.1s; }
+        .kzCr1 { animation: kzCrStep 2.8s ease-in-out infinite; }
+        .kzCr2 { animation: kzCrBreath 4.6s ease-in-out infinite; }
+        .kzCr3 { animation: kzCrSleep 5.2s ease-in-out infinite; }
+        @keyframes kzCrHop { 0%,46%,100%{transform:translateY(0) scale(1,1)} 52%{transform:translateY(0) scale(1.05,.93)} 62%{transform:translateY(-11%) scale(.97,1.04)} 72%{transform:translateY(0) scale(1.04,.95)} 80%{transform:translateY(-4%) scale(1,1)} 88%{transform:translateY(0) scale(1,1)} }
+        @keyframes kzCrStep { 0%,100%{transform:translateX(0) rotate(0) scale(1,1)} 20%{transform:translateX(-4%) rotate(-3deg) scale(1,.98)} 40%{transform:translateX(0) rotate(0) scale(1.01,1)} 60%{transform:translateX(4%) rotate(3deg) scale(1,.98)} 80%{transform:translateX(0) rotate(0) scale(1.01,1)} }
+        @keyframes kzCrBreath { 0%,100%{transform:scale(1,1)} 50%{transform:scale(1.025,.965)} }
+        @keyframes kzCrSleep { 0%,100%{transform:scale(1.02,.95)} 50%{transform:scale(1.05,.91)} }
+        .kzCrBlink { opacity: 0; animation: kzCrBlink 4.4s steps(1) infinite; }
+        @keyframes kzCrBlink { 0%,91%{opacity:0} 92%,95%{opacity:1} 96%,100%{opacity:0} }
+        .kzCrZzz { animation: kzCrZzz 2.6s ease-out infinite; }
+        @keyframes kzCrZzz { 0%{opacity:0; transform:translate(0,4px) scale(.7)} 25%{opacity:1} 100%{opacity:0; transform:translate(6px,-12px) scale(1.25)} }
+        .kzCrNote { animation: kzCrNote 1.6s ease-in-out infinite; }
+        @keyframes kzCrNote { 0%,100%{opacity:.2; transform:translateY(2px) rotate(-10deg)} 50%{opacity:1; transform:translateY(-6px) rotate(12deg)} }
         .kzGlint, .kzGlintGlow { transform-origin: 0px 0px; animation-name: kzGlint;
           animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
         .kzGlintGlow { opacity: .55; filter: blur(1.1px); animation-name: kzGlintGlow; }

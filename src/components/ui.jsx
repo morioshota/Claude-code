@@ -2,6 +2,8 @@
 
 import { TYPES, RARITIES, STATUSES } from "../data/constants.js";
 import { buildPixels } from "../lib/sprites.js";
+import { moveTierOf } from "../lib/stock.js";
+import { hashStr, today } from "../lib/util.js";
 
 function inlineBold(str, keyBase) {
   const parts = String(str).split("**");
@@ -82,15 +84,29 @@ function gridImage(grid) {
 
 const GLINT_PATH = "M0,-2.7 L0.7,-0.7 L2.7,0 L0.7,0.7 L0,2.7 L-0.7,0.7 L-2.7,0 L-0.7,-0.7 Z";
 
-function Creature({ stock, size = 64, sleeping = false, shadow = true }) {
+/* live: 生きている動き(まばたき・呼吸・鮮度に合わせたしぐさ)を付ける。図鑑カードと詳細だけで使う(一覧表などは止め絵)
+   しぐさは研究の鮮度(不変条件3)と同じ区切り: 0-14日=はねる / -45日=ゆれて歩く / -90日=ゆっくり / 90日超=眠る(Zzz)。
+   きょう調べた子は♪を出して喜ぶ。株価は関係しない(不変条件5) */
+function Creature({ stock, size = 64, sleeping = false, shadow = true, live = false }) {
   const { grid, w, h, sparkles } = buildPixels(stock, sleeping);
+  const blinkGrid = live && !sleeping ? buildPixels(stock, false, { closed: true }).grid : null;
+  const tier = live ? (sleeping ? 3 : moveTierOf(stock)) : -1;
+  const happy = live && !sleeping && stock.lastResearch === today();
+  // 動きの出だしは銘柄ごとにずらす(そろって動くと機械的に見える)
+  const phase = live ? (hashStr(String(stock.code || stock.name || "")) % 40) / 10 : 0;
   const glints = sleeping ? [] : (sparkles || []);
   // 幅だけで大きさを決めると、背の高い種族(長い耳・旗など)でカードが縦に伸びる。高さにも上限を設ける
   const dispW = h / w > 1.15 ? Math.round(size * 1.15 * (w / h)) : size;
   const svg = (
     <svg width={dispW} height={Math.round(dispW * (h / w))} viewBox={`0 0 ${w} ${h}`}
-      shapeRendering="crispEdges" style={{ display: "block", imageRendering: "pixelated", position: "relative", zIndex: 1, overflow: "visible" }}>
+      shapeRendering="crispEdges" className={live ? `kzCr kzCr${tier}${happy ? " kzCrHappy" : ""}` : undefined}
+      style={{ display: "block", imageRendering: "pixelated", position: "relative", zIndex: 1, overflow: "visible", animationDelay: live ? `-${phase}s` : undefined }}>
       <image href={gridImage(grid)} x="0" y="0" width={w} height={h} style={{ imageRendering: "pixelated" }} />
+      {/* まばたき: 目を閉じた絵を重ねて、ときどき一瞬だけ見せる */}
+      {blinkGrid && blinkGrid.length === h && (
+        <image className="kzCrBlink" href={gridImage(blinkGrid)} x="0" y="0" width={w} height={h}
+          style={{ imageRendering: "pixelated", animationDelay: `-${(phase * 1.3).toFixed(1)}s`, animationDuration: `${(3.8 + (phase % 2)).toFixed(1)}s` }} />
+      )}
       {/* ✦の位置でまたたく光(オーラ進化・色違い)。位置はsprites.jsが返す */}
       {glints.map((s, i) => (
         <g key={`gl${i}`} transform={`translate(${s.x + 0.5} ${s.y + 0.5})`}>
@@ -113,6 +129,8 @@ function Creature({ stock, size = 64, sleeping = false, shadow = true }) {
         }} />
       )}
       {svg}
+      {tier === 3 && <span className="kzCrZzz" style={{ position: "absolute", right: "-6%", top: "-8%", zIndex: 2, fontFamily: "'DotGothic16', monospace", fontSize: Math.max(9, size * 0.2), color: "#a5b4fc", pointerEvents: "none" }}>z</span>}
+      {happy && <span className="kzCrNote" style={{ position: "absolute", right: "-4%", top: "-10%", zIndex: 2, fontSize: Math.max(10, size * 0.22), color: "#ffd166", pointerEvents: "none" }}>♪</span>}
     </div>
   );
   if (!stock.shiny) return withShadow;

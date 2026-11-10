@@ -10,6 +10,22 @@ import { calcLevel, stageOf } from "./stock.js";
 import { hashStr, mulberry32, shade, hueShift } from "./util.js";
 
 const GOLD = "#ffd166", WHITE = "#ffffff";
+const EYE = "#111827"; // 目の色(この色のマスを「目」として、閉じた絵を作る)
+
+/* 目を閉じる: 2倍に拡大したあとの目(2×2)の上半分をまわりの色で埋めて、横一本の線にする */
+const closeEyes = (g) => {
+  const out = g.map((r) => [...r]);
+  for (let y = 0; y < g.length - 1; y++) {
+    for (let x = 0; x < g[0].length; x++) {
+      if (g[y][x] !== EYE || g[y + 1][x] !== EYE || (y > 0 && g[y - 1][x] === EYE)) continue;
+      // 上・左・右のうち、目でない色でふたをする(白目に囲まれた目は白くならないよう、上を優先)
+      const lid = [g[y - 1] && g[y - 1][x], g[y][x - 1], g[y][x + 1]].find((c) => c && c !== EYE && c !== WHITE)
+        || [g[y - 1] && g[y - 1][x], g[y][x - 1], g[y][x + 1]].find((c) => c && c !== EYE);
+      if (lid) out[y][x] = lid;
+    }
+  }
+  return out;
+};
 
 /* ---- GBA風仕上げ(すべて決定論的な画像処理なので不変条件1は維持される) ----
    1) EPX/Scale2x で2倍拡大: 斜め線がなめらかにつながり24ドット相当の密度になる
@@ -207,9 +223,8 @@ function applyEvoPattern(grid, kind, level, accent, body, eyes) {
         if (level >= 2) {
           if (yl !== null && yl >= y) put(g, y - 1, c - 1, accent);
           if (yr !== null && yr >= y) put(g, y - 1, c + 1, accent);
-          put(g, y - 2, c, level >= 3 ? accent : GOLD);
+          put(g, y - 2, c, level >= 3 ? GOLD : accent); // ステージ4は先が金(高くしすぎると塔に見えた)
         }
-        if (level >= 3) put(g, y - 3, c, GOLD);
       }
       break;
     }
@@ -283,10 +298,12 @@ function individualOf(seedSrc) {
    (opts.lowres は3D方式の名残で、いまはどちらでも同じ絵) */
 const PIX_CACHE = new Map();
 function buildPixels(stock, sleeping, opts = {}) {
-  const key = [stock.code, stock.name, stock.type, calcLevel(stock), !!stock.shiny, stock.evoPattern || "", stock.special || "", specialsVersion(), !!sleeping].join("|");
+  // opts.closed: 目を閉じた絵(まばたき用。眠っているときはいつも閉じる)
+  const closed = !!opts.closed || !!sleeping;
+  const key = [stock.code, stock.name, stock.type, calcLevel(stock), !!stock.shiny, stock.evoPattern || "", stock.special || "", specialsVersion(), !!sleeping, closed].join("|");
   const hit = PIX_CACHE.get(key);
   if (hit) return hit;
-  const res = buildPixelsRaw(stock, sleeping);
+  const res = buildPixelsRaw(stock, sleeping, { closed });
   if (PIX_CACHE.size > 600) PIX_CACHE.clear();
   PIX_CACHE.set(key, res);
   return res;
@@ -320,7 +337,7 @@ function buildPixelsRaw(stock, sleeping, opts = {}) {
   const striped = shade(body, 0.84);
   const colors = {
     b: body, s: belly, a: accent, o: "#1f2430",
-    w: "#ffffff", y: "#ffd166", e: sleeping ? "#1f2430" : "#111827",
+    w: "#ffffff", y: "#ffd166", e: EYE,
     n: "#a0703f", c: "#f3dfb8", g: "#c8962e", r: "#b8553a", // 固定色(たぬき等、自然な色で分かる動物用)
   };
   // 特別キャラ(当選してstock.specialに保存済み)は種族の代わりにその姿で描く。
@@ -366,7 +383,11 @@ function buildPixelsRaw(stock, sleeping, opts = {}) {
   grid = trimGrid(grid);
   // GBA風仕上げ: 2倍拡大 → 陰影 → アウトライン(順序重要: 輪郭は陰影の後)
   if (special && special.raw) grid = padGrid(grid, 1, 1); // 元のドット絵のまま(輪郭も描き込み済み)
-  else grid = outlineGrid(shadeGrid(special && special.native ? grid : epx2(grid)));
+  else {
+    let big = special && special.native ? grid : epx2(grid);
+    if (opts.closed && !special) big = closeEyes(big);
+    grid = outlineGrid(shadeGrid(big));
+  }
 
   // ---- 光の粒(オーラ・色違い)は仕上げの後に✦(ダイヤ型)で描く:
   //      輪郭処理を通さないことで「浮いた四角」ではなく「光」に見える ----

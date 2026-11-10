@@ -189,7 +189,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
               filter: `drop-shadow(0 0 ${8 + stage.no * 4}px ${t.color}99)`,
               animation: flash ? "kzBounce .6s ease" : stage.no >= 4 ? "kzAura 2.4s ease-in-out infinite" : "none",
             }}>
-              <Creature stock={stock} size={56 + stage.no * 6} sleeping={!!(fresh && fresh.days !== null && fresh.days > 90)} />
+              <Creature live={stock.status !== "sold"} stock={stock} size={56 + stage.no * 6} sleeping={!!(fresh && fresh.days !== null && fresh.days > 90)} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: 11, color: "#6b7394" }}>
