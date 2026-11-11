@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { TradeSummary } from "./Album.jsx";
 import { TradeLog } from "./TradeLog.jsx";
 import { EarningsLog } from "./EarningsLog.jsx";
+import { RebornSection, RebornChoice } from "./Reborn.jsx";
 import { fetchEarnings, mergeAutoEarnings } from "../lib/earnings.js";
 import { AnalysisPanel } from "./Analysis.jsx";
 import { NoteItem } from "./notes.jsx";
@@ -12,6 +13,7 @@ import { TYPES, RARITIES, STAGES } from "../data/constants.js";
 import { calcLevel, calcCP, stageOf, rarityOf, urFxOf, freshInfo, speciesIndexOf } from "../lib/stock.js";
 import { SPECIES_POOL } from "../data/species.js";
 import { EVO_KINDS } from "../data/evolution.js";
+import { currentEvoOf } from "../lib/reborn.js";
 import { sfx } from "../lib/sound.js";
 import { SectionFx } from "./SectionFx.jsx";
 import { fetchQuote } from "../lib/quotes.js";
@@ -129,7 +131,8 @@ function CardBack({ stock, notes, t, stage, lv, fresh }) {
     ["生態調査記録", `${stock.noteCount || 0}件`],
     ["クイックメモ", `${(stock.logs || []).length}件`],
     ["さいごに調べた日", stock.lastResearch ? `${fmt(stock.lastResearch)}${fresh && fresh.days !== null ? `（${fresh.days}日前）` : ""}` : "まだ"],
-    stage.no >= 2 && !stock.special ? ["しんかのかざり", stock.evoPattern && EVO_KINDS[stock.evoPattern] ? EVO_KINDS[stock.evoPattern].name : "—"] : null,
+    stage.no >= 2 && !stock.special ? ["しんかのかざり", (EVO_KINDS[currentEvoOf(stock)] || {}).name || "—"] : null,
+    stock.rebornCount ? ["転生", `${stock.rebornCount}回${stock.rebornAt ? `（さいご ${fmt(stock.rebornAt)}）` : ""}`] : null,
     stock.evoFxBest ? ["しんか演出のさいこう", { normal: "ふつう", rare: "レア", ultra: "超レア" }[stock.evoFxBest] || stock.evoFxBest] : null,
     stock.shiny ? ["いろちがい", stock.shinyAt ? `✨ ${fmt(stock.shinyAt)} に当選` : "✨"] : null,
     stock.lastTriggerCheck ? ["さいごの点検", fmt(stock.lastTriggerCheck)] : null,
@@ -206,6 +209,10 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
   const sub = { fontFamily: "inherit", fontSize: 10, color: "#5b6284", letterSpacing: 0, marginLeft: 8 }; // 見出しの横の小さな説明
 
   return (
+    <>
+    {/* 🔮 えらんでいない転生先があれば、まずえらぶ(アプリを閉じて開き直しても出る)。
+        ⚠ 詳細のOverlayの中に入れないこと: backdrop-filter のある要素の中では position:fixed が画面基準でなくなり、スクロールの上へ隠れる */}
+    {onPatch && stock.rebornOffer && <RebornChoice stock={stock} onPatch={onPatch} />}
     <Overlay onClose={onClose}>
       <div style={{
         background: "#0e1122", borderRadius: 18, overflow: "hidden",
@@ -402,6 +409,12 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
             </div>
           </SectionFx>
 
+          {/* 🔮 転生(調査でためたポイントで姿を引き直す) */}
+          {onPatch && stock.status !== "sold" && (
+            <SectionFx rank={rank} color={GROUP_COL.other} style={wrapFx}>
+              <RebornSection stock={stock} onPatch={(id, next) => onPatch(id, next, true)} />
+            </SectionFx>
+          )}
           {/* クイックメモ */}
           <SectionFx rank={rank} color={GROUP_COL.other} style={section}>
             <div style={h}>クイックメモ<span style={sub}>ひとこと記録・＋1Lv</span></div>
@@ -460,6 +473,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
         </div>
       </div>
     </Overlay>
+    </>
   );
 }
 

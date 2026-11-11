@@ -5,7 +5,7 @@
 
 import { CREATURE_LOOK, SPECIES_POOL } from "../data/species.js";
 import { findSpecial, specialsVersion } from "./specials.js";
-import { evoPoolFor } from "../data/evolution.js";
+import { evoPoolFor, normEvo } from "../data/evolution.js";
 import { calcLevel, stageOf } from "./stock.js";
 import { hashStr, mulberry32, shade, hueShift } from "./util.js";
 
@@ -141,7 +141,9 @@ const rowBounds = (row) => {
    - 以前は絵のいちばん上の行に生やしていたので、カメは甲羅からツノが出ていた。
      目の位置(eyes)から頭を割り出して、頭の上に生やす
    - ツノは象牙色、つばさは白い羽…と、体色に溶けない「それらしい色」にする */
-const IVORY = "#f1e7cf", IVORY_D = "#cdbf9c", FEATHER = "#f4f7fb", FEATHER_D = "#c3cddb", FIRE = "#f97316";
+const IVORY = "#f1e7cf", IVORY_D = "#cdbf9c", FEATHER = "#f4f7fb", FEATHER_D = "#c3cddb";
+const HAT = "#6d4fc4", HAT_D = "#4a3391", RIBBON = "#fb5a7a", RIBBON_L = "#ffa3b5", PETAL = "#ffd9e6", PETAL_L = "#ffffff", LEAF = "#4ade80", LEAF_D = "#1f9d55", LEAF_V = "#b6f5c9";
+const SCARF = "#e5484d", SCARF_L = "#ffe9a8", WOOD = "#a0703f";
 function applyEvoPattern(grid, kind, level, accent, body, eyes) {
   const padT = 3 + level, padS = 2 + level;
   const g = padGrid(grid, padT, padS);
@@ -180,15 +182,6 @@ function applyEvoPattern(grid, kind, level, accent, body, eyes) {
         if (level >= 3) { put(g, y - 4, x + 2 * d, IVORY); put(g, y - 5, x + d, GOLD); put(g, y - 4, x + d, IVORY_D); }
       });
       break;
-    case "antenna": // V字にひらく触角と、先の金の玉
-      both((x, y, d) => {
-        for (let i = 1; i <= level; i++) put(g, y - i, x + (i - 1) * d, accent);
-        const by = y - level - 1, bx = x + level * d;
-        put(g, by, bx, GOLD);
-        if (level >= 2) { put(g, by - 1, bx, GOLD); put(g, by, bx + d, GOLD); put(g, by - 1, bx + d, WHITE); }
-        if (level >= 3) { put(g, by - 3, bx + d, WHITE); put(g, by + 1, bx + 2 * d, accent); }
-      });
-      break;
     case "wings": { // 上へ広がる白い羽(下のふちが羽先)
       const n = level + 1;
       [[midL, -1], [midR, 1]].forEach(([x0, d]) => {
@@ -201,71 +194,80 @@ function applyEvoPattern(grid, kind, level, accent, body, eyes) {
       });
       break;
     }
-    case "tail": { // おしりから出て上へ巻く、先がふさのしっぽ
-      const x0 = tailDir > 0 ? bb[1] : bb[0], d = tailDir, y0 = b - 1;
-      put(g, y0, x0 + d, accent); put(g, y0, x0 + 2 * d, accent);
-      put(g, y0 - 1, x0 + 2 * d, accent);
-      if (level >= 2) { put(g, y0 - 2, x0 + 2 * d, accent); put(g, y0 - 2, x0 + 3 * d, accent); }
-      const ty = y0 - (level >= 2 ? 3 : 2), tx = x0 + (level >= 2 ? 3 : 2) * d;
-      put(g, ty, tx, GOLD);
-      if (level >= 2) put(g, ty, tx - d, GOLD);
-      if (level >= 3) { put(g, ty - 1, tx, GOLD); put(g, ty - 1, tx - d, WHITE); put(g, ty, tx + d, GOLD); }
+    case "aura": // (ここには来ない: キラキラは仕上げのあとに✦で描く)
+      break;
+    case "halo": { // 頭の上に浮かぶ金の輪(奥のふち＋左右。手前は頭にかくれる)
+      const y = yc - 2;
+      for (let dx = -1; dx <= 1; dx++) put(g, y - 1, hx + dx, dx === 0 && level >= 2 ? WHITE : GOLD);
+      put(g, y, hx - 2, GOLD); put(g, y, hx + 2, GOLD);
+      if (level >= 3) { put(g, y - 3, hx + 2, WHITE); put(g, y - 2, hx - 3, WHITE); put(g, y - 3, hx - 1, GOLD); } // きらめき
       break;
     }
-    case "aura": // (ここには来ない: オーラは仕上げのあとに✦で描く)
+    case "hat": { // まほうつかいのとんがり帽子(つば→金の帯→先が曲がる)
+      const y = yc - 1, bw = level === 1 ? 1 : 2;
+      for (let dx = -bw; dx <= bw; dx++) put(g, y, hx + dx, HAT_D);                       // つば
+      const cone = level === 1 ? [1, 1] : level === 2 ? [3, 1, 1] : [3, 3, 1];
+      cone.forEach((wd, i) => { for (let k = 0; k < wd; k++) put(g, y - 1 - i, hx - Math.floor(wd / 2) + k, i === 0 && wd === 3 ? GOLD : HAT); });
+      if (level === 1) put(g, y - 1, hx, GOLD);
+      if (level >= 3) { put(g, y - 4, hx + 1, HAT); put(g, y - 5, hx + 2, GOLD); }        // 曲がった先に星
       break;
-    case "spikes": { // 背中の形に沿って並ぶ、三角の背びれ(ステゴサウルス風)
-      const step = level >= 2 ? 4 : 3;
-      for (let c = tb[0] + 1; c <= midR - 1 && c <= tb[1] + 3; c += step) {
-        const y = colTop(c); if (y === null) continue;
-        const yl = colTop(c - 1), yr = colTop(c + 1); // 描く前に測る(描いたマスを背中と数えないように)
-        put(g, y - 1, c, accent);
-        if (level >= 2) {
-          if (yl !== null && yl >= y) put(g, y - 1, c - 1, accent);
-          if (yr !== null && yr >= y) put(g, y - 1, c + 1, accent);
-          put(g, y - 2, c, level >= 3 ? GOLD : accent); // ステージ4は先が金(高くしすぎると塔に見えた)
-        }
+    }
+    case "ribbon": { // 頭のてっぺんのちょうむすび(まん中の結び目から左右に羽が広がる)
+      const y = yc - 1;
+      put(g, y, hx, GOLD);
+      [-1, 1].forEach((d) => {
+        put(g, y, hx + d, RIBBON);
+        if (level >= 2) { put(g, y, hx + 2 * d, RIBBON); put(g, y - 1, hx + 2 * d, RIBBON_L); }
+        if (level >= 3) { put(g, y, hx + 3 * d, RIBBON); put(g, y - 1, hx + 3 * d, RIBBON); put(g, y - 2, hx + 3 * d, RIBBON_L); put(g, y - 1, hx + d, RIBBON); }
+      });
+      break;
+    }
+    case "flower": { // 頭に咲く花(まん中が金・花びらは白〜桃)
+      const y = yc - 2;
+      put(g, y, hx, GOLD);
+      [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dy, dx]) => put(g, y + dy, hx + dx, PETAL));
+      if (level >= 2) [[-1, -1], [-1, 1]].forEach(([dy, dx]) => put(g, y + dy, hx + dx, PETAL_L));
+      if (level >= 3) { put(g, y + 1, hx - 2, LEAF); put(g, y + 1, hx + 2, LEAF); put(g, y - 2, hx, PETAL_L); put(g, y, hx - 2, PETAL_L); put(g, y, hx + 2, PETAL_L); }
+      break;
+    }
+    case "leaf": { // 頭にのせた大きなはっぱ(ななめに伸びる。まん中に葉脈)
+      const y = yc - 1;
+      put(g, y, hx, LEAF_D);                                                              // くき
+      put(g, y - 1, hx, LEAF); put(g, y - 1, hx + 1, LEAF_V); put(g, y - 2, hx + 1, LEAF);
+      if (level >= 2) { put(g, y - 2, hx, LEAF); put(g, y - 2, hx + 2, LEAF_V); put(g, y - 3, hx + 1, LEAF); put(g, y - 3, hx + 2, LEAF); put(g, y - 1, hx + 2, LEAF_D); }
+      if (level >= 3) { put(g, y - 4, hx + 2, LEAF); put(g, y - 3, hx + 3, LEAF_V); put(g, y - 4, hx + 3, GOLD); put(g, y - 2, hx + 3, LEAF_D); put(g, y - 1, hx - 1, LEAF); put(g, y - 2, hx - 1, LEAF_D); }
+      break;
+    }
+    case "scarf": { // 首に巻いたマフラー(体の上に帯を描き、はしが後ろへなびく)
+      // 正面向きは顔の下いっぱいに、横向きは頭のまわりだけ(体じゅうに巻くと腹巻きに見えた)
+      const frontal = ex.length >= 2 && Math.abs(hx - cxBody) <= 0.5;
+      const eyeY = (eyes || []).length ? Math.max(...eyes.map(([, y]) => y)) + padT : t + 1;
+      const y = Math.min(b - 1, eyeY + (frontal ? 2 : 1));
+      const rb = rowBounds(g[y]);
+      if (!rb) break;
+      const x0b = frontal ? rb[0] : Math.max(rb[0], hx - 2), x1b = frontal ? rb[1] : Math.min(rb[1], hx + 2);
+      for (let x = x0b; x <= x1b; x++) if (g[y][x]) g[y][x] = (x - x0b) % 3 === 2 && level >= 2 ? SCARF_L : SCARF;
+      const dd = tailDir;                                   // なびく向き=おしりがわ
+      if (frontal) { // 正面向き: 顔の横から下へたれる
+        const sx = dd > 0 ? rb[1] : rb[0];
+        put(g, y, sx + dd, SCARF); put(g, y + 1, sx + dd, SCARF);
+        if (level >= 2) { put(g, y + 1, sx + 2 * dd, SCARF_L); put(g, y + 2, sx + 2 * dd, SCARF); }
+        if (level >= 3) { put(g, y + 2, sx + 3 * dd, SCARF); put(g, y + 3, sx + 3 * dd, GOLD); }
+      } else {       // 横向き: 首のうしろから、背中の上へなびく
+        const bx = dd > 0 ? x1b : x0b;
+        put(g, y - 1, bx + dd, SCARF);
+        if (level >= 2) { put(g, y - 2, bx + 2 * dd, SCARF_L); put(g, y - 2, bx + dd, SCARF); }
+        if (level >= 3) { put(g, y - 3, bx + 3 * dd, SCARF); put(g, y - 4, bx + 3 * dd, GOLD); }
       }
       break;
     }
-    case "ears": // 外側がとがった三角の耳。内側はアクセント色
-      both((x, y, d) => {
-        put(g, y - 1, x, accent); put(g, y - 1, x + d, body);
-        put(g, y - 2, x + d, body);
-        if (level >= 2) { put(g, y - 2, x, body); put(g, y - 1, x - d, body); put(g, y - 3, x + d, body); }
-        if (level >= 3) { put(g, y - 2, x, accent); put(g, y - 3, x, body); put(g, y - 4, x + d, body); put(g, y - 3, x + d, accent); put(g, y - 2, x + 2 * d, body); }
-      });
-      break;
-    case "crest": { // ニワトリのとさか: こぶが並ぶ
-      const half = level >= 2 ? 2 : 1;
-      for (let dx = -half; dx <= half; dx++) {
-        const y = colTop(hx + dx) ?? hy;
-        put(g, y - 1, hx + dx, accent);
-        if ((dx + half) % 2 === 0) { put(g, y - 2, hx + dx, accent); if (level >= 3) put(g, y - 3, hx + dx, GOLD); }
-      }
-      break;
-    }
-    case "flame": { // しずく形の炎(外=橙・中=金・芯=白)
-      const rows = level === 1 ? [2, 1] : level === 2 ? [3, 2, 1] : [3, 3, 2, 1];
-      rows.forEach((wd, i) => {
-        const x0 = hx - Math.floor(wd / 2) + (wd === 2 ? (i % 2) : 0);
-        for (let k = 0; k < wd; k++) {
-          const inner = wd === 3 && k === 1;
-          put(g, yc - 1 - i, x0 + k, inner ? (i === 0 && level >= 3 ? WHITE : GOLD) : i === rows.length - 1 ? GOLD : FIRE);
-        }
-      });
-      break;
-    }
-    case "crystal": { // 頭の上に浮かぶひし形の結晶
-      const rows = level === 1 ? [1, 3, 1] : level === 2 ? [1, 3, 3, 1] : [1, 3, 3, 3, 1];
-      const base = yc - 2;
-      rows.forEach((wd, i) => {
-        const y = base - (rows.length - 1 - i);
-        for (let k = 0; k < wd; k++) {
-          const x = hx - Math.floor(wd / 2) + k;
-          put(g, y, x, wd === 1 ? (i === 0 ? WHITE : accent) : k === 1 ? (i === 1 ? WHITE : GOLD) : accent);
-        }
-      });
+    case "wand": { // 手に持った星のつえ(持つのは顔がわ)
+      const d = -tailDir, x0 = d > 0 ? midR : midL, y0 = Math.min(b - 1, midY + 1);
+      put(g, y0, x0 + d, WOOD); put(g, y0 - 1, x0 + 2 * d, WOOD);
+      if (level >= 2) put(g, y0 - 2, x0 + 2 * d, WOOD);
+      const sy = y0 - (level >= 2 ? 4 : 3), sx = x0 + 2 * d; // 星のまん中
+      put(g, sy, sx, WHITE); put(g, sy - 1, sx, GOLD); put(g, sy + 1, sx, GOLD); put(g, sy, sx - 1, GOLD); put(g, sy, sx + 1, GOLD);
+      if (level >= 3) { put(g, sy - 2, sx + d, WHITE); put(g, sy + 1, sx + 2 * d, WHITE); put(g, sy - 1, sx - d, GOLD); put(g, sy - 1, sx + d, GOLD); put(g, sy - 2, sx, GOLD); }
       break;
     }
     default:
@@ -368,7 +370,7 @@ function buildPixelsRaw(stock, sleeping, opts = {}) {
   let evoKind = null;
   if (stageNo >= 2 && !special) {
     const evoPool = evoPoolFor(stock.type);
-    evoKind = (force && force.evoKind) || stock.evoPattern || evoPool[hashStr(seedSrc + ":evo") % evoPool.length];
+    evoKind = normEvo((force && force.evoKind) || stock.evoPattern || evoPool[hashStr(seedSrc + ":evo") % evoPool.length]);
     // オーラ系はここでは描かない: 光の粒はGBA仕上げの後に✦で描く(下記)
     if (evoKind !== "aura") {
       const lv = Math.min(stageNo - 1, 3);

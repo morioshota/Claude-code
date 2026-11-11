@@ -3,32 +3,41 @@
    (姿の決定論は「抽選結果を保存する」ことで維持——開くたびに変わることはない)
    保存がない古いデータは hashStr(コード) から決定論的にフォールバックする。 */
 
-// 装飾の種類(描画ロジックは lib/sprites.js の applyEvoPattern)
+// かざりの種類(描画ロジックは lib/sprites.js の applyEvoPattern)
+// 2026-11 見直し(オーナー指摘「角やキラキラは分かるが、よく分からないものが多い」):
+//   分かりにくかった7つを「ひと目で何か分かる、身につける物」に入れ替えた。
+//   ツノ・ツバサ・オーラ(キラキラ)はそのまま。マントも試したが、12pxでは「赤いひれ」にしか見えなかったので はっぱ にした。
 export const EVO_KINDS = {
-  horns:   { name: "ツノ" },
-  antenna: { name: "アンテナ" },
-  wings:   { name: "ツバサ" },
-  tail:    { name: "シッポ" },
-  aura:    { name: "オーラ" },
-  spikes:  { name: "トゲ" },
-  ears:    { name: "ミミ" },
-  crest:   { name: "モヒカン" },
-  flame:   { name: "ホノオ" },
-  crystal: { name: "クリスタル" },
+  horns:  { name: "ツノ" },
+  wings:  { name: "ツバサ" },
+  aura:   { name: "キラキラ" },
+  halo:   { name: "てんしのわ" },
+  hat:    { name: "まほうのぼうし" },
+  ribbon: { name: "リボン" },
+  flower: { name: "おはな" },
+  leaf:   { name: "はっぱ" },
+  scarf:  { name: "マフラー" },
+  wand:   { name: "ほしのつえ" },
 };
+export const EVO_KIND_KEYS = Object.keys(EVO_KINDS);
 
-// タイプごと3種の進化プール(セクターの雰囲気に合わせた組み合わせ)
+// 保存済みの古いかざり → 新しいかざり(データは書き換えず、読むときに読み替える。同期でも食い違わない)
+const EVO_RENAME = { antenna: "halo", crest: "hat", ears: "ribbon", crystal: "flower", spikes: "leaf", tail: "scarf", flame: "wand" };
+export const normEvo = (kind) => (kind ? EVO_RENAME[kind] || kind : kind);
+
+// タイプごと3種の進化プール(はじめて進化したときの抽選用。🔮転生では全10種類から出る)
+// ⚠ 並びは変えないこと: 保存の無い古いデータは hashStr(コード) % 3 でここから選ぶ(順番が変わると姿が変わる)
 export const EVO_POOLS = {
-  cosmo:  ["antenna", "aura", "crystal"],   // 宇宙: 電波・星のオーラ・鉱石
-  metal:  ["horns", "spikes", "crest"],     // 重工: 角・鋲・タテガミ
-  spark:  ["flame", "antenna", "spikes"],   // エネルギー: 炎・避雷針
-  build:  ["horns", "crest", "spikes"],     // 建設: クレーン角・ヘルメット
-  play:   ["ears", "crest", "aura"],        // エンタメ: ネコミミ・スター
-  drive:  ["wings", "spikes", "horns"],     // 運輸: 翼・エアロパーツ
-  life:   ["ears", "tail", "aura"],         // 生活: ミミ・シッポ・いやし
-  tech:   ["antenna", "crystal", "aura"],   // IT: アンテナ・データ結晶
-  money:  ["crystal", "aura", "tail"],      // 金融: 宝石・金運オーラ
-  market: ["ears", "wings", "tail"],        // 小売・商社: 商いの機動力
+  cosmo:  ["halo", "aura", "flower"],
+  metal:  ["horns", "leaf", "hat"],
+  spark:  ["wand", "halo", "leaf"],
+  build:  ["horns", "hat", "leaf"],
+  play:   ["ribbon", "hat", "aura"],
+  drive:  ["wings", "leaf", "horns"],
+  life:   ["ribbon", "scarf", "aura"],
+  tech:   ["halo", "flower", "aura"],
+  money:  ["flower", "aura", "scarf"],
+  market: ["ribbon", "wings", "scarf"],
 };
 
 export const evoPoolFor = (type) => EVO_POOLS[type] || EVO_POOLS.metal;

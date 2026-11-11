@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Creature } from "./ui.jsx";
 import { TYPES, STAGES } from "../data/constants.js";
-import { EVO_KINDS } from "../data/evolution.js";
+import { EVO_KINDS, normEvo } from "../data/evolution.js";
 import { sfx } from "../lib/sound.js";
 
 const reduced = () =>
@@ -130,7 +130,7 @@ export function EvoCeremony({ evo, onDone }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const t = TYPES[evo.stock.type] || TYPES.metal;
-  const kindName = EVO_KINDS[evo.stock.evoPattern] ? EVO_KINDS[evo.stock.evoPattern].name : null;
+  const kindName = (EVO_KINDS[normEvo(evo.stock.evoPattern)] || {}).name || null;
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 150, display: "flex", justifyContent: "center", alignItems: "center", background: evo.tier === "ultra" ? "rgba(5,7,18,.7)" : "transparent", pointerEvents: "none" }}>
@@ -173,7 +173,7 @@ export function EvoCeremony({ evo, onDone }) {
           </div>
           {kindName && (
             <div style={{ fontFamily: "'DotGothic16', monospace", color: "#8b93b8", fontSize: 12, marginTop: 6 }}>
-              進化タイプ: <span style={{ color: t.color }}>{kindName}系</span>
+              かざり: <span style={{ color: t.color }}>{kindName}</span>
             </div>
           )}
         </div>

@@ -39,6 +39,7 @@ import { DailyView } from "./components/DailyView.jsx";
 import { applyTrades } from "./lib/lots.js";
 import { calcLevel, stageOf, freshInfo, evalAchievements, discoveredSpecies, speciesKey, SPECIES_TOTAL, titleOf } from "./lib/stock.js";
 import { SpeciesDexModal } from "./components/SpeciesDex.jsx";
+import { withRebornInit } from "./lib/reborn.js";
 import { today, uid, daysSince } from "./lib/util.js";
 
 /* 図鑑の並び替え。並びは見やすさのためで、銘柄の優劣やおすすめ順ではない(CLAUDE.md) */
@@ -142,7 +143,8 @@ export default function KabuDex() {
         }
       }
       // v1→v2移行: 不足フィールドを補完(既存データは壊さない)
-      const migrated = data.stocks.map((s) => ({
+      // withRebornInit: 🔮転生の最初の持ち点(これまでの研究の半分)を一度だけ与える。次に保存したときに書き込まれる
+      const migrated = data.stocks.map((s) => withRebornInit({
         noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s,
       }));
       setStocks(migrated);
@@ -166,7 +168,7 @@ export default function KabuDex() {
         const res = await storage.get(STORAGE_KEY);
         const data = res && res.value ? JSON.parse(res.value) : null;
         if (data && Array.isArray(data.stocks)) {
-          setStocks(data.stocks.map((s) => ({ noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s })));
+          setStocks(data.stocks.map((s) => withRebornInit({ noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s })));
         }
       } catch (e) { /* 読めなければ今の表示のまま */ }
       // 開いている記録は読み直す(localStorageは同期読みできるので更新関数の中で読む)
@@ -243,7 +245,7 @@ export default function KabuDex() {
 
   const addStock = (f) => {
     const maxNo = stocks.reduce((m, s) => Math.max(m, s.no || 0), 0);
-    let ns = { ...f, id: uid(), no: maxNo + 1, logs: f.logs || [], noteCount: 0, lastResearch: "", createdAt: today() }; // createdAt=であった日(カードのうら面)
+    let ns = { ...f, id: uid(), no: maxNo + 1, logs: f.logs || [], noteCount: 0, lastResearch: "", createdAt: today(), rebornSpent: 0 }; // createdAt=であった日(カードのうら面)
     // 特別キャラの抽選は「初めて登録したとき」の1回だけ(オーナー要望: 愛着が湧いた頃に姿が変わるのはショック)。
     // 外れたら従来どおり証券コードで決まるセクターの種族。当選は永久保存(不変条件6)
     const pool = getSpecials(); // とくべつパックを読み込んだ端末でだけ抽選される
@@ -303,8 +305,9 @@ export default function KabuDex() {
 
   /* 銘柄の項目をそのまま書き換える(鮮度は更新しない=不変条件3)。
      クイックメモの編集・削除と、決算日の欄(自動取り込みを含む)で使う */
-  const patchStock = (id, patch) => {
-    persist(stocks.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  const patchStock = (id, patch, replace = false) => {
+    // replace=true は銘柄をまるごと差し替える(🔮転生で項目を消す=ユニークキャラから元の種族へ戻す、など)
+    persist(stocks.map((s) => (s.id === id ? (replace ? patch : { ...s, ...patch }) : s)));
   };
 
   const saveLesson = (id, text) => {
@@ -470,7 +473,7 @@ export default function KabuDex() {
     if (sp && sp.length) { await mergeSpecialPack(sp); setSpecialsVer((v) => v + 1); }
     const srcNotes = data.notes && typeof data.notes === "object" ? data.notes : {};
     // 読み込み時のv1→v2移行と同じ補完(バックアップが古い形式でも壊さない)
-    const normalize = (s) => ({ noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s });
+    const normalize = (s) => withRebornInit({ noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s });
     const valid = data.stocks.filter((s) => s && s.name && s.code != null);
     const countNotes = (m) => Object.values(m).reduce((a, n) => a + n.length, 0);
 
