@@ -382,9 +382,9 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#aab2d5", marginBottom: 3 }}>
                   <span>研究度（調査記録{stock.noteCount || 0}件×3 ＋ メモ{stock.logs.length}件）</span>
-                  <span>{stage.no < 4 ? `次のステージまで あとLv.${STAGES[stage.no].min - lv}` : "最終ステージ"}</span>
+                  <span>{stage.no < STAGES.length ? `次のステージまで あとLv.${STAGES[stage.no].min - lv}` : "最終ステージ"}</span>
                 </div>
-                <Gauge value={lv} max={stage.no < 4 ? STAGES[stage.no].min : lv} color="#ffd166" />
+                <Gauge value={lv} max={stage.no < STAGES.length ? STAGES[stage.no].min : lv} color="#ffd166" />
               </div>
               {fresh && (
                 <div>
