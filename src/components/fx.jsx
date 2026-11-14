@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Creature } from "./ui.jsx";
 import { TYPES, STAGES } from "../data/constants.js";
-import { EVO_KINDS, normEvo } from "../data/evolution.js";
+import { EVO_KINDS, normEvo, EVO_FX } from "../data/evolution.js";
 import { sfx } from "../lib/sound.js";
 
 const reduced = () =>
@@ -81,6 +81,45 @@ export const shakeScreen = () => {
   setTimeout(() => document.body.classList.remove("kz-shake"), 600);
 };
 
+/* 演出の種類ごとの粒(2026-11)。mode: fall=上から舞い落ちる / rise=下からのぼる / streak=斜めに流れる / pop=中央からはじける */
+export const burstParticles = (n, { chars, colors = ["#ffffff"], mode = "fall", size = [12, 22], dur = [1600, 2600] }) => {
+  if (reduced()) return;
+  const layer = document.getElementById("kz-fx-layer");
+  if (!layer) return;
+  const W = window.innerWidth, H = window.innerHeight;
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement("div");
+    el.textContent = chars[i % chars.length];
+    const fs = size[0] + Math.random() * (size[1] - size[0]);
+    el.style.cssText = `position:absolute;left:0;top:0;font-size:${fs}px;color:${colors[i % colors.length]};pointer-events:none;text-shadow:0 0 8px ${colors[i % colors.length]};`;
+    layer.appendChild(el);
+    let from, to;
+    if (mode === "rise") {
+      const x = Math.random() * W; from = `translate(${x}px,${H + 20}px) scale(.6)`; to = `translate(${x + (Math.random() - 0.5) * 120}px,${H * (0.1 + Math.random() * 0.4)}px) scale(1.2)`;
+    } else if (mode === "streak") {
+      const x = Math.random() * W * 0.9 + W * 0.2, y = Math.random() * H * 0.4 - 40; from = `translate(${x}px,${y}px) rotate(-35deg)`; to = `translate(${x - W * 0.6}px,${y + H * 0.45}px) rotate(-35deg)`;
+    } else if (mode === "pop") {
+      const a = Math.random() * Math.PI * 2, d = 80 + Math.random() * 220; from = `translate(${W / 2}px,${H * 0.45}px) scale(.3)`; to = `translate(${W / 2 + Math.cos(a) * d}px,${H * 0.45 + Math.sin(a) * d}px) scale(1.2)`;
+    } else {
+      const x = Math.random() * W; from = `translate(${x}px,-30px) rotate(0deg)`; to = `translate(${x + (Math.random() - 0.5) * 220}px,${H * (0.6 + Math.random() * 0.5)}px) rotate(${(Math.random() - 0.5) * 540}deg)`;
+    }
+    const anim = el.animate([{ transform: from, opacity: 0 }, { opacity: 1, offset: 0.12 }, { transform: to, opacity: 0 }],
+      { duration: dur[0] + Math.random() * (dur[1] - dur[0]), easing: mode === "streak" ? "cubic-bezier(.3,0,.8,.6)" : "ease-out", delay: Math.random() * 700 });
+    anim.onfinish = () => el.remove();
+  }
+};
+
+/* 種類ごとの演出(セレモニーの「新しい姿」が出た瞬間に呼ぶ) */
+const KIND_FX = {
+  kirari: () => burstStars(8),
+  ryusei: () => { burstParticles(14, { chars: ["✦", "★"], colors: ["#fde68a", "#ffffff", "#bae6fd"], mode: "streak", size: [14, 24], dur: [900, 1500] }); setTimeout(() => burstParticles(10, { chars: ["✦"], colors: ["#ffffff", "#fde68a"], mode: "streak", dur: [900, 1400] }), 900); },
+  sakura: () => { burstParticles(46, { chars: ["❀", "✿", "•"], colors: ["#fbcfe8", "#f9a8d4", "#fff1f2"], mode: "fall", size: [12, 22], dur: [2400, 3800] }); },
+  inazuma: () => { flashScreen("rgba(253,224,71,.55)"); shakeScreen(); setTimeout(() => flashScreen("rgba(255,255,255,.6)"), 260); burstParticles(10, { chars: ["⚡"], colors: ["#fde047"], mode: "pop", size: [20, 34], dur: [600, 1000] }); },
+  shabon: () => { burstParticles(30, { chars: ["○", "◯", "°"], colors: ["#a5f3fc", "#e9d5ff", "#bfdbfe", "#ffffff"], mode: "rise", size: [14, 30], dur: [2400, 3800] }); },
+  niji: () => { shakeScreen(); burstConfetti(140); burstStars(20); setTimeout(() => { burstConfetti(80); burstStars(14); }, 1200); },
+  ougon: () => { shakeScreen(); flashScreen("rgba(255,209,102,.7)"); burstParticles(60, { chars: ["✦", "◆", "★"], colors: ["#ffd166", "#fde68a", "#f59e0b", "#fff7d6"], mode: "fall", size: [10, 20], dur: [1800, 3200] }); burstParticles(16, { chars: ["✦"], colors: ["#ffd166"], mode: "pop", dur: [800, 1300] }); },
+};
+
 /* パーティクルの受け皿(KabuDex直下に1つだけ置く) */
 export function FxLayer() {
   return <div id="kz-fx-layer" style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 200, overflow: "hidden" }} />;
@@ -99,6 +138,10 @@ export function EvoCeremony({ evo, onDone }) {
   // evo: { stock, stage, tier }
   const doneRef = useRef(false);
   const style = TIER_STYLE[evo.tier] || TIER_STYLE.normal;
+  // 演出の種類(2026-11)。古い呼び出し(種類なし)は階級の代表で
+  const kind = EVO_FX[evo.kind] ? evo.kind : evo.tier === "ultra" ? "niji" : evo.tier === "rare" ? "ryusei" : "kirari";
+  const fx = EVO_FX[kind];
+  const label = evo.tier === "ultra" ? `${fx.icon} 超レア演出「${fx.name}」!! ${fx.icon}` : evo.tier === "rare" ? `★ レア演出「${fx.name}」 ★` : "";
   // 2段構え(2026-11): ①進化まえの姿がふるえて光をためる「おや…？」→ ②白く光って新しい姿が現れる
   const [phase, setPhase] = useState("before");
   // 進化まえの姿: ひとつ前のステージのレベルにした仮の銘柄で描く(保存データは触らない)
@@ -112,14 +155,7 @@ export function EvoCeremony({ evo, onDone }) {
       setPhase("after");
       sfx(evo.tier === "ultra" ? "evoUltra" : evo.tier === "rare" ? "evoRare" : "evo");
       flashScreen(evo.tier === "ultra" ? "rgba(255,209,102,.6)" : "rgba(255,255,255,.55)");
-      burstStars(evo.tier === "normal" ? 8 : 0);
-      if (evo.tier === "rare") burstConfetti(50);
-      if (evo.tier === "ultra") {
-        shakeScreen();
-        burstConfetti(140);
-        burstStars(20);
-        timers.push(setTimeout(() => { burstConfetti(80); burstStars(14); }, 1200));
-      }
+      (KIND_FX[kind] || KIND_FX.kirari)();
     }, PRE_MS));
     return () => timers.forEach(clearTimeout);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -137,7 +173,7 @@ export function EvoCeremony({ evo, onDone }) {
       {evo.tier === "ultra" && (
         <div style={{
           position: "absolute", width: 560, height: 560, borderRadius: "50%",
-          background: "conic-gradient(#f8717155,#ffd16655,#4ade8055,#60a5fa55,#c084fc55,#f8717155)",
+          background: kind === "ougon" ? "conic-gradient(#ffd16666,#fff7d633,#f59e0b66,#fff7d633,#ffd16666)" : "conic-gradient(#f8717155,#ffd16655,#4ade8055,#60a5fa55,#c084fc55,#f8717155)",
           animation: "kzSpin 3s linear infinite", filter: "blur(24px)",
         }} />
       )}
@@ -159,18 +195,23 @@ export function EvoCeremony({ evo, onDone }) {
           </div>
         ) : (
         <div className="kzEvoReveal" style={{ padding: "20px 30px", textAlign: "center" }}>
-          {style.label && (
+          {label && (
             <div style={{ fontFamily: "'DotGothic16', monospace", fontSize: evo.tier === "ultra" ? 16 : 13, color: evo.tier === "ultra" ? "#ffd166" : "#fcd34d", marginBottom: 6, animation: "kzAura 1s ease-in-out infinite" }}>
-              {style.label}
+              {label}
             </div>
           )}
           <div style={{ display: "flex", justifyContent: "center", filter: `drop-shadow(0 0 18px ${t.color})`, animation: evo.tier !== "normal" ? "kzHop 0.7s ease-in-out infinite" : "none" }}>
-            <Creature stock={evo.stock} size={evo.tier === "ultra" ? 110 : 84} />
+            <Creature stock={evo.stock} size={evo.tier === "ultra" ? 110 : 84} live />
           </div>
           <div style={{ fontSize: 30, marginTop: 4 }}>✨</div>
           <div style={{ fontFamily: "'DotGothic16', monospace", color: "#f0abfc", fontSize: 16 }}>
             シンカ！ {evo.stock.name} は<br />STAGE {evo.stage.no}「{evo.stage.name}」になった！
           </div>
+          {fx.trace && (
+            <div style={{ fontFamily: "'DotGothic16', monospace", color: "#dfe4ff", fontSize: 11.5, marginTop: 8, lineHeight: 1.6 }}>
+              {fx.icon} なごり: {fx.trace}
+            </div>
+          )}
           {kindName && (
             <div style={{ fontFamily: "'DotGothic16', monospace", color: "#8b93b8", fontSize: 12, marginTop: 6 }}>
               かざり: <span style={{ color: t.color }}>{kindName}</span>

@@ -24,7 +24,7 @@ import { PartyModal, BadgeModal, DataPortModal } from "./components/modals.jsx";
 import { NoteEditor } from "./components/notes.jsx";
 import { btnStyle, PressButton, FilterChip, pageStyle } from "./components/ui.jsx";
 import { STORAGE_KEY, noteKey, TYPES, STATUSES, ACHIEVEMENTS, SEED, BACKUP_FORMAT } from "./data/constants.js";
-import { evoPoolFor, rollEvoFx } from "./data/evolution.js";
+import { evoPoolFor, rollEvoFx, applyEvoFxRoll } from "./data/evolution.js";
 import { SPECIAL_RATE } from "./data/species.js";
 import { getSpecials, loadSpecialPack, mergeSpecialPack, clearSpecialPack, parseSpecialPack } from "./lib/specials.js";
 import { loadActivity, recordActivity, seedActivity, ACTIVITY_KEY } from "./lib/activity.js";
@@ -219,7 +219,7 @@ export default function KabuDex() {
 
   /* ステージ跨ぎ検知つきの銘柄更新。進化の瞬間に:
      1) 進化タイプをセクター別プールから抽選して永久保存(姿の決定論は保存で維持)
-     2) 演出ガチャ(超レア5%/レア25%/通常70%)を抽選。最高レアは実績用に保存 */
+     2) 演出ガチャ(超レア5%/レア25%/通常70%・レア以上は種類も)を抽選。最高レアは実績用、種類は なごり として保存 */
   const persistWithEvoCheck = (next, id) => {
     const before = stocks.find((s) => s.id === id);
     let after = next.find((s) => s.id === id);
@@ -232,12 +232,10 @@ export default function KabuDex() {
           const pool = evoPoolFor(after.type);
           evoPattern = pool[Math.floor(Math.random() * pool.length)];
         }
-        const tier = rollEvoFx();
-        const rank = { normal: 0, rare: 1, ultra: 2 };
-        const evoFxBest = rank[tier] > (rank[after.evoFxBest] ?? -1) ? tier : after.evoFxBest;
-        after = { ...after, evoPattern, evoFxBest };
+        const roll = rollEvoFx(); // {tier, kind}。レア以上は なごり(evoFx)が残る
+        after = applyEvoFxRoll({ ...after, evoPattern }, roll, s2, today());
         next = next.map((s) => (s.id === id ? after : s));
-        setEvoFlash({ stock: after, stage: stageOf(calcLevel(after)), tier });
+        setEvoFlash({ stock: after, stage: stageOf(calcLevel(after)), tier: roll.tier, kind: roll.kind });
       }
     }
     persist(next);
@@ -727,6 +725,21 @@ export default function KabuDex() {
         .kzCrZzz { animation: kzCrZzz 2.6s ease-out infinite; }
         @keyframes kzCrZzz { 0%{opacity:0; transform:translate(0,4px) scale(.7)} 25%{opacity:1} 100%{opacity:0; transform:translate(6px,-12px) scale(1.25)} }
         .kzCrNote { animation: kzCrNote 1.6s ease-in-out infinite; }
+        /* 進化演出の なごり(2026-11): ほとんどの時間は何もせず、ときどきだけ出る=さりげなく */
+        .kzTrStar { animation: kzTrStar 7s linear infinite; opacity: 0; }
+        @keyframes kzTrStar { 0%,86%{opacity:0; transform:translate(0,0) scale(.6)} 89%{opacity:1} 97%{opacity:0; transform:translate(-160%,90%) scale(1)} 100%{opacity:0} }
+        .kzTrPetal { animation: kzTrPetal 6.5s ease-in-out infinite; opacity: 0; }
+        @keyframes kzTrPetal { 0%,70%{opacity:0; transform:translate(0,0) rotate(0)} 74%{opacity:.95} 100%{opacity:0; transform:translate(40%,520%) rotate(260deg)} }
+        .kzTrBubble { animation: kzTrBubble 5.5s ease-out infinite; opacity: 0; }
+        @keyframes kzTrBubble { 0%,68%{opacity:0; transform:translate(0,0) scale(.5)} 72%{opacity:.85} 100%{opacity:0; transform:translate(-30%,-480%) scale(1.15)} }
+        .kzTrGlint { animation: kzTrGlint 4.5s ease-in-out infinite; opacity: 0; }
+        @keyframes kzTrGlint { 0%,80%,100%{opacity:0; transform:scale(.3) rotate(0)} 88%{opacity:1; transform:scale(1.2) rotate(45deg)} }
+        .kzTrZap { animation: kzTrZap 6s linear infinite; }
+        @keyframes kzTrZap { 0%,90%,94%,100%{filter:none} 91%,93%{filter:drop-shadow(0 0 2px #fde047) drop-shadow(0 0 5px #facc15)} 92%{filter:drop-shadow(0 0 1px #ffffff) brightness(1.25)} }
+        .kzTrNiji { animation: kzTrNiji 8s linear infinite; }
+        @keyframes kzTrNiji { 0%{filter:drop-shadow(0 0 4px #f87171aa)} 20%{filter:drop-shadow(0 0 4px #ffd166aa)} 40%{filter:drop-shadow(0 0 4px #4ade80aa)} 60%{filter:drop-shadow(0 0 4px #60a5faaa)} 80%{filter:drop-shadow(0 0 4px #c084fcaa)} 100%{filter:drop-shadow(0 0 4px #f87171aa)} }
+        .kzTrGold { animation: kzTrGold 3.6s ease-in-out infinite; }
+        @keyframes kzTrGold { 0%,100%{filter:drop-shadow(0 0 2px #ffd166aa)} 50%{filter:drop-shadow(0 0 5px #ffd166ee)} }
         @keyframes kzCrNote { 0%,100%{opacity:.2; transform:translateY(2px) rotate(-10deg)} 50%{opacity:1; transform:translateY(-6px) rotate(12deg)} }
         .kzGlint, .kzGlintGlow { transform-origin: 0px 0px; animation-name: kzGlint;
           animation-iteration-count: infinite; animation-timing-function: ease-in-out; }

@@ -12,7 +12,7 @@ import { Creature, RarityBadge, TypeChip, StatusBadge, Gauge, btnStyle, Overlay 
 import { TYPES, RARITIES, STAGES } from "../data/constants.js";
 import { calcLevel, calcCP, stageOf, rarityOf, urFxOf, freshInfo, speciesIndexOf } from "../lib/stock.js";
 import { SPECIES_POOL } from "../data/species.js";
-import { EVO_KINDS } from "../data/evolution.js";
+import { EVO_KINDS, EVO_FX, EVO_FX_TIER_NAME, evoFxOf } from "../data/evolution.js";
 import { currentEvoOf } from "../lib/reborn.js";
 import { sfx } from "../lib/sound.js";
 import { SectionFx } from "./SectionFx.jsx";
@@ -124,6 +124,8 @@ function CardBack({ stock, notes, t, stage, lv, fresh }) {
   // 出会った日: 登録日(2026-11以降の登録で保存)。無ければ、残っているいちばん古い記録の日付
   const dates = [...(stock.logs || []).map((l) => l.date), ...(notes || []).map((n) => n.date), ...(stock.trades || []).map((x) => x.date), stock.buyDate].filter(Boolean).sort();
   const met = stock.createdAt ? fmt(stock.createdAt) : dates[0] ? `${fmt(dates[0])}（いちばん古い記録）` : "記録なし";
+  const fxLog = Array.isArray(stock.evoFxLog) ? stock.evoFxLog : [];
+  const trace = evoFxOf(stock);
   const rows = [
     ["しゅぞく", stock.special ? "🌟 とくべつ" : sp ? sp.name : "—"],
     ["であった日", met],
@@ -133,7 +135,10 @@ function CardBack({ stock, notes, t, stage, lv, fresh }) {
     ["さいごに調べた日", stock.lastResearch ? `${fmt(stock.lastResearch)}${fresh && fresh.days !== null ? `（${fresh.days}日前）` : ""}` : "まだ"],
     stage.no >= 2 && !stock.special ? ["しんかのかざり", (EVO_KINDS[currentEvoOf(stock)] || {}).name || "—"] : null,
     stock.rebornCount ? ["転生", `${stock.rebornCount}回${stock.rebornAt ? `（さいご ${fmt(stock.rebornAt)}）` : ""}`] : null,
-    stock.evoFxBest ? ["しんか演出のさいこう", { normal: "ふつう", rare: "レア", ultra: "超レア" }[stock.evoFxBest] || stock.evoFxBest] : null,
+    // 進化のときに引いた演出(2026-11: 「しんか演出のさいこう」が分かりにくいとオーナー指摘→履歴と なごり で出す)
+    fxLog.length ? ["しんかの演出", fxLog.map((x) => `ST${x.stage} ${(EVO_FX[x.kind] || {}).name || "?"}${EVO_FX[x.kind] && EVO_FX[x.kind].tier !== "normal" ? `（${EVO_FX_TIER_NAME[EVO_FX[x.kind].tier]}）` : ""}`).join("・")]
+      : stock.evoFxBest ? ["しんかの演出", `いちばん良かったのは ${EVO_FX_TIER_NAME[stock.evoFxBest] || stock.evoFxBest}${trace ? `（${EVO_FX[trace].name}）` : ""}`] : null,
+    stock.evoFxBest ? ["演出のなごり", trace ? `${EVO_FX[trace].icon} ${EVO_FX[trace].name}: ${EVO_FX[trace].trace}` : "なし（レア以上の演出を引くと付きます）"] : null,
     stock.shiny ? ["いろちがい", stock.shinyAt ? `✨ ${fmt(stock.shinyAt)} に当選` : "✨"] : null,
     stock.lastTriggerCheck ? ["さいごの点検", fmt(stock.lastTriggerCheck)] : null,
     stock.status === "sold" && stock.soldAt ? ["そつぎょう", fmt(stock.soldAt)] : null,

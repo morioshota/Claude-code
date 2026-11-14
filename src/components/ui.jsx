@@ -1,6 +1,7 @@
 /* 共通UI部品: マークダウン表示/クリーチャー表示/バッジ/ゲージ/モーダル枠 */
 
 import { TYPES, RARITIES, STATUSES } from "../data/constants.js";
+import { evoFxOf } from "../data/evolution.js";
 import { buildPixels } from "../lib/sprites.js";
 import { moveTierOf } from "../lib/stock.js";
 import { hashStr, today } from "../lib/util.js";
@@ -95,6 +96,8 @@ function Creature({ stock, size = 64, sleeping = false, shadow = true, live = fa
   // 動きの出だしは銘柄ごとにずらす(そろって動くと機械的に見える)
   const phase = live ? (hashStr(String(stock.code || stock.name || "")) % 40) / 10 : 0;
   const glints = sleeping ? [] : (sparkles || []);
+  // 進化演出の なごり(2026-11)。レア以上の演出を引いた子だけ、生きている表示(図鑑カード・詳細)で さりげなく出す
+  const trace = live && !sleeping ? evoFxOf(stock) : null;
   // 幅だけで大きさを決めると、背の高い種族(長い耳・旗など)でカードが縦に伸びる。高さにも上限を設ける
   const dispW = h / w > 1.15 ? Math.round(size * 1.15 * (w / h)) : size;
   const svg = (
@@ -130,12 +133,28 @@ function Creature({ stock, size = 64, sleeping = false, shadow = true, live = fa
       )}
       {svg}
       {tier === 3 && <span className="kzCrZzz" style={{ position: "absolute", right: "-6%", top: "-8%", zIndex: 2, fontFamily: "'DotGothic16', monospace", fontSize: Math.max(9, size * 0.2), color: "#a5b4fc", pointerEvents: "none" }}>z</span>}
+      {trace && <FxTrace kind={trace} size={size} delay={phase} />}
       {happy && <span className="kzCrNote" style={{ position: "absolute", right: "-4%", top: "-10%", zIndex: 2, fontSize: Math.max(10, size * 0.22), color: "#ffd166", pointerEvents: "none" }}>♪</span>}
     </div>
   );
-  if (!stock.shiny) return withShadow;
+  const traced = trace && TRACE_GLOW[trace] ? <div className={TRACE_GLOW[trace]} style={{ display: "inline-block", animationDelay: `-${phase}s` }}>{withShadow}</div> : withShadow;
+  if (!stock.shiny) return traced;
   // 色違いはきらめきのオーラをまとう(動きを減らす設定では@media側でアニメ停止)
-  return <div style={{ animation: "kzShiny 2.2s ease-in-out infinite", display: "inline-block" }}>{withShadow}</div>;
+  return <div style={{ animation: "kzShiny 2.2s ease-in-out infinite", display: "inline-block" }}>{traced}</div>;
+}
+
+/* なごりの光(体のまわり)。CSSは KabuDex.jsx の kzTr* */
+const TRACE_GLOW = { inazuma: "kzTrZap", niji: "kzTrNiji", ougon: "kzTrGold" };
+/* なごりの粒(ときどき出る小さな飾り)。位置は大きさに合わせる */
+function FxTrace({ kind, size, delay }) {
+  const fs = Math.max(9, size * 0.17);
+  const base = { position: "absolute", zIndex: 2, pointerEvents: "none", fontSize: fs, lineHeight: 1, animationDelay: `-${(delay * 1.7).toFixed(1)}s` };
+  if (kind === "ryusei") return <span className="kzTrStar" style={{ ...base, right: "-10%", top: "4%", fontSize: fs * 1.3, color: "#fff7d6", textShadow: "0 0 6px #fde68a, 6px -4px 6px #fde68a99, 12px -8px 8px #fde68a55" }}>✦</span>;
+  if (kind === "sakura") return <span className="kzTrPetal" style={{ ...base, left: "8%", top: "-6%", color: "#f9a8d4" }}>❀</span>;
+  if (kind === "shabon") return <span className="kzTrBubble" style={{ ...base, left: "70%", bottom: "4%", width: fs * 1.1, height: fs * 1.1, borderRadius: "50%", border: "1px solid #cffafecc",
+    background: "radial-gradient(circle at 32% 30%, #ffffffdd 0 14%, #a5f3fc33 30%, #e9d5ff44 70%, #a5f3fc66 100%)" }} />;
+  if (kind === "ougon") return <span className="kzTrGlint" style={{ ...base, left: "14%", top: "8%", color: "#fff7d6", textShadow: "0 0 6px #ffd166" }}>✦</span>;
+  return null;
 }
 
 /* 3D用: canvasテクスチャ(名前ラベル・💤入り)を生成 */
