@@ -137,23 +137,74 @@ function Creature({ stock, size = 64, sleeping = false, shadow = true, live = fa
       {happy && <span className="kzCrNote" style={{ position: "absolute", right: "-4%", top: "-10%", zIndex: 2, fontSize: Math.max(10, size * 0.22), color: "#ffd166", pointerEvents: "none" }}>♪</span>}
     </div>
   );
-  const traced = trace && TRACE_GLOW[trace] ? <div className={TRACE_GLOW[trace]} style={{ display: "inline-block", animationDelay: `-${phase}s` }}>{withShadow}</div> : withShadow;
+  const traced = trace && TRACE_GLOW[trace] ? <div className={TRACE_GLOW[trace]} style={{ display: "inline-block", animationDelay: `-${(phase * 1.7).toFixed(1)}s` }}>{withShadow}</div> : withShadow;
   if (!stock.shiny) return traced;
   // 色違いはきらめきのオーラをまとう(動きを減らす設定では@media側でアニメ停止)
   return <div style={{ animation: "kzShiny 2.2s ease-in-out infinite", display: "inline-block" }}>{traced}</div>;
 }
 
 /* なごりの光(体のまわり)。CSSは KabuDex.jsx の kzTr* */
-const TRACE_GLOW = { inazuma: "kzTrZap", niji: "kzTrNiji", ougon: "kzTrGold" };
-/* なごりの粒(ときどき出る小さな飾り)。位置は大きさに合わせる */
+const TRACE_GLOW = { inazuma: "kzTrZap", ougon: "kzTrGold" };
+/* なごりの飾り(2026-11 描き直し。オーナー指摘「いなずまなどは、ほぼ分からない」):
+   ⚠ 光のふちどり(drop-shadow)だけ・1文字の記号1つだけでは、何の なごり か伝わらなかった。
+   「ひと目でそれと分かる形」を描き、数秒おきに はっきり出す(稲妻=ぎざぎざの形、流れ星=尾を引く星、虹=弧) */
+const BOLT = "M7,0 L1,9 L5,9 L3,16 L11,6 L6.5,6 L9,0 Z";
+const PETAL = "M5,0 C9,3 9,8 5,10 C1,8 1,3 5,0 Z";
 function FxTrace({ kind, size, delay }) {
-  const fs = Math.max(9, size * 0.17);
-  const base = { position: "absolute", zIndex: 2, pointerEvents: "none", fontSize: fs, lineHeight: 1, animationDelay: `-${(delay * 1.7).toFixed(1)}s` };
-  if (kind === "ryusei") return <span className="kzTrStar" style={{ ...base, right: "-10%", top: "4%", fontSize: fs * 1.3, color: "#fff7d6", textShadow: "0 0 6px #fde68a, 6px -4px 6px #fde68a99, 12px -8px 8px #fde68a55" }}>✦</span>;
-  if (kind === "sakura") return <span className="kzTrPetal" style={{ ...base, left: "8%", top: "-6%", color: "#f9a8d4" }}>❀</span>;
-  if (kind === "shabon") return <span className="kzTrBubble" style={{ ...base, left: "70%", bottom: "4%", width: fs * 1.1, height: fs * 1.1, borderRadius: "50%", border: "1px solid #cffafecc",
-    background: "radial-gradient(circle at 32% 30%, #ffffffdd 0 14%, #a5f3fc33 30%, #e9d5ff44 70%, #a5f3fc66 100%)" }} />;
-  if (kind === "ougon") return <span className="kzTrGlint" style={{ ...base, left: "14%", top: "8%", color: "#fff7d6", textShadow: "0 0 6px #ffd166" }}>✦</span>;
+  const u = Math.max(48, size) / 100; // 大きさの単位(クリーチャーの幅に比例)
+  const d = (k = 0) => `-${(delay * 1.7 + k).toFixed(1)}s`;
+  const abs = { position: "absolute", zIndex: 2, pointerEvents: "none" };
+  if (kind === "inazuma") return (
+    <>
+      {[{ left: "-14%", top: "2%", r: -12, k: 0 }, { right: "-14%", top: "18%", r: 14, k: 0.12 }].map((b, i) => (
+        <svg key={i} className="kzTrBolt" viewBox="0 0 12 16" width={26 * u} height={35 * u}
+          style={{ ...abs, left: b.left, right: b.right, top: b.top, overflow: "visible", animationDelay: d(b.k), "--r": `${b.r}deg` }}>
+          <path d={BOLT} fill="#fde047" stroke="#ffffff" strokeWidth="0.9" strokeLinejoin="round" style={{ filter: "drop-shadow(0 0 3px #facc15)" }} />
+        </svg>
+      ))}
+    </>
+  );
+  if (kind === "ryusei") return (
+    <span className="kzTrStar" style={{ ...abs, right: "-18%", top: "-14%", display: "inline-flex", alignItems: "center", animationDelay: d() }}>
+      <span style={{ fontSize: 22 * u, lineHeight: 1, color: "#fffbe6", textShadow: "0 0 6px #fde68a, 0 0 10px #fde68a" }}>★</span>
+      <span style={{ width: 46 * u, height: Math.max(2, 4 * u), borderRadius: 4, marginLeft: -2, background: "linear-gradient(90deg, #fde68aee, #bae6fd88 55%, transparent)" }} />
+    </span>
+  );
+  if (kind === "sakura") return (
+    <>
+      {[{ left: "2%", k: 0, s: 1 }, { left: "44%", k: 1.7, s: 0.8 }, { left: "80%", k: 3.1, s: 0.95 }].map((p, i) => (
+        <svg key={i} className="kzTrPetal" viewBox="0 0 10 10" width={15 * u * p.s} height={15 * u * p.s}
+          style={{ ...abs, left: p.left, top: "-10%", overflow: "visible", animationDelay: d(p.k), "--fall": `${Math.max(48, size) * 1.05}px` }}>
+          <path d={PETAL} fill="#f9a8d4" stroke="#fff1f2" strokeWidth="0.7" />
+        </svg>
+      ))}
+    </>
+  );
+  if (kind === "shabon") return (
+    <>
+      {[{ left: "4%", k: 0, s: 1.15 }, { left: "62%", k: 1.4, s: 0.8 }, { left: "86%", k: 2.9, s: 1 }].map((b, i) => (
+        <span key={i} className="kzTrBubble" style={{ ...abs, left: b.left, bottom: "0%", width: 16 * u * b.s, height: 16 * u * b.s, borderRadius: "50%", border: "1.5px solid #e0f2feee",
+          background: "radial-gradient(circle at 32% 30%, #ffffff 0 16%, #a5f3fc55 34%, #e9d5ff66 72%, #a5f3fc99 100%)", animationDelay: d(b.k), "--rise": `${Math.max(48, size) * 0.78}px` }} />
+      ))}
+    </>
+  );
+  if (kind === "niji") return (
+    // 頭の上にかかる小さな虹(5色の弧)。体の後ろ(zIndex 0)に置き、ゆっくり明るくなったり薄くなったりする
+    <svg className="kzTrRainbow" viewBox="0 0 100 56" style={{ ...abs, zIndex: 0, left: "-14%", top: "-20%", width: "128%", overflow: "visible", animationDelay: d() }}>
+      {["#f87171", "#fbbf24", "#4ade80", "#60a5fa", "#c084fc"].map((c, i) => (
+        <path key={c} d={`M${6 + i * 5},56 A${44 - i * 5},${44 - i * 5} 0 0 1 ${94 - i * 5},56`} fill="none" stroke={c} strokeWidth="5" />
+      ))}
+    </svg>
+  );
+  if (kind === "ougon") return (
+    <>
+      {[{ left: "-6%", top: "6%", k: 0, s: 1 }, { left: "86%", top: "30%", k: 1.1, s: 0.75 }, { left: "30%", top: "-14%", k: 2.2, s: 0.85 }].map((g, i) => (
+        <svg key={i} className="kzTrGlint" viewBox="-3 -3 6 6" width={20 * u * g.s} height={20 * u * g.s} style={{ ...abs, left: g.left, top: g.top, overflow: "visible", animationDelay: d(g.k) }}>
+          <path d={GLINT_PATH} fill="#fff7d6" style={{ filter: "drop-shadow(0 0 2px #ffd166)" }} />
+        </svg>
+      ))}
+    </>
+  );
   return null;
 }
 

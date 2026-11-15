@@ -1,6 +1,7 @@
 /* 汎用ユーティリティ: 日付/ID生成/ハッシュ/擬似乱数/色 */
 
-const today = () => new Date().toISOString().slice(0, 10);
+// ⚠ 端末の時刻での「きょう」(2026-11 修正)。以前はUTCの日付だったので、日本では朝9時まで前の日あつかいになっていた
+const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
 // 乱数+時刻に加えプロセス内連番を足す: 同一ミリ秒に複数発行しても衝突しない
 let uidSeq = 0;

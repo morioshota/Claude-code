@@ -726,20 +726,23 @@ export default function KabuDex() {
         @keyframes kzCrZzz { 0%{opacity:0; transform:translate(0,4px) scale(.7)} 25%{opacity:1} 100%{opacity:0; transform:translate(6px,-12px) scale(1.25)} }
         .kzCrNote { animation: kzCrNote 1.6s ease-in-out infinite; }
         /* 進化演出の なごり(2026-11): ほとんどの時間は何もせず、ときどきだけ出る=さりげなく */
-        .kzTrStar { animation: kzTrStar 7s linear infinite; opacity: 0; }
-        @keyframes kzTrStar { 0%,86%{opacity:0; transform:translate(0,0) scale(.6)} 89%{opacity:1} 97%{opacity:0; transform:translate(-160%,90%) scale(1)} 100%{opacity:0} }
-        .kzTrPetal { animation: kzTrPetal 6.5s ease-in-out infinite; opacity: 0; }
-        @keyframes kzTrPetal { 0%,70%{opacity:0; transform:translate(0,0) rotate(0)} 74%{opacity:.95} 100%{opacity:0; transform:translate(40%,520%) rotate(260deg)} }
-        .kzTrBubble { animation: kzTrBubble 5.5s ease-out infinite; opacity: 0; }
-        @keyframes kzTrBubble { 0%,68%{opacity:0; transform:translate(0,0) scale(.5)} 72%{opacity:.85} 100%{opacity:0; transform:translate(-30%,-480%) scale(1.15)} }
-        .kzTrGlint { animation: kzTrGlint 4.5s ease-in-out infinite; opacity: 0; }
-        @keyframes kzTrGlint { 0%,80%,100%{opacity:0; transform:scale(.3) rotate(0)} 88%{opacity:1; transform:scale(1.2) rotate(45deg)} }
-        .kzTrZap { animation: kzTrZap 6s linear infinite; }
-        @keyframes kzTrZap { 0%,90%,94%,100%{filter:none} 91%,93%{filter:drop-shadow(0 0 2px #fde047) drop-shadow(0 0 5px #facc15)} 92%{filter:drop-shadow(0 0 1px #ffffff) brightness(1.25)} }
-        .kzTrNiji { animation: kzTrNiji 8s linear infinite; }
-        @keyframes kzTrNiji { 0%{filter:drop-shadow(0 0 4px #f87171aa)} 20%{filter:drop-shadow(0 0 4px #ffd166aa)} 40%{filter:drop-shadow(0 0 4px #4ade80aa)} 60%{filter:drop-shadow(0 0 4px #60a5faaa)} 80%{filter:drop-shadow(0 0 4px #c084fcaa)} 100%{filter:drop-shadow(0 0 4px #f87171aa)} }
-        .kzTrGold { animation: kzTrGold 3.6s ease-in-out infinite; }
-        @keyframes kzTrGold { 0%,100%{filter:drop-shadow(0 0 2px #ffd166aa)} 50%{filter:drop-shadow(0 0 5px #ffd166ee)} }
+        .kzTrStar { animation: kzTrStar 4.5s linear infinite; opacity: 0; transform-origin: left center; }
+        @keyframes kzTrStar { 0%,62%{opacity:0; transform:translate(0,0) rotate(-28deg)} 66%{opacity:1} 86%{opacity:1} 96%,100%{opacity:0; transform:translate(-230%,260%) rotate(-28deg)} }
+        .kzTrPetal { animation: kzTrPetal 5s linear infinite; opacity: 0; }
+        @keyframes kzTrPetal { 0%{opacity:0; transform:translate(0,0) rotate(0)} 8%{opacity:1} 30%{transform:translate(9px, calc(var(--fall) * .3)) rotate(110deg)} 60%{opacity:1; transform:translate(-7px, calc(var(--fall) * .65)) rotate(230deg)} 90%,100%{opacity:0; transform:translate(6px, var(--fall)) rotate(360deg)} }
+        .kzTrBubble { animation: kzTrBubble 4.4s ease-out infinite; opacity: 0; }
+        @keyframes kzTrBubble { 0%{opacity:0; transform:translate(0,0) scale(.4)} 10%{opacity:1} 50%{transform:translate(6px, calc(var(--rise) * -.5)) scale(1)} 85%{opacity:1} 92%{opacity:.9; transform:translate(-3px, calc(var(--rise) * -.95)) scale(1.25)} 96%,100%{opacity:0; transform:translate(-3px, calc(var(--rise) * -1)) scale(1.6)} }
+        .kzTrGlint { animation: kzTrGlint 3.2s ease-in-out infinite; opacity: 0; }
+        @keyframes kzTrGlint { 0%,55%,100%{opacity:0; transform:scale(.2) rotate(0)} 75%{opacity:1; transform:scale(1.15) rotate(45deg)} 90%{opacity:.4; transform:scale(.6) rotate(80deg)} }
+        /* いなずま: ぎざぎざの稲妻が左右にパッと2回ひらめく。同じ周期で体もいっしゅん明るくなる */
+        .kzTrBolt { animation: kzTrBolt 3.6s steps(1, end) infinite; opacity: 0; transform: rotate(var(--r, 0deg)); }
+        @keyframes kzTrBolt { 0%,78%{opacity:0} 80%{opacity:1} 84%{opacity:0} 87%{opacity:1} 95%,100%{opacity:0} }
+        .kzTrZap { animation: kzTrZap 3.6s steps(1, end) infinite; }
+        @keyframes kzTrZap { 0%,78%,84%,95%,100%{filter:none} 80%,87%{filter:brightness(1.35) drop-shadow(0 0 4px #fde047)} }
+        .kzTrRainbow { animation: kzTrRainbow 5s ease-in-out infinite; }
+        @keyframes kzTrRainbow { 0%,100%{opacity:.5} 50%{opacity:.95} }
+        .kzTrGold { animation: kzTrGold 3.2s ease-in-out infinite; }
+        @keyframes kzTrGold { 0%,100%{filter:drop-shadow(0 0 2px #ffd166cc)} 50%{filter:drop-shadow(0 0 6px #ffd166) drop-shadow(0 0 2px #fff7d6)} }
         @keyframes kzCrNote { 0%,100%{opacity:.2; transform:translateY(2px) rotate(-10deg)} 50%{opacity:1; transform:translateY(-6px) rotate(12deg)} }
         .kzGlint, .kzGlintGlow { transform-origin: 0px 0px; animation-name: kzGlint;
           animation-iteration-count: infinite; animation-timing-function: ease-in-out; }

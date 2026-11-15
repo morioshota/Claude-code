@@ -24,3 +24,14 @@ assert.equal(EVO_FX[evoFxOf({ code: "NVDA", evoFxBest: "ultra" })].tier, "ultra"
 // 古いデータの子がレアをもう一度引いても、いまの なごり は変わらない
 assert.equal(applyEvoFxRoll(old, { tier: "rare", kind: "inazuma" }, 3, "x").evoFx, evoFxOf(old));
 console.log("evofx: ok");
+
+// 草カレンダーの連続日数(日付の計算が時差でずれないこと)
+import { streaks } from "../src/lib/activity.js";
+{
+  const days = { "2026-11-10": 1, "2026-11-11": 2, "2026-11-12": 1, "2026-11-14": 1, "2026-11-15": 3 };
+  const r = streaks(days, "2026-11-15");
+  assert.equal(r.current, 2); assert.equal(r.max, 3);
+  assert.equal(streaks(days, "2026-11-16").current, 2, "きょうまだでも昨日までの連続は続く");
+  assert.equal(streaks(days, "2026-11-17").current, 0);
+  console.log("streaks: ok");
+}

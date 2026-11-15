@@ -58,12 +58,12 @@ const TIER_RANK = { normal: 0, rare: 1, ultra: 2 };
 // 演出の種類。trace=なごりの説明(カードのうら面・セレモニーに出す)
 export const EVO_FX = {
   kirari:  { tier: "normal", name: "きらり",           icon: "✨", trace: null },
-  ryusei:  { tier: "rare",   name: "ながれぼし",       icon: "🌠", trace: "ときどき頭の上を流れ星が横切る" },
-  sakura:  { tier: "rare",   name: "はなふぶき",       icon: "🌸", trace: "ときどき花びらがひらりと舞う" },
-  inazuma: { tier: "rare",   name: "いなずま",         icon: "⚡", trace: "ときどき体にパチッと電気が走る" },
-  shabon:  { tier: "rare",   name: "しゃぼんだま",     icon: "🫧", trace: "ときどき足元からしゃぼん玉がのぼる" },
-  niji:    { tier: "ultra",  name: "にじのかなた",     icon: "🌈", trace: "体のまわりに虹色の光がゆっくりめぐる" },
-  ougon:   { tier: "ultra",  name: "おうごんのかがやき", icon: "👑", trace: "体のふちがうっすら金色に光り、ときどききらめく" },
+  ryusei:  { tier: "rare",   name: "ながれぼし",       icon: "🌠", trace: "数秒おきに、尾を引く流れ星が頭の上を横切る" },
+  sakura:  { tier: "rare",   name: "はなふぶき",       icon: "🌸", trace: "さくらの花びらがひらひら舞い落ちる" },
+  inazuma: { tier: "rare",   name: "いなずま",         icon: "⚡", trace: "数秒おきに、左右で稲妻がピカッと光る" },
+  shabon:  { tier: "rare",   name: "しゃぼんだま",     icon: "🫧", trace: "しゃぼん玉がふわふわのぼっていく" },
+  niji:    { tier: "ultra",  name: "にじのかなた",     icon: "🌈", trace: "頭の上に小さな虹がかかる" },
+  ougon:   { tier: "ultra",  name: "おうごんのかがやき", icon: "👑", trace: "体が金色に光り、まわりで金の光がきらめく" },
 };
 const KINDS_OF = (tier) => Object.keys(EVO_FX).filter((k) => EVO_FX[k].tier === tier);
 

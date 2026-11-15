@@ -51,22 +51,23 @@ export const seedActivity = async (stocks, loadNotesFn) => {
 };
 
 /* 連続日数(今日または昨日まで継続中)と最長記録 */
-export const streaks = (days) => {
+export const streaks = (days, now = today()) => {
   const set = new Set(Object.keys(days).filter((d) => days[d] > 0));
   const dayMs = 86400000;
+  // 日付の文字列どうしの足し引きはUTCで行う(端末の時差を混ぜると1日ずれる。以前は日本で最長連続が狂っていた)
   const toStr = (t) => new Date(t).toISOString().slice(0, 10);
   // 現在の連続: 今日から遡る(今日まだ活動してなければ昨日から)
   let cur = 0;
-  let t = Date.now();
+  let t = Date.parse(now);
   if (!set.has(toStr(t))) t -= dayMs;
   while (set.has(toStr(t))) { cur++; t -= dayMs; }
   // 最長連続
   let max = 0;
   for (const d of set) {
-    const prev = toStr(new Date(d + "T00:00:00").getTime() - dayMs);
-    if (set.has(prev)) continue; // 連続の先頭だけから数える
+    const t0 = Date.parse(d);
+    if (!Number.isFinite(t0) || set.has(toStr(t0 - dayMs))) continue; // 連続の先頭だけから数える
     let len = 0;
-    let tt = new Date(d + "T00:00:00").getTime();
+    let tt = t0;
     while (set.has(toStr(tt))) { len++; tt += dayMs; }
     if (len > max) max = len;
   }
