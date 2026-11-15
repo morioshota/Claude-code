@@ -113,7 +113,7 @@ function Creature({ stock, size = 64, sleeping = false, shadow = true, live = fa
       {/* ✦の位置でまたたく光(オーラ進化・色違い)。位置はsprites.jsが返す */}
       {glints.map((s, i) => (
         <g key={`gl${i}`} transform={`translate(${s.x + 0.5} ${s.y + 0.5})`}>
-          <path className="kzGlintGlow" d={GLINT_PATH} fill={s.kind === "shiny" ? "#f0abfc" : "#ffd166"}
+          <path className="kzGlintGlow" d={GLINT_PATH} fill={s.kind === "shiny" ? "#f0abfc" : s.color || "#ffd166"}
             style={{ animationDelay: `${(i * 0.31).toFixed(2)}s`, animationDuration: `${(2.0 + (i % 3) * 0.4).toFixed(2)}s` }} />
           <path className="kzGlint" d={GLINT_PATH} fill="#ffffff"
             style={{ animationDelay: `${(i * 0.31).toFixed(2)}s`, animationDuration: `${(2.0 + (i % 3) * 0.4).toFixed(2)}s` }} />
@@ -189,10 +189,11 @@ function FxTrace({ kind, size, delay }) {
     </>
   );
   if (kind === "niji") return (
-    // 頭の上にかかる小さな虹(5色の弧)。体の後ろ(zIndex 0)に置き、ゆっくり明るくなったり薄くなったりする
-    <svg className="kzTrRainbow" viewBox="0 0 100 56" style={{ ...abs, zIndex: 0, left: "-14%", top: "-20%", width: "128%", overflow: "visible", animationDelay: d() }}>
+    // 頭の上にかかる小さな虹(5色の弧)。体の後ろ(zIndex 0)。⚠ 出しっぱなしは印象が強すぎた(オーナー指摘)——
+    // ふだんは何も無く、ときどき(約9秒に1回・2秒ほど)ふわっとかかって消える
+    <svg className="kzTrRainbow" viewBox="0 0 100 56" style={{ ...abs, zIndex: 0, left: "-6%", top: "-16%", width: "112%", overflow: "visible", animationDelay: d() }}>
       {["#f87171", "#fbbf24", "#4ade80", "#60a5fa", "#c084fc"].map((c, i) => (
-        <path key={c} d={`M${6 + i * 5},56 A${44 - i * 5},${44 - i * 5} 0 0 1 ${94 - i * 5},56`} fill="none" stroke={c} strokeWidth="5" />
+        <path key={c} d={`M${6 + i * 5},56 A${44 - i * 5},${44 - i * 5} 0 0 1 ${94 - i * 5},56`} fill="none" stroke={c} strokeWidth="5" strokeOpacity="0.85" />
       ))}
     </svg>
   );

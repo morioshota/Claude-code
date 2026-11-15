@@ -13,6 +13,7 @@ const GOLD = "#ffd166", WHITE = "#ffffff";
 const EYE = "#111827"; // 目の色(この色のマスを「目」として、閉じた絵を作る)
 
 /* 目を閉じる: 2倍に拡大したあとの目(2×2)の上半分をまわりの色で埋めて、横一本の線にする */
+const STARDUST = ["#7dd3fc", "#c4b5fd", "#99f6e4"]; // かざり「ほしくず」の色(金・ピンクは おうごん・色違い と重なるので使わない)
 const closeEyes = (g) => {
   const out = g.map((r) => [...r]);
   for (let y = 0; y < g.length - 1; y++) {
@@ -416,8 +417,10 @@ function buildPixelsRaw(stock, sleeping, opts = {}) {
     ];
     const n = level === 1 ? 4 : level === 2 ? 7 : 10;
     spots.slice(0, n).forEach(([y, x], i) => {
-      sparkle(grid, y, x, i % 2 ? WHITE : GOLD, i % 2 ? "#e9d5ff" : "#fde68a");
-      marks.push({ x, y, kind: "aura" });
+      // ほしくず(2026-11: 金のキラキラは なごり「おうごんのかがやき」と見分けにくいとオーナー指摘→水色・うす紫・ミントの星くずに)
+      const col = STARDUST[i % STARDUST.length];
+      sparkle(grid, y, x, WHITE, col);
+      marks.push({ x, y, kind: "aura", color: col });
     });
     const ta = trimGridInfo(grid); grid = ta.grid; shiftMarks(-ta.dx, -ta.dy);
   }

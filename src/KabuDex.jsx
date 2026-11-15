@@ -739,8 +739,8 @@ export default function KabuDex() {
         @keyframes kzTrBolt { 0%,78%{opacity:0} 80%{opacity:1} 84%{opacity:0} 87%{opacity:1} 95%,100%{opacity:0} }
         .kzTrZap { animation: kzTrZap 3.6s steps(1, end) infinite; }
         @keyframes kzTrZap { 0%,78%,84%,95%,100%{filter:none} 80%,87%{filter:brightness(1.35) drop-shadow(0 0 4px #fde047)} }
-        .kzTrRainbow { animation: kzTrRainbow 5s ease-in-out infinite; }
-        @keyframes kzTrRainbow { 0%,100%{opacity:.5} 50%{opacity:.95} }
+        .kzTrRainbow { animation: kzTrRainbow 9s ease-in-out infinite; opacity: 0; }
+        @keyframes kzTrRainbow { 0%,70%{opacity:0; transform:translateY(6%) scale(.92)} 78%{opacity:.8; transform:none} 90%{opacity:.8; transform:none} 98%,100%{opacity:0; transform:translateY(-3%) scale(1.03)} }
         .kzTrGold { animation: kzTrGold 3.2s ease-in-out infinite; }
         @keyframes kzTrGold { 0%,100%{filter:drop-shadow(0 0 2px #ffd166cc)} 50%{filter:drop-shadow(0 0 6px #ffd166) drop-shadow(0 0 2px #fff7d6)} }
         @keyframes kzCrNote { 0%,100%{opacity:.2; transform:translateY(2px) rotate(-10deg)} 50%{opacity:1; transform:translateY(-6px) rotate(12deg)} }

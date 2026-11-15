@@ -10,7 +10,7 @@
 export const EVO_KINDS = {
   horns:  { name: "ツノ" },
   wings:  { name: "ツバサ" },
-  aura:   { name: "キラキラ" },
+  aura:   { name: "ほしくず" }, // 旧「キラキラ」。金のきらめきが なごり「おうごんのかがやき」と重なるので、水色・うす紫・ミントの星くずにした(キーはそのまま)
   halo:   { name: "てんしのわ" },
   hat:    { name: "まほうのぼうし" },
   ribbon: { name: "リボン" },
@@ -62,7 +62,7 @@ export const EVO_FX = {
   sakura:  { tier: "rare",   name: "はなふぶき",       icon: "🌸", trace: "さくらの花びらがひらひら舞い落ちる" },
   inazuma: { tier: "rare",   name: "いなずま",         icon: "⚡", trace: "数秒おきに、左右で稲妻がピカッと光る" },
   shabon:  { tier: "rare",   name: "しゃぼんだま",     icon: "🫧", trace: "しゃぼん玉がふわふわのぼっていく" },
-  niji:    { tier: "ultra",  name: "にじのかなた",     icon: "🌈", trace: "頭の上に小さな虹がかかる" },
+  niji:    { tier: "ultra",  name: "にじのかなた",     icon: "🌈", trace: "ときどき、頭の上に小さな虹がふわっとかかって消える" },
   ougon:   { tier: "ultra",  name: "おうごんのかがやき", icon: "👑", trace: "体が金色に光り、まわりで金の光がきらめく" },
 };
 const KINDS_OF = (tier) => Object.keys(EVO_FX).filter((k) => EVO_FX[k].tier === tier);
