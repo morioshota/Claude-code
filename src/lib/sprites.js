@@ -13,6 +13,7 @@ const GOLD = "#ffd166", WHITE = "#ffffff";
 const EYE = "#111827"; // 目の色(この色のマスを「目」として、閉じた絵を作る)
 
 /* 目を閉じる: 2倍に拡大したあとの目(2×2)の上半分をまわりの色で埋めて、横一本の線にする */
+const ORB = [".cc.", "cwcc", "cccd", ".dd."]; // かざり「まわるほし」の玉(4×4。w=つや・d=かげ)
 const STARDUST = ["#7dd3fc", "#c4b5fd", "#99f6e4"]; // かざり「ほしくず」の色(金・ピンクは おうごん・色違い と重なるので使わない)
 const closeEyes = (g) => {
   const out = g.map((r) => [...r]);
@@ -303,10 +304,11 @@ const PIX_CACHE = new Map();
 function buildPixels(stock, sleeping, opts = {}) {
   // opts.closed: 目を閉じた絵(まばたき用。眠っているときはいつも閉じる)
   const closed = !!opts.closed || !!sleeping;
-  const key = [stock.code, stock.name, stock.type, calcLevel(stock), !!stock.shiny, stock.evoPattern || "", stock.special || "", specialsVersion(), !!sleeping, closed].join("|");
+  const noAura = !!opts.noAura;
+  const key = [stock.code, stock.name, stock.type, calcLevel(stock), !!stock.shiny, stock.evoPattern || "", stock.special || "", specialsVersion(), !!sleeping, closed, noAura].join("|");
   const hit = PIX_CACHE.get(key);
   if (hit) return hit;
-  const res = buildPixelsRaw(stock, sleeping, { closed });
+  const res = buildPixelsRaw(stock, sleeping, { closed, noAura });
   if (PIX_CACHE.size > 600) PIX_CACHE.clear();
   PIX_CACHE.set(key, res);
   return res;
@@ -410,17 +412,14 @@ function buildPixelsRaw(stock, sleeping, opts = {}) {
     const midY = Math.round((t + b2) / 2);
     const cx = Math.round((tb[0] + tb[1]) / 2);
     const level = Math.min(stageNo - 1, 3);
-    const spots = [
-      [t - 1, tb[1] + 3], [b2 - 1, bb[0] - 2], [midY - 2, bb[0] - 3], [t - 2, tb[0] - 1],
-      [midY, tb[1] + 4], [b2 + 1, bb[1] + 2], [t - 3, cx],
-      [midY + 2, bb[0] - 4], [t, tb[0] - 3], [b2 - 3, bb[1] + 3],
-    ];
-    const n = level === 1 ? 4 : level === 2 ? 7 : 10;
-    spots.slice(0, n).forEach(([y, x], i) => {
-      // ほしくず(2026-11: 金のキラキラは なごり「おうごんのかがやき」と見分けにくいとオーナー指摘→水色・うす紫・ミントの星くずに)
+    // まわるほし(2026-11・3度目の見直し): またたく✦(キラキラ→色を変えた ほしくず)は「色が違うだけ」とオーナー指摘。
+    // 効果そのものを変えた——小さな丸い星(玉)が体のまわりを回る。止め絵(牧場・一覧)では体のそばに浮かべ、
+    // 生きている表示(Creature live)では opts.noAura でこの玉を消した絵を使い、回る玉を上から重ねる
+    const spots = [[t - 1, tb[1] + 2], [midY, bb[0] - 6], [b2 - 3, bb[1] + 3]];
+    spots.slice(0, level).forEach(([y, x], i) => {
       const col = STARDUST[i % STARDUST.length];
-      sparkle(grid, y, x, WHITE, col);
-      marks.push({ x, y, kind: "aura", color: col });
+      ORB.forEach((row, dy) => [...row].forEach((ch, dx) => { if (ch !== ".") put(grid, y + dy, x + dx, ch === "w" ? WHITE : ch === "d" ? shade(col, 0.6) : col); }));
+      marks.push({ x, y, kind: "orbit", color: col });
     });
     const ta = trimGridInfo(grid); grid = ta.grid; shiftMarks(-ta.dx, -ta.dy);
   }
@@ -435,6 +434,8 @@ function buildPixelsRaw(stock, sleeping, opts = {}) {
     marks.push({ x: bb[0] - 1, y: b2 - 2, kind: "shiny" });
     const ts = trimGridInfo(grid); grid = ts.grid; shiftMarks(-ts.dx, -ts.dy);
   }
+  // 回る玉を重ねる表示用: 止め絵の玉だけ消す(絵の大きさは変えない。まばたき用の絵とも同じ大きさになる)
+  if (opts.noAura) marks.filter((m) => m.kind === "orbit").forEach((m) => { for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) put(grid, m.y + dy, m.x + dx, null); });
   return { grid, w: grid[0].length, h: grid.length, speciesName: special ? special.name : species.name, special: !!special, sparkles: marks };
 }
 

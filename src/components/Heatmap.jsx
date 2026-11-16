@@ -73,7 +73,7 @@ export function Heatmap({ activity }) {
         <span />
         {months.map((m, i) => <span key={`m${i}`} style={{ fontFamily: mono, fontSize: 9.5, color: "#8b93b8", whiteSpace: "nowrap", overflow: "visible", height: 12 }}>{m}</span>)}
         {WD.map((w, d) => [
-          <span key={`w${d}`} style={{ fontFamily: mono, fontSize: 9.5, color: d === 0 || d === 6 ? "#5b6284" : "#8b93b8", textAlign: "center" }}>{d % 2 === 0 ? w : ""}</span>,
+          <span key={`w${d}`} style={{ fontFamily: mono, fontSize: 9.5, color: d === 0 || d === 6 ? "#5b6284" : "#8b93b8", textAlign: "center" }}>{w}</span>,
           ...cols.map((col, i) => {
             const c = col[d];
             if (!c) return <span key={`${i}-${d}`} />;

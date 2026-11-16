@@ -89,13 +89,16 @@ const GLINT_PATH = "M0,-2.7 L0.7,-0.7 L2.7,0 L0.7,0.7 L0,2.7 L-0.7,0.7 L-2.7,0 L
    しぐさは研究の鮮度(不変条件3)と同じ区切り: 0-14日=はねる / -45日=ゆれて歩く / -90日=ゆっくり / 90日超=眠る(Zzz)。
    きょう調べた子は♪を出して喜ぶ。株価は関係しない(不変条件5) */
 function Creature({ stock, size = 64, sleeping = false, shadow = true, live = false }) {
-  const { grid, w, h, sparkles } = buildPixels(stock, sleeping);
-  const blinkGrid = live && !sleeping ? buildPixels(stock, false, { closed: true }).grid : null;
+  // かざり「まわるほし」: 生きている表示では、止め絵の玉を消した絵(noAura)に、回る玉を重ねる
+  const moving = live && !sleeping;
+  const { grid, w, h, sparkles } = buildPixels(stock, sleeping, { noAura: moving });
+  const blinkGrid = moving ? buildPixels(stock, false, { closed: true, noAura: true }).grid : null;
+  const orbs = moving ? (sparkles || []).filter((s) => s.kind === "orbit") : [];
   const tier = live ? (sleeping ? 3 : moveTierOf(stock)) : -1;
   const happy = live && !sleeping && stock.lastResearch === today();
   // 動きの出だしは銘柄ごとにずらす(そろって動くと機械的に見える)
   const phase = live ? (hashStr(String(stock.code || stock.name || "")) % 40) / 10 : 0;
-  const glints = sleeping ? [] : (sparkles || []);
+  const glints = sleeping ? [] : (sparkles || []).filter((s) => s.kind !== "orbit");
   // 進化演出の なごり(2026-11)。レア以上の演出を引いた子だけ、生きている表示(図鑑カード・詳細)で さりげなく出す
   const trace = live && !sleeping ? evoFxOf(stock) : null;
   // 幅だけで大きさを決めると、背の高い種族(長い耳・旗など)でカードが縦に伸びる。高さにも上限を設ける
@@ -133,6 +136,7 @@ function Creature({ stock, size = 64, sleeping = false, shadow = true, live = fa
       )}
       {svg}
       {tier === 3 && <span className="kzCrZzz" style={{ position: "absolute", right: "-6%", top: "-8%", zIndex: 2, fontFamily: "'DotGothic16', monospace", fontSize: Math.max(9, size * 0.2), color: "#a5b4fc", pointerEvents: "none" }}>z</span>}
+      {orbs.map((o, i) => <Orbiter key={`ob${i}`} color={o.color} size={size} delay={phase + (i * ORBIT_SEC) / orbs.length} />)}
       {trace && <FxTrace kind={trace} size={size} delay={phase} />}
       {happy && <span className="kzCrNote" style={{ position: "absolute", right: "-4%", top: "-10%", zIndex: 2, fontSize: Math.max(10, size * 0.22), color: "#ffd166", pointerEvents: "none" }}>♪</span>}
     </div>
@@ -141,6 +145,25 @@ function Creature({ stock, size = 64, sleeping = false, shadow = true, live = fa
   if (!stock.shiny) return traced;
   // 色違いはきらめきのオーラをまとう(動きを減らす設定では@media側でアニメ停止)
   return <div style={{ animation: "kzShiny 2.2s ease-in-out infinite", display: "inline-block" }}>{traced}</div>;
+}
+
+/* かざり「まわるほし」の回る玉。横(kzOrbX)と縦(kzOrbY)の往復を1/4周期ずらして だ円の軌道にし、
+   奥を回るあいだは体の後ろ(z-index 0)、手前では前(2)に出す。CSSは KabuDex.jsx */
+const ORBIT_SEC = 4.8;
+function Orbiter({ color, size, delay }) {
+  const px = Math.max(8, size * 0.16);
+  const d = (k = 0) => `-${(delay + k).toFixed(2)}s`;
+  return (
+    <span className="kzOrbX" style={{ position: "absolute", left: "50%", top: "46%", width: 0, height: 0, pointerEvents: "none", animationDelay: `${d()}, ${d()}`, "--R": `${Math.max(48, size) * 0.62}px` }}>
+      <span className="kzOrbY" style={{ position: "absolute", animationDelay: d(ORBIT_SEC / 4), "--r": `${Math.max(48, size) * 0.2}px` }}>
+        <svg viewBox="0 0 4 4" width={px} height={px} shapeRendering="crispEdges" style={{ display: "block", margin: `${-px / 2}px 0 0 ${-px / 2}px`, filter: `drop-shadow(0 0 2px ${color})` }}>
+          <path d="M1,0h2v1h1v2h-1v1h-2v-1h-1v-2h1z" fill={color} />
+          <rect x="1" y="1" width="1" height="1" fill="#ffffff" />
+          <path d="M3,2h1v1h-1v1h-2v-1h2z" fill="#00000044" />
+        </svg>
+      </span>
+    </span>
+  );
 }
 
 /* なごりの光(体のまわり)。CSSは KabuDex.jsx の kzTr* */

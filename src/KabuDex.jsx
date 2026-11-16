@@ -726,6 +726,12 @@ export default function KabuDex() {
         @keyframes kzCrZzz { 0%{opacity:0; transform:translate(0,4px) scale(.7)} 25%{opacity:1} 100%{opacity:0; transform:translate(6px,-12px) scale(1.25)} }
         .kzCrNote { animation: kzCrNote 1.6s ease-in-out infinite; }
         /* 進化演出の なごり(2026-11): ほとんどの時間は何もせず、ときどきだけ出る=さりげなく */
+        /* かざり「まわるほし」: 横と縦の往復を1/4周期ずらす=だ円を回る。奥の半周は体の後ろへ */
+        .kzOrbX { animation: kzOrbX 2.4s ease-in-out infinite alternate, kzOrbZ 4.8s steps(1, end) infinite; }
+        @keyframes kzOrbX { from{transform:translateX(var(--R))} to{transform:translateX(calc(var(--R) * -1))} }
+        @keyframes kzOrbZ { 0%{z-index:2} 50%,100%{z-index:0} }
+        .kzOrbY { animation: kzOrbY 2.4s ease-in-out infinite alternate; }
+        @keyframes kzOrbY { from{transform:translateY(calc(var(--r) * -1)) scale(.8)} to{transform:translateY(var(--r)) scale(1.1)} }
         .kzTrStar { animation: kzTrStar 4.5s linear infinite; opacity: 0; transform-origin: left center; }
         @keyframes kzTrStar { 0%,62%{opacity:0; transform:translate(0,0) rotate(-28deg)} 66%{opacity:1} 86%{opacity:1} 96%,100%{opacity:0; transform:translate(-230%,260%) rotate(-28deg)} }
         .kzTrPetal { animation: kzTrPetal 5s linear infinite; opacity: 0; }
