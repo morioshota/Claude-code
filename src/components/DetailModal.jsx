@@ -222,8 +222,8 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
     {/* 閉じる・うら面のボタン(2026-11・オーナー指摘「上の方がボヤけて見づらい・押しづらい」「最初に開いたとき文字に被る」)。
         ⚠ Overlay の外に position:fixed で置く——Overlay の中の sticky は、iPhone(Safari)だと Overlay の余白(safe-area)のぶん
           さらに下で止まり、名前の行に被った。Overlay は backdrop-filter を持つので、中に fixed を置くと一緒にスクロールしてしまう。
-        位置は iPhoneの時計・電池の帯(safe-area)のすぐ下・カードの右端。カード側(ヘッダーの上の余白)はボタンの高さぶん空けてある */}
-    <div style={{ position: "fixed", zIndex: 55, top: "calc(env(safe-area-inset-top, 0px) + 8px)", right: "max(16px, calc((100vw - 580px) / 2 + 8px))", display: "flex", gap: 8 }}>
+        位置はカードの内側の右上(safe-area＋24px。カードの上端は safe-area＋14px)。カード側(ヘッダーの上の余白)はボタンの高さぶん空けてある */}
+    <div style={{ position: "fixed", zIndex: 55, top: "calc(env(safe-area-inset-top, 0px) + 24px)", right: "max(22px, calc((100vw - 580px) / 2 + 12px))", display: "flex", gap: 8 }}>
       <button onClick={() => { setBack((v) => !v); sfx("flip"); }} title="カードを裏返す" className="kzTopBtn"
         style={{ height: 40, padding: "0 14px", borderRadius: 999, fontSize: 13, color: "#eef1ff", background: "rgba(14,17,34,.96)", border: "1px solid #3b4470", boxShadow: "0 4px 14px rgba(0,0,0,.5)", cursor: "pointer", whiteSpace: "nowrap" }}>
         🔄 {back ? "おもて" : "うら面"}
@@ -244,7 +244,7 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
         boxShadow: rank >= 4 || stage.no >= 3 ? r.glow : "0 8px 40px rgba(0,0,0,.6)",
       }}>
         {/* ヘッダー */}
-        <div style={{ background: `linear-gradient(135deg, ${t.dark}, #0e1122 80%)`, padding: "56px 18px 14px", position: "relative" }}>
+        <div style={{ background: `linear-gradient(135deg, ${t.dark}, #0e1122 80%)`, padding: "64px 18px 14px", position: "relative" }}>
           {/* デンセツはカードと同じ特別演出をヘッダーにも敷く(図鑑と詳細で見た目が揃うように) */}
           {rank >= 5 && (
             <div className={`kzUr kzUr-${urFxOf(stock)}`}

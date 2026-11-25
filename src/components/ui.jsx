@@ -300,23 +300,20 @@ function PressButton({ color = "#8b93b8", active = false, filled = false, onClic
   );
 }
 
-/* 裏の画面(図鑑)のスクロールを止める。開いているOverlayの数を数え、最後の1つが閉じたら戻す。
-   ⚠ iPhone(Safari)は body に overflow:hidden を付けるだけでは裏の画面が動く(オーナー指摘「詳細をスクロールしても
-   ホームの画面のほうが動く」)。body を position:fixed にして、閉じたら元のスクロール位置へ戻す */
-let lockCount = 0, lockY = 0;
+/* 裏の画面(図鑑)のスクロールを止める。開いているOverlayの数を数え、最後の1つが閉じたら戻す
+   (オーナー指摘「詳細をスクロールしてもホームの画面のほうが動く」)。
+   ⚠ body を position:fixed にする方式は、iPhoneで画面の下が帯状に塗りつぶされた(オーナー指摘)ので使わない——
+   html と body の overflow を止め、Overlay 自身の overscroll-behavior:contain で端のスクロールを裏へ渡さない */
+let lockCount = 0;
 const lockScroll = () => {
-  if (typeof document === "undefined") return;
-  if (lockCount++ > 0) return;
-  lockY = window.scrollY || 0;
-  const b = document.body.style;
-  b.position = "fixed"; b.top = `-${lockY}px`; b.left = "0"; b.right = "0"; b.width = "100%"; b.overflow = "hidden";
+  if (typeof document === "undefined" || lockCount++ > 0) return;
+  document.documentElement.style.overflow = "hidden";
+  document.body.style.overflow = "hidden";
 };
 const unlockScroll = () => {
-  if (typeof document === "undefined" || lockCount === 0) return;
-  if (--lockCount > 0) return;
-  const b = document.body.style;
-  b.position = ""; b.top = ""; b.left = ""; b.right = ""; b.width = ""; b.overflow = "";
-  window.scrollTo(0, lockY);
+  if (typeof document === "undefined" || lockCount === 0 || --lockCount > 0) return;
+  document.documentElement.style.overflow = "";
+  document.body.style.overflow = "";
 };
 
 function Overlay({ onClose, children, z = 50 }) {
