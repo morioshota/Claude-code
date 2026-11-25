@@ -1,5 +1,6 @@
 /* 共通UI部品: マークダウン表示/クリーチャー表示/バッジ/ゲージ/モーダル枠 */
 
+import { useEffect } from "react";
 import { TYPES, RARITIES, STATUSES } from "../data/constants.js";
 import { evoFxOf } from "../data/evolution.js";
 import { buildPixels } from "../lib/sprites.js";
@@ -299,11 +300,32 @@ function PressButton({ color = "#8b93b8", active = false, filled = false, onClic
   );
 }
 
+/* 裏の画面(図鑑)のスクロールを止める。開いているOverlayの数を数え、最後の1つが閉じたら戻す。
+   ⚠ iPhone(Safari)は body に overflow:hidden を付けるだけでは裏の画面が動く(オーナー指摘「詳細をスクロールしても
+   ホームの画面のほうが動く」)。body を position:fixed にして、閉じたら元のスクロール位置へ戻す */
+let lockCount = 0, lockY = 0;
+const lockScroll = () => {
+  if (typeof document === "undefined") return;
+  if (lockCount++ > 0) return;
+  lockY = window.scrollY || 0;
+  const b = document.body.style;
+  b.position = "fixed"; b.top = `-${lockY}px`; b.left = "0"; b.right = "0"; b.width = "100%"; b.overflow = "hidden";
+};
+const unlockScroll = () => {
+  if (typeof document === "undefined" || lockCount === 0) return;
+  if (--lockCount > 0) return;
+  const b = document.body.style;
+  b.position = ""; b.top = ""; b.left = ""; b.right = ""; b.width = ""; b.overflow = "";
+  window.scrollTo(0, lockY);
+};
+
 function Overlay({ onClose, children, z = 50 }) {
+  useEffect(() => { lockScroll(); return unlockScroll; }, []);
   return (
     // ⚠ iPhoneの画面上端(時計・電池の帯)の下は、iOSがぼかしをかける(ホーム画面アプリ・viewport-fit=cover)。
     //   中身がそこへ入らないよう、上下に端末の安全域(safe-area)ぶんの余白を取る(2026-11・オーナー指摘「上の方がボヤけて見づらい・押しづらい」)
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(5,7,18,.82)", backdropFilter: "blur(4px)", zIndex: z, display: "flex", justifyContent: "center", alignItems: "flex-start", overflowY: "auto",
+      overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", // 端まで行ってもスクロールを裏の画面へ渡さない
       padding: "calc(env(safe-area-inset-top, 0px) + 14px) 12px calc(env(safe-area-inset-bottom, 0px) + 24px)" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: "min(580px, 100%)" }}>{children}</div>
     </div>

@@ -176,7 +176,8 @@ npm run build    # 本番ビルド(dist/)
 ## iPhoneの画面上端と、銘柄詳細の閉じる・うら面ボタン（2026-11・オーナー指摘「上の方がボヤけて見づらい・押しづらい」）
 
 - ⚠ iPhone（ホーム画面アプリ・`viewport-fit=cover`・`black-translucent`）は、時計・電池の帯の下に入った中身を**iOSがぼかす**。中身をそこへ置かないこと——`Overlay` と `pageStyle` は上下に `env(safe-area-inset-top/bottom)` ぶんの余白を取る
-- 銘柄詳細の ✕ と 🔄うら面 は、カードの外（`Overlay` の直下）の **sticky の帯**に置き、スクロールしても画面の上（safe-area より下）に残す。高さ40pxの不透明なボタン（`.kzTopBtn`）。⚠ カードは `overflow:hidden` なので、カードの中に sticky を置いても効かない。⚠ 以前の ✕ はインラインstyleに `all:"unset"` を後ろに書いていたので `position:absolute` が消えて左上へ落ち、うら面と別々の場所にあった（「インラインに all:unset を書かない」の再発）
+- 銘柄詳細の ✕ と 🔄うら面 は、**`Overlay` の外に `position:fixed`**（safe-area のすぐ下・カードの右端。z=55＝ほかのモーダル60〜より下）で置き、スクロールしても画面の上に残す。高さ40pxの不透明なボタン（`.kzTopBtn`）。カードのヘッダーは上に56pxの余白を取ってボタンと文字が重ならないようにする。⚠ 最初は Overlay の中の sticky にしたが、iPhone(Safari)では Overlay の余白(safe-area)のぶんさらに下で止まり、名前の行に被った（オーナー指摘）。⚠ Overlay は backdrop-filter を持つので、中に fixed を置くと一緒にスクロールする。⚠ カードは `overflow:hidden` なので、カードの中の sticky も効かない。
+- **裏の画面のスクロールを止める**（オーナー指摘「詳細をスクロールしてもホームの画面のほうが動く」）: `Overlay` が開いているあいだ body を `position:fixed; top:-scrollY` にして（`lockScroll`/`unlockScroll`・開いている数を数える）、閉じたら元の位置へ戻す。iPhoneは body の overflow:hidden だけでは止まらない。Overlay 自身にも `overscroll-behavior: contain`。⚠ 以前の ✕ はインラインstyleに `all:"unset"` を後ろに書いていたので `position:absolute` が消えて左上へ落ち、うら面と別々の場所にあった（「インラインに all:unset を書かない」の再発）
 
 ## 銘柄詳細・研究タブの並び（2026-10・オーナー指定）
 
