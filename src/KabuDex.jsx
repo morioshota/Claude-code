@@ -40,6 +40,7 @@ import { applyTrades } from "./lib/lots.js";
 import { calcLevel, stageOf, freshInfo, evalAchievements, discoveredSpecies, speciesKey, SPECIES_TOTAL, titleOf } from "./lib/stock.js";
 import { SpeciesDexModal } from "./components/SpeciesDex.jsx";
 import { withRebornInit } from "./lib/reborn.js";
+import { withGraduations, archiveGraduation, isGraduateId, ownerIdOf, updateGraduate } from "./lib/graduation.js";
 import { today, uid, daysSince } from "./lib/util.js";
 
 /* 図鑑の並び替え。並びは見やすさのためで、銘柄の優劣やおすすめ順ではない(CLAUDE.md) */
@@ -144,9 +145,10 @@ export default function KabuDex() {
       }
       // v1→v2移行: 不足フィールドを補完(既存データは壊さない)
       // withRebornInit: 🔮転生の最初の持ち点(これまでの研究の半分)を一度だけ与える。次に保存したときに書き込まれる
-      const migrated = data.stocks.map((s) => withRebornInit({
+      // withGraduations: 以前の「再リリース」で卒業の記録が銘柄に残ったままの子を、卒業の控え(graduations)へ移す
+      const migrated = data.stocks.map((s) => withGraduations(withRebornInit({
         noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s,
-      }));
+      })));
       setStocks(migrated);
       // 草カレンダー: 初回のみ既存のメモ・記録の日付から過去の活動を復元
       const act = await seedActivity(migrated, async (id) => {
@@ -168,7 +170,7 @@ export default function KabuDex() {
         const res = await storage.get(STORAGE_KEY);
         const data = res && res.value ? JSON.parse(res.value) : null;
         if (data && Array.isArray(data.stocks)) {
-          setStocks(data.stocks.map((s) => withRebornInit({ noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s })));
+          setStocks(data.stocks.map((s) => withGraduations(withRebornInit({ noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s }))));
         }
       } catch (e) { /* 読めなければ今の表示のまま */ }
       // 開いている記録は読み直す(localStorageは同期読みできるので更新関数の中で読む)
@@ -270,7 +272,9 @@ export default function KabuDex() {
       setGraduating(before);
       return;
     }
-    persist(stocks.map((s) => (s.id === updated.id ? updated : s)));
+    // 卒業→ウォッチ/保有に戻す(再リリース): 卒業の記録は graduations に控えて、アルバム・資産の推移に残す(lib/graduation.js)
+    const next = before && before.status === "sold" && updated.status !== "sold" ? archiveGraduation(before, updated) : updated;
+    persist(stocks.map((s) => (s.id === updated.id ? next : s)));
   };
 
   /* 卒業式の確定: 学んだこと(lesson)と卒業日を保存してアルバム入り */
@@ -288,6 +292,7 @@ export default function KabuDex() {
 
   /* 売買の記録(アルバムから編集)。空欄はフィールドごと消す */
   const saveTrade = (id, sale) => {
+    if (isGraduateId(id)) { persist(updateGraduate(stocks, id, sale)); return; } // 前回までの卒業(アルバム)
     persist(stocks.map((s) => {
       if (s.id !== id) return s;
       const ns = { ...s, ...cleanSale(sale) };
@@ -309,6 +314,7 @@ export default function KabuDex() {
   };
 
   const saveLesson = (id, text) => {
+    if (isGraduateId(id)) { persist(updateGraduate(stocks, id, { lesson: text })); return; }
     persist(stocks.map((s) => (s.id === id ? { ...s, lesson: text } : s)));
   };
 
@@ -471,7 +477,7 @@ export default function KabuDex() {
     if (sp && sp.length) { await mergeSpecialPack(sp); setSpecialsVer((v) => v + 1); }
     const srcNotes = data.notes && typeof data.notes === "object" ? data.notes : {};
     // 読み込み時のv1→v2移行と同じ補完(バックアップが古い形式でも壊さない)
-    const normalize = (s) => withRebornInit({ noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s });
+    const normalize = (s) => withGraduations(withRebornInit({ noteCount: 0, lastResearch: "", triggers: [], logs: [], bullets: [], risks: [], ...s }));
     const valid = data.stocks.filter((s) => s && s.name && s.code != null);
     const countNotes = (m) => Object.values(m).reduce((a, n) => a + n.length, 0);
 
@@ -1013,7 +1019,7 @@ export default function KabuDex() {
         {view === "ranch" && <RanchView stocks={stocks} activity={activity} quotes={quotes} onSelect={openDetail} />}
         {view === "today" && <DailyView stocks={stocks} onSelect={openDetail} onQuotes={(m) => setQuotes((q) => ({ ...q, ...m }))} />}
         {view === "analysis" && <AnalysisView stocks={stocks} onSelect={openDetail} />}
-        {view === "album" && <AlbumView stocks={stocks} onSelect={openDetail} onSaveLesson={saveLesson} onSaveTrade={saveTrade} />}
+        {view === "album" && <AlbumView stocks={stocks} onSelect={(id) => openDetail(ownerIdOf(id))} onSaveLesson={saveLesson} onSaveTrade={saveTrade} />}
 
         {view === "dex" && (<>
         {/* 操作列。副ボタンは4つなので2列×2行にすると必ず埋まる

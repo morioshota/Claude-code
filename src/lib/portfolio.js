@@ -9,6 +9,7 @@
    - リリース(売却)済みの銘柄: 購入日〜売却日(soldAt)のあいだ、売却株数(無ければ株数)で持っていたものとして計算
    日々の記録を別に保存しないので、iPhoneとPCのどちらで開いても同じ推移になる(同期も不要)。 */
 
+import { graduatesOf } from "./graduation.js";
 import { holdingOf, pnlOf } from "./holdings.js";
 import { fetchChart } from "./fundamentals.js";
 import { hasTrades, replayTrades, stateAt } from "./lots.js";
@@ -35,7 +36,8 @@ export function summarize(stocks, quotes) {
 /* ---- 推移に載せる銘柄(保有中＋売却の記録がある卒業生) ---- */
 export function positionsOf(stocks) {
   const out = [];
-  stocks.forEach((s) => {
+  // 卒業生は前回までの卒業(graduations)も1件ずつ(lib/graduation.js)。いま卒業中の銘柄は graduatesOf が含める
+  [...stocks.filter((s) => s.status !== "sold"), ...graduatesOf(stocks)].forEach((s) => {
     const shares0 = Number(s.status === "sold" ? (s.sellShares || s.shares) : s.shares);
     const avg = Number(s.avgPrice);
     const timeline = hasTrades(s) ? replayTrades(s.trades).timeline : null;

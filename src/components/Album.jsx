@@ -4,6 +4,7 @@
    ただし良し悪しの判定・色分け・「売らなければ良かった」等の評価文言は出さない——
    学びを言葉にするのはオーナー自身(lesson)。 */
 
+import { graduatesOf } from "../lib/graduation.js";
 import { useState, useEffect, useRef } from "react";
 import { Creature, TypeChip, btnStyle, Overlay } from "./ui.jsx";
 import { TYPES } from "../data/constants.js";
@@ -291,6 +292,12 @@ function AlbumCard({ stock, onSelect, onSaveLesson, onSaveTrade }) {
           <div style={{ fontSize: 15, fontWeight: 800, color: "#f2f4ff" }}>
             {stock.shiny ? "✨" : ""}{stock.name} <span style={{ fontSize: 11, color: "#6b7394", fontWeight: 400 }}>{stock.code}</span>
           </div>
+          {(stock.gradCount > 1 || (stock.gradOf && stock.ownerStatus !== "sold")) && (
+            <div style={{ fontSize: 10.5, color: "#60a5fa", marginTop: 2 }}>
+              🔁 {stock.gradCount > 1 ? `${stock.gradNo}回目の卒業` : "卒業の記録"}
+              {stock.gradOf && stock.ownerStatus !== "sold" ? `（いまは図鑑で${stock.ownerStatus === "hold" ? "ふたたび保有中" : "ふたたびウォッチ中"}）` : ""}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
             <TypeChip typeKey={stock.type} small />
             <span style={{ fontFamily: mono, fontSize: 10.5, color: t.color }}>Lv.{lv}「{stage.name}」まで到達</span>
@@ -394,8 +401,8 @@ function AlbumTotals({ grads }) {
 }
 
 export function AlbumView({ stocks, onSelect, onSaveLesson, onSaveTrade }) {
-  const grads = stocks
-    .filter((s) => s.status === "sold")
+  // 前回までの卒業(もう一度ウォッチ・保有している銘柄の過去の売却)も1件ずつ並べる(lib/graduation.js)
+  const grads = graduatesOf(stocks)
     .sort((a, b) => String(b.soldAt || "").localeCompare(String(a.soldAt || "")));
 
   if (grads.length === 0) {

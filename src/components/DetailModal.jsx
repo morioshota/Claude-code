@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { TradeSummary } from "./Album.jsx";
 import { TradeLog } from "./TradeLog.jsx";
+import { graduatesOf } from "../lib/graduation.js";
 import { EarningsLog } from "./EarningsLog.jsx";
 import { RebornSection, RebornChoice } from "./Reborn.jsx";
 import { fetchEarnings, mergeAutoEarnings } from "../lib/earnings.js";
@@ -327,6 +328,16 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
             <div style={{ marginBottom: 12 }}>
               <TradeSummary stock={stock} />
               <div style={{ fontSize: 10, color: "#5b6284", marginTop: 4 }}>編集は「✏️ カードを編集」か🎓アルバムから</div>
+            </div>
+          )}
+          {/* 前回までの卒業(もう一度ウォッチ・保有している銘柄)。記録は🎓アルバムにも残る(lib/graduation.js) */}
+          {(stock.graduations || []).length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11.5, color: GROUP_COL.record, margin: "0 0 6px 2px" }}>🎓 前回までの卒業（{stock.graduations.length}回）</div>
+              {graduatesOf([stock]).filter((g) => g.gradOf).map((g) => (
+                <div key={g.id} style={{ marginBottom: 8 }}><TradeSummary stock={g} /></div>
+              ))}
+              <div style={{ fontSize: 10, color: "#5b6284", marginTop: 4 }}>学びの編集は🎓アルバムから。調査記録・メモ・研究Lvはこの子にそのまま引き継いでいます</div>
             </div>
           )}
           {/* 売買の記録(買い増し・一部売却)。保有中は入力、卒業生は記録があれば表示だけ */}

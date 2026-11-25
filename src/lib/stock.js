@@ -84,7 +84,7 @@ const evalAchievements = (stocks) => {
   if (species >= 10) unlocked.add("species10");
   if (species >= 30) unlocked.add("species30");
   if (stocks.reduce((a, s) => a + (s.logs || []).length, 0) >= 30) unlocked.add("memo30");
-  if (stocks.some((s) => s.status === "sold" && (s.lesson || "").trim())) unlocked.add("lesson1");
+  if (stocks.some((s) => (s.status === "sold" && (s.lesson || "").trim()) || (s.graduations || []).some((g) => (g.lesson || "").trim()))) unlocked.add("lesson1");
   if (stocks.some((s) => s.plan)) unlocked.add("plan1");
   return unlocked;
 };
