@@ -5,7 +5,7 @@
 import { useState, useEffect } from "react";
 import { btnStyle } from "./ui.jsx";
 import { fetchQuote } from "../lib/quotes.js";
-import { fmtMoney } from "../lib/holdings.js";
+import { fmtMoney, fmtPct } from "../lib/holdings.js";
 import { currencyOf } from "../lib/trade.js";
 import { replayTrades, initialTradesOf, hasTrades } from "../lib/lots.js";
 import { today, uid } from "../lib/util.js";
@@ -98,7 +98,7 @@ export function TradeLog({ stock, onSave }) {
           {preview && preview.st && (
             <div style={{ fontSize: 11.5, color: "#dfe4ff", marginTop: 8, lineHeight: 1.7 }}>
               記録すると → <b>{preview.after.shares.toLocaleString()}株</b>・平均取得単価 <b>{preview.after.shares > 0 ? fmtMoney(preview.after.avg, cur) : "—"}</b>
-              {form.kind === "sell" && preview.st.realized !== null && <>（この売却の実現損益 <b>{fmtMoney(preview.st.realized, cur, true)}</b>）</>}
+              {form.kind === "sell" && preview.st.realized !== null && <>（この売却の実現損益 <b>{fmtMoney(preview.st.realized, cur, true)}</b>{preview.after.avg > 0 && Number(form.price) > 0 ? `・${fmtPct((Number(form.price) / preview.after.avg - 1) * 100)}` : ""}）</>}
               <div style={{ fontSize: 10, color: "#5b6284" }}>平均取得単価は移動平均（買うたびに平均し直し、売っても変わりません）</div>
             </div>
           )}
@@ -127,7 +127,7 @@ export function TradeLog({ stock, onSave }) {
                   </div>
                   <div style={{ fontSize: 10.5, color: "#8b93b8" }}>
                     → {st.shares.toLocaleString()}株・平均 {st.shares > 0 ? fmtMoney(st.avg, cur) : "—"}
-                    {st.realized !== null && <>・実現損益 {fmtMoney(st.realized, cur, true)}</>}
+                    {st.realized !== null && <>・実現損益 {fmtMoney(st.realized, cur, true)}{st.avg > 0 ? `（${fmtPct((Number(t.price) / st.avg - 1) * 100)}）` : ""}</>}
                   </div>
                 </div>
                 {!readOnly && (

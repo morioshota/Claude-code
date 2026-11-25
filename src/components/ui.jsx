@@ -301,7 +301,10 @@ function PressButton({ color = "#8b93b8", active = false, filled = false, onClic
 
 function Overlay({ onClose, children, z = 50 }) {
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(5,7,18,.82)", backdropFilter: "blur(4px)", zIndex: z, display: "flex", justifyContent: "center", alignItems: "flex-start", overflowY: "auto", padding: "24px 12px" }}>
+    // ⚠ iPhoneの画面上端(時計・電池の帯)の下は、iOSがぼかしをかける(ホーム画面アプリ・viewport-fit=cover)。
+    //   中身がそこへ入らないよう、上下に端末の安全域(safe-area)ぶんの余白を取る(2026-11・オーナー指摘「上の方がボヤけて見づらい・押しづらい」)
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(5,7,18,.82)", backdropFilter: "blur(4px)", zIndex: z, display: "flex", justifyContent: "center", alignItems: "flex-start", overflowY: "auto",
+      padding: "calc(env(safe-area-inset-top, 0px) + 14px) 12px calc(env(safe-area-inset-bottom, 0px) + 24px)" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: "min(580px, 100%)" }}>{children}</div>
     </div>
   );
@@ -323,6 +326,7 @@ function FilterChip({ active, onClick, color, children }) {
 
 const pageStyle = {
   minHeight: "100vh",
+  paddingTop: "env(safe-area-inset-top, 0px)", // iPhoneの時計・電池の帯の下(iOSがぼかす所)に中身を置かない
   background: "radial-gradient(1200px 600px at 70% -10%, #1c1445 0%, #0a0d1c 55%) #0a0d1c",
   color: "#eef1ff",
   fontFamily: "'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', sans-serif",

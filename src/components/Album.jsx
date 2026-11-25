@@ -376,8 +376,9 @@ function AlbumTotals({ grads }) {
     const t = tradeOf(s);
     if (t.days !== null) days.push(t.days);
     if (t.pnl === null) return;
-    (by[t.currency] ||= { pnl: 0, n: 0 });
+    (by[t.currency] ||= { pnl: 0, n: 0, cost: 0 });
     by[t.currency].pnl += t.pnl; by[t.currency].n += 1;
+    if (t.avg && t.shares) by[t.currency].cost += t.avg * t.shares; // ％の分母=売った株の取得額の合計
   });
   const curs = Object.keys(by);
   if (curs.length === 0 && days.length === 0) return null;
@@ -387,7 +388,8 @@ function AlbumTotals({ grads }) {
       {curs.map((c) => (
         <div key={c}>
           <div style={{ fontSize: 10, color: "#8b93b8" }}>実現損益の合計（{c === "JPY" ? "円" : "ドル"}・{by[c].n}銘柄）</div>
-          <div style={{ fontFamily: mono, fontSize: 18, color: "#f2f4ff", fontVariantNumeric: "tabular-nums" }}>{fmtMoney(by[c].pnl, c, true)}</div>
+          <div style={{ fontFamily: mono, fontSize: 18, color: "#f2f4ff", fontVariantNumeric: "tabular-nums" }}>{fmtMoney(by[c].pnl, c, true)}
+            {by[c].cost > 0 && <span style={{ fontSize: 12, color: "#8b93b8" }}>（{fmtPct((by[c].pnl / by[c].cost) * 100)}）</span>}</div>
         </div>
       ))}
       {avgDays !== null && (

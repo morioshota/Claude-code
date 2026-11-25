@@ -762,6 +762,8 @@ export default function KabuDex() {
         @keyframes kzGlint { 0%,100%{ transform: scale(.28) rotate(0deg); opacity:.35 } 50%{ transform: scale(1) rotate(45deg); opacity:1 } }
         @keyframes kzGlintGlow { 0%,100%{ transform: scale(.5) rotate(0deg); opacity:.18 } 50%{ transform: scale(1.55) rotate(45deg); opacity:.65 } }
 
+        .kzTopBtn { -webkit-tap-highlight-color: transparent; font-family: inherit; }
+        .kzTopBtn:active { transform: scale(.94); }
         /* ---- ガラス調のパネル(数値のまとめ等)。HD-2D試作と同じ質感 ---- */
         .kzGlassPanel { border-radius: 12px; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015));
           border: 1px solid rgba(255,255,255,.09); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 8px 24px rgba(0,0,0,.28);

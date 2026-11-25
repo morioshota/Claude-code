@@ -220,6 +220,19 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
         ⚠ 詳細のOverlayの中に入れないこと: backdrop-filter のある要素の中では position:fixed が画面基準でなくなり、スクロールの上へ隠れる */}
     {onPatch && stock.rebornOffer && <RebornChoice stock={stock} onPatch={onPatch} />}
     <Overlay onClose={onClose}>
+      {/* 閉じる・うら面のボタンは、スクロールしても画面の上に残る帯にする(2026-11・オーナー指摘「上の方がボヤけて見づらい・押しづらい」)。
+          ⚠ カードは overflow:hidden なので sticky が効かない——カードの外(Overlayの直下)に置き、下のカードへ重ねる。
+          押しやすいよう高さ40pxの不透明なボタンにし、iPhoneの時計・電池の帯(safe-area)より下に止める */}
+      <div style={{ position: "sticky", top: "calc(env(safe-area-inset-top, 0px) + 6px)", zIndex: 5, height: 0, display: "flex", justifyContent: "flex-end", gap: 8, padding: "0 8px", pointerEvents: "none" }}>
+        <button onClick={() => { setBack((v) => !v); sfx("flip"); }} title="カードを裏返す" className="kzTopBtn"
+          style={{ pointerEvents: "auto", marginTop: 8, height: 40, padding: "0 14px", borderRadius: 999, fontSize: 13, color: "#eef1ff", background: "rgba(14,17,34,.96)", border: "1px solid #3b4470", boxShadow: "0 4px 14px rgba(0,0,0,.5)", cursor: "pointer", whiteSpace: "nowrap" }}>
+          🔄 {back ? "おもて" : "うら面"}
+        </button>
+        <button onClick={onClose} aria-label="閉じる" className="kzTopBtn"
+          style={{ pointerEvents: "auto", marginTop: 8, width: 40, height: 40, borderRadius: "50%", fontSize: 18, lineHeight: 1, color: "#eef1ff", background: "rgba(14,17,34,.96)", border: "1px solid #3b4470", boxShadow: "0 4px 14px rgba(0,0,0,.5)", cursor: "pointer" }}>
+          ✕
+        </button>
+      </div>
       <div style={{
         background: "#0e1122", borderRadius: 18, overflow: "hidden",
         border: stage.no >= 4 ? "2px solid transparent" : `2px solid ${t.color}77`,
@@ -230,18 +243,12 @@ function DetailModal({ stock, notes, notesLoading, onClose, onUpdate, onDelete, 
         boxShadow: rank >= 4 || stage.no >= 3 ? r.glow : "0 8px 40px rgba(0,0,0,.6)",
       }}>
         {/* ヘッダー */}
-        <div style={{ background: `linear-gradient(135deg, ${t.dark}, #0e1122 80%)`, padding: "18px 18px 14px", position: "relative" }}>
+        <div style={{ background: `linear-gradient(135deg, ${t.dark}, #0e1122 80%)`, padding: "56px 18px 14px", position: "relative" }}>
           {/* デンセツはカードと同じ特別演出をヘッダーにも敷く(図鑑と詳細で見た目が揃うように) */}
           {rank >= 5 && (
             <div className={`kzUr kzUr-${urFxOf(stock)}`}
               style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.5 }} />
           )}
-          <button onClick={onClose} style={{ position: "absolute", top: 10, right: 12, all: "unset", cursor: "pointer", color: "#8b93b8", fontSize: 20, lineHeight: 1, padding: 6, zIndex: 2 }}>✕</button>
-          {/* 🔄 カードを裏返す: うら面は「研究の歩み」(自分の記録から分かる事実だけ) */}
-          <button onClick={() => { setBack((v) => !v); sfx("flip"); }} title="カードを裏返す"
-            style={{ all: "unset", cursor: "pointer", position: "absolute", right: 12, top: 12, zIndex: 3, fontSize: 11, color: "#c7cdec", border: "1px solid #3b4470", borderRadius: 999, padding: "3px 10px", background: "rgba(10,13,28,.6)" }}>
-            🔄 {back ? "おもて" : "うら面"}
-          </button>
           {back && <CardBack stock={stock} notes={notes} t={t} stage={stage} lv={lv} fresh={fresh} />}
           <div key={back ? "b" : "f"} className="kzFlipIn" style={{ display: back ? "none" : "flex", gap: 14, alignItems: "center", position: "relative", zIndex: 1 }}>
             <div style={{

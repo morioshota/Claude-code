@@ -277,15 +277,20 @@ export function AssetHistory({ stocks, onSelect }) {
   // ⚠ その日の3本の最大に合わせると、投資額が変わらなくても株価の動きで投資額の棒が伸び縮みして見えた(オーナー指摘)
   let flowMax = 1;
   pts.forEach((pt) => { const f = flowBetween(P0, pt); flowMax = Math.max(flowMax, Math.abs(f.dCost), Math.abs(f.dPnl), Math.abs(f.dRealized), Math.abs(f.dMove), Math.abs(f.dValue)); });
-  const flowRow = (label, v, color, sub) => (
-    <div style={{ display: "grid", gridTemplateColumns: "108px minmax(40px,1fr) 100px", alignItems: "center", gap: 8, fontSize: 11.5 }}>
+  // ％の物差し(2026-11・オーナー要望で％も併記): 時価のブロックは「期間のはじめの時価」、損益のブロックは「その日の投資額」に対する割合
+  const pctOf = (v, base) => (base > 0 ? fmtPct((v / base) * 100) : null);
+  const flowRow = (label, v, color, sub, pct) => (
+    <div style={{ display: "grid", gridTemplateColumns: "108px minmax(40px,1fr) 104px", alignItems: "center", gap: 8, fontSize: 11.5 }}>
       <span style={{ color: "#8b93b8", lineHeight: 1.25, whiteSpace: "nowrap" }}>{label}{sub && <span style={{ display: "block", fontSize: 9.5, color: "#5b6284", whiteSpace: "normal" }}>{sub}</span>}</span>
       <div style={{ position: "relative", height: 8 }}>
         <div style={{ position: "absolute", left: "50%", top: -2, bottom: -2, width: 1, background: "#3b4470" }} />
         <div style={{ position: "absolute", top: 0, bottom: 0, borderRadius: 4, background: color,
           left: v >= 0 ? "50%" : `${50 - (Math.abs(v) / flowMax) * 50}%`, width: `${(Math.abs(v) / flowMax) * 50}%` }} />
       </div>
-      <span style={{ textAlign: "right", color: "#dfe4ff", fontFamily: mono, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(v, cc, true)}</span>
+      <span style={{ textAlign: "right", color: "#dfe4ff", fontFamily: mono, fontVariantNumeric: "tabular-nums", lineHeight: 1.25 }}>
+        {fmtMoney(v, cc, true)}
+        {pct && <span style={{ display: "block", fontSize: 10, color: "#8b93b8" }}>{pct}</span>}
+      </span>
     </div>
   );
   /* 2つの問いに分けて、どちらも「足し算」で合うようにする(利益は＋・損は−のまま読める)。
@@ -307,19 +312,20 @@ export function AssetHistory({ stocks, onSelect }) {
         </div>
       </div>
       {secTitle("💼 時価", "持っている株の評価額")}
-      {flowRow("投資額の増減", flow.dCost, COST, "買った・売った取得額")}
-      {flowRow("＋ 含み損益の増減", flow.dPnl, sign(flow.dPnl))}
+      {flowRow("投資額の増減", flow.dCost, COST, "買った・売った取得額", pctOf(flow.dCost, P0.value))}
+      {flowRow("＋ 含み損益の増減", flow.dPnl, sign(flow.dPnl), null, pctOf(flow.dPnl, P0.value))}
       <div style={{ borderTop: "1px dashed #2a3050" }} />
-      {flowRow("＝ 時価の変化", flow.dValue, GOLD)}
+      {flowRow("＝ 時価の変化", flow.dValue, GOLD, null, pctOf(flow.dValue, P0.value))}
       <div style={{ height: 4 }} />
       {secTitle("💰 損益", "株価の動きで増えた・減ったぶん")}
-      {flowRow("含み損益の増減", flow.dPnl, sign(flow.dPnl), "持っている株の評価")}
-      {flowRow("＋ 確定した損益", flow.dRealized, EXIT, flow.dRealized ? "売って確定（実現損益）" : "この間の売却なし")}
+      {flowRow("含み損益の増減", flow.dPnl, sign(flow.dPnl), "持っている株の評価", pctOf(flow.dPnl, P.cost))}
+      {flowRow("＋ 確定した損益", flow.dRealized, EXIT, flow.dRealized ? "売って確定（実現損益）" : "この間の売却なし", flow.dRealized ? pctOf(flow.dRealized, P.cost) : null)}
       <div style={{ borderTop: "1px dashed #2a3050" }} />
-      {flowRow("＝ 損益の合計", flow.dMove, sign(flow.dMove))}
+      {flowRow("＝ 損益の合計", flow.dMove, sign(flow.dMove), null, pctOf(flow.dMove, P.cost))}
       <div style={{ fontSize: 10, color: "#5b6284", lineHeight: 1.6 }}>
         売った株の損益は、売った時点で「確定した損益」になって手元のお金に移るので、時価（持っている株の評価額）には入りません。
         そのため時価の変化には含み損益の増減だけが入り、損益の合計には確定したぶんも足しています。
+        <br />％は、💼時価が「期間のはじめの時価{fromZero ? "（0円なので出しません）" : `（${fmtMoney(P0.value, H.currency)}）`}」、💰損益が「その日の投資額（{fmtMoney(P.cost, H.currency)}）」に対する割合です。
       </div>
     </div>
   );
