@@ -278,7 +278,8 @@ export function AssetHistory({ stocks, onSelect }) {
   let flowMax = 1;
   pts.forEach((pt) => { const f = flowBetween(P0, pt); flowMax = Math.max(flowMax, Math.abs(f.dCost), Math.abs(f.dPnl), Math.abs(f.dRealized), Math.abs(f.dMove), Math.abs(f.dValue)); });
   // ％の物差し(2026-11・オーナー要望で％も併記): 時価のブロックは「期間のはじめの時価」、損益のブロックは「その日の投資額」に対する割合
-  const pctOf = (v, base) => (base > 0 ? fmtPct((v / base) * 100) : null);
+  // 💰損益は「元本(その日の投資額)に対する割合」(2026-11・オーナー指定「損益のみ元本に対した比率で、他は今のまま」)。何の％か分かるよう「元本比」と書く
+  const pctOf = (v, base, label = "") => (base > 0 ? `${label}${fmtPct((v / base) * 100)}` : null);
   const flowRow = (label, v, color, sub, pct) => (
     <div style={{ display: "grid", gridTemplateColumns: "108px minmax(40px,1fr) 104px", alignItems: "center", gap: 8, fontSize: 11.5 }}>
       <span style={{ color: "#8b93b8", lineHeight: 1.25, whiteSpace: "nowrap" }}>{label}{sub && <span style={{ display: "block", fontSize: 9.5, color: "#5b6284", whiteSpace: "normal" }}>{sub}</span>}</span>
@@ -317,15 +318,15 @@ export function AssetHistory({ stocks, onSelect }) {
       <div style={{ borderTop: "1px dashed #2a3050" }} />
       {flowRow("＝ 時価の変化", flow.dValue, GOLD, null, pctOf(flow.dValue, P0.value))}
       <div style={{ height: 4 }} />
-      {secTitle("💰 損益", "株価の動きで増えた・減ったぶん")}
-      {flowRow("含み損益の増減", flow.dPnl, sign(flow.dPnl), "持っている株の評価", pctOf(flow.dPnl, P.cost))}
-      {flowRow("＋ 確定した損益", flow.dRealized, EXIT, flow.dRealized ? "売って確定（実現損益）" : "この間の売却なし", flow.dRealized ? pctOf(flow.dRealized, P.cost) : null)}
+      {secTitle("💰 損益", `株価の動きで増えた・減ったぶん（％は元本 ${fmtMoney(P.cost, H.currency)} に対する割合）`)}
+      {flowRow("含み損益の増減", flow.dPnl, sign(flow.dPnl), "持っている株の評価", pctOf(flow.dPnl, P.cost, "元本比 "))}
+      {flowRow("＋ 確定した損益", flow.dRealized, EXIT, flow.dRealized ? "売って確定（実現損益）" : "この間の売却なし", flow.dRealized ? pctOf(flow.dRealized, P.cost, "元本比 ") : null)}
       <div style={{ borderTop: "1px dashed #2a3050" }} />
-      {flowRow("＝ 損益の合計", flow.dMove, sign(flow.dMove), null, pctOf(flow.dMove, P.cost))}
+      {flowRow("＝ 損益の合計", flow.dMove, sign(flow.dMove), null, pctOf(flow.dMove, P.cost, "元本比 "))}
       <div style={{ fontSize: 10, color: "#5b6284", lineHeight: 1.6 }}>
         売った株の損益は、売った時点で「確定した損益」になって手元のお金に移るので、時価（持っている株の評価額）には入りません。
         そのため時価の変化には含み損益の増減だけが入り、損益の合計には確定したぶんも足しています。
-        <br />％は、💼時価が「期間のはじめの時価{fromZero ? "（0円なので出しません）" : `（${fmtMoney(P0.value, H.currency)}）`}」、💰損益が「その日の投資額（{fmtMoney(P.cost, H.currency)}）」に対する割合です。
+        <br />％は、💰損益が「元本＝その日の投資額（{fmtMoney(P.cost, H.currency)}）」に対する割合、💼時価が「期間のはじめの時価{fromZero ? "（0円なので出しません）" : `（${fmtMoney(P0.value, H.currency)}）`}」に対する割合です。
       </div>
     </div>
   );
