@@ -12,7 +12,7 @@
 
 const YF_BASE = process.env.YAHOO_BASE_URL || "https://query1.finance.yahoo.com";
 // Yahooシンボル: 7203.T / 186A.T(東証) / RKLB / BRK-B(米国)。/ や空白等は拒否
-const SYMBOL_RE = /^[A-Za-z0-9][A-Za-z0-9.\-^]{0,11}$/;
+const SYMBOL_RE = /^[A-Za-z0-9][A-Za-z0-9.\-^=]{0,11}$/; // = は為替(JPY=X＝1ドルあたりの円)用
 
 const send = (res, status, body) => {
   res.statusCode = status;

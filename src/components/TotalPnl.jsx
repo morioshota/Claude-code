@@ -4,6 +4,7 @@
    方針(CLAUDE.md): 事実の集計のみ。良し悪しの判定・売買の推奨はしない。＋/−は空色/薄紫(赤緑にしない) */
 import { totalsOf } from "../lib/portfolio.js";
 import { today } from "../lib/util.js";
+import { useUsdJpy, sumJpy } from "../lib/fx.js";
 import { fmtMoney, fmtPct } from "../lib/holdings.js";
 import { SectionFx, PAGE_FX_RANK } from "./SectionFx.jsx";
 
@@ -15,6 +16,13 @@ const fmtSpan = (days) => { const m = Math.round(days / 30.44); return m >= 12 ?
 
 export function TotalPnl({ stocks, quotes, loading }) {
   const { list, missingQuote, missingSale, noDate } = totalsOf(stocks, quotes || {}, today());
+  const both = list.some((t) => t.currency === "USD") && list.some((t) => t.currency === "JPY");
+  const fx = useUsdJpy(both);
+  const comb = both && fx ? (() => {
+    const pick = (k) => Object.fromEntries(list.map((t) => [t.currency, t[k] || 0]));
+    const pnl = sumJpy(pick("pnl"), fx.rate), avgCost = sumJpy(pick("avgCost"), fx.rate);
+    return { pnl, unreal: sumJpy(pick("unreal"), fx.rate), realized: sumJpy(pick("realized"), fx.rate), avgCost, pct: avgCost > 0 ? (pnl / avgCost) * 100 : null };
+  })() : null;
   if (!list.length) return null;
   const sign = (v) => (v >= 0 ? PLUS : MINUS);
   return (
@@ -38,6 +46,19 @@ export function TotalPnl({ stocks, quotes, loading }) {
           </div>
         ))}
       </div>
+      {comb && (
+        <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed rgba(255,255,255,.1)" }}>
+          <div style={{ fontSize: 10.5, color: "#8b93b8" }}>🌐 円とドルの合計（円換算・参考）</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: mono, fontSize: 20, color: "#f2f4ff", fontVariantNumeric: "tabular-nums" }}>{fmtMoney(comb.pnl, "JPY", true)}</span>
+            {comb.pct !== null && <span style={{ fontSize: 12.5, color: sign(comb.pnl) }}>平均取得額比 {fmtPct(comb.pct)}</span>}
+          </div>
+          <div style={{ fontSize: 11, color: "#8b93b8", fontVariantNumeric: "tabular-nums" }}>
+            含み損益 {fmtMoney(comb.unreal, "JPY", true)}・確定した損益 {fmtMoney(comb.realized, "JPY", true)}・平均取得額 {fmtMoney(comb.avgCost, "JPY")}
+          </div>
+          <div style={{ fontSize: 9.5, color: "#5b6284" }}>1ドル＝{fx.rate.toFixed(2)}円（{fx.date} {fx.time}・遅延）で換算。確定した損益・取得額も今のレートで換算した目安で、売買したときのレートとは違います</div>
+        </div>
+      )}
       <div style={{ fontSize: 10, color: "#5b6284", marginTop: 8, lineHeight: 1.6 }}>
         平均取得額＝始めてから今日まで、毎日「その日に持っていた株の取得額」を平均したもの（売って買い直しても積み上がりません。何も持っていない日は0円）。％は始めてからの合計で、1年あたりではありません。
         {noDate.length > 0 && <> 購入日が未入力の銘柄（{noDate.join("・")}）は平均取得額に入っていません。</>}

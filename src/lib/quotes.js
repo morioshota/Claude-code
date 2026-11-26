@@ -20,6 +20,11 @@ export const symbolFor = (stock) => {
 export const fetchQuote = async (stock, { force = false } = {}) => {
   const symbol = symbolFor(stock);
   if (!symbol) return null;
+  return fetchSymbol(symbol, { force });
+};
+
+/* シンボルを直接指定して取る(為替 JPY=X など) */
+export const fetchSymbol = async (symbol, { force = false } = {}) => {
 
   if (!force) try {
     const cached = JSON.parse(localStorage.getItem(cacheKey(symbol)) || "null");

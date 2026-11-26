@@ -4,6 +4,7 @@
 import { fmtMoney, fmtPct } from "../lib/holdings.js";
 import { summarize } from "../lib/portfolio.js";
 import { daySummary, fmtDayPct } from "../lib/daily.js";
+import { useUsdJpy, sumJpy } from "../lib/fx.js";
 
 const PLUS = "#7dd3fc", MINUS = "#c4b5fd";
 const mono = "'DotGothic16', ui-monospace, monospace";
@@ -11,6 +12,14 @@ const mono = "'DotGothic16', ui-monospace, monospace";
 export function PortfolioSummary({ stocks, quotes, onOpen, onOpenToday }) {
   const { list, missing, held } = summarize(stocks, quotes);
   const days = Object.fromEntries(daySummary(stocks, quotes).map((d) => [d.currency, d]));
+  // 円とドルの両方があるときだけ、参考レートで円にそろえた合計を出す(lib/fx.js)
+  const both = list.some((c) => c.currency === "USD") && list.some((c) => c.currency === "JPY");
+  const fx = useUsdJpy(both);
+  const comb = both && fx ? (() => {
+    const pick = (k) => Object.fromEntries(list.map((c) => [c.currency, c[k]]));
+    const value = sumJpy(pick("value"), fx.rate), cost = sumJpy(pick("cost"), fx.rate), pnl = sumJpy(pick("pnl"), fx.rate);
+    return { value, cost, pnl, pct: cost ? (pnl / cost) * 100 : 0 };
+  })() : null;
   if (held === 0) return null;
   return (
     <div onClick={onOpen} role="button" title="分析タブで資産の推移を見る"
@@ -50,8 +59,19 @@ export function PortfolioSummary({ stocks, quotes, onOpen, onOpenToday }) {
           </div>
         );
       })}
+      {comb && (
+        <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px dashed rgba(255,255,255,.1)" }}>
+          <div style={{ fontSize: 10.5, color: "#8b93b8" }}>🌐 円とドルの合計（円換算・参考）</div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "0 12px", fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ fontFamily: mono, fontSize: 17, color: "#f2f4ff" }}>{fmtMoney(comb.value, "JPY")}</span>
+            <span style={{ fontSize: 12, color: "#f2f4ff" }}>含み損益 <b>{fmtMoney(comb.pnl, "JPY", true)}</b><span style={{ color: "#8b93b8" }}>（取得額比 {fmtPct(comb.pct)}）</span></span>
+            <span style={{ fontSize: 11, color: "#8b93b8" }}>取得額 {fmtMoney(comb.cost, "JPY")}</span>
+          </div>
+          <div style={{ fontSize: 9.5, color: "#5b6284" }}>1ドル＝{fx.rate.toFixed(2)}円（{fx.date} {fx.time}・遅延）で換算。取得額も今のレートで換算した目安です</div>
+        </div>
+      )}
       <div style={{ fontSize: 9.5, color: "#5b6284", marginTop: 6 }}>
-        参考株価（遅延）による集計・通貨ごと（為替換算なし）{missing > 0 ? `・株価未取得 ${missing}銘柄` : ""}
+        参考株価（遅延）による集計・通貨ごと{both ? "（合計は参考レートで円換算）" : "（為替換算なし）"}{missing > 0 ? `・株価未取得 ${missing}銘柄` : ""}
       </div>
     </div>
   );
