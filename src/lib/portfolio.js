@@ -12,7 +12,8 @@
 import { graduatesOf } from "./graduation.js";
 import { holdingOf, pnlOf } from "./holdings.js";
 import { fetchChart } from "./fundamentals.js";
-import { hasTrades, replayTrades, stateAt } from "./lots.js";
+import { hasTrades, replayTrades, stateAt, partialRealizedOf } from "./lots.js";
+import { tradeOf, currencyOf } from "./trade.js";
 
 const curOfCode = (s) => (/^[0-9]/.test(String(s.code)) ? "JPY" : "USD");
 
@@ -162,4 +163,51 @@ export function flowBetween(a, b) {
   const dRealized = (b.realized || 0) - (a.realized || 0);
   const dPnl = b.pnl - a.pnl;
   return { dValue: b.value - a.value, dCost: b.cost - a.cost, dPnl, dRealized, dMove: dPnl + dRealized, dExit: -dRealized || 0 };
+}
+
+
+/* ---- 通算損益(2026-11・オーナー要望「始めてから合計いくら増えたか」) ----
+   通算損益 ＝ いま持っている株の含み損益 ＋ これまでに確定した損益(卒業・前回までの卒業・一部売却の実現損益)
+   ％は「取得額比」＝ 通算損益 ÷ これまでに買った株の取得額の合計(いま持っている分＋売った分)。通貨ごと(為替換算なし)。
+   売却単価・平均取得単価が無い卒業生は計算できないので数えず、名前を返す(画面で「記録が足りない」と出す) */
+const soldCostOfTrades = (trades) => {
+  let shares = 0, avg = 0, cost = 0;
+  [...(trades || [])].sort((a, b) => String(a.date || "").localeCompare(String(b.date || ""))).forEach((t) => {
+    const q = Number(t.shares), pr = Number(t.price);
+    if (!(q > 0) || !(pr > 0)) return;
+    if (t.kind === "sell") { const sq = Math.min(q, shares); cost += sq * avg; shares -= sq; }
+    else { avg = (avg * shares + pr * q) / (shares + q); shares += q; }
+  });
+  return cost;
+};
+export function totalsOf(stocks, quotes) {
+  const by = {};
+  const cur = (c) => (by[c] ||= { currency: c, unreal: 0, realized: 0, costNow: 0, costSold: 0, holdN: 0, soldN: 0 });
+  const missingQuote = [], missingSale = [];
+  stocks.forEach((s) => {
+    if (s.status === "sold") return;
+    const c = currencyOf(s);
+    const p = pnlOf(s, quotes[s.id]);
+    if (holdingOf(s)) {
+      if (!p) { missingQuote.push(s.name); }
+      else { const t = cur(p.currency); t.unreal += p.pnl; t.costNow += p.cost; t.holdN++; }
+    }
+    if (hasTrades(s)) { // いまの保有中の一部売却
+      const r = partialRealizedOf(s);
+      if (r) { const t = cur(c); t.realized += r; t.costSold += soldCostOfTrades(s.trades); }
+    }
+  });
+  graduatesOf(stocks).forEach((g) => {
+    const tr = tradeOf(g);
+    if (tr.pnl === null) { missingSale.push(g.name); return; }
+    const t = cur(tr.currency);
+    t.realized += tr.pnl; t.soldN++;
+    // 卒業で売った株の取得額＋その保有中に一部売却した株の取得額
+    t.costSold += (tr.avg || 0) * (tr.shares || 0) + (hasTrades(g) ? soldCostOfTrades(g.trades) : 0);
+  });
+  const list = Object.values(by).map((t) => {
+    const pnl = t.unreal + t.realized, cost = t.costNow + t.costSold;
+    return { ...t, pnl, cost, pct: cost > 0 ? (pnl / cost) * 100 : null };
+  }).sort((a, b) => (a.currency === "JPY" ? -1 : b.currency === "JPY" ? 1 : 0));
+  return { list, missingQuote, missingSale };
 }

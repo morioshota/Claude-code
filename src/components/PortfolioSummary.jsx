@@ -27,9 +27,9 @@ export function PortfolioSummary({ stocks, quotes, onOpen, onOpenToday }) {
             <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "0 12px" }}>
               <span style={{ fontFamily: mono, fontSize: 20, color: "#f2f4ff", fontVariantNumeric: "tabular-nums" }}>{fmtMoney(c.value, c.currency)}</span>
               <span style={{ fontSize: 12.5, color: "#f2f4ff", fontVariantNumeric: "tabular-nums" }}>
-                含み損益 <b>{fmtMoney(c.pnl, c.currency, true)}</b><span style={{ color: "#8b93b8" }}>（{fmtPct(c.pct)}）</span>
+                含み損益 <b>{fmtMoney(c.pnl, c.currency, true)}</b><span style={{ color: "#8b93b8" }}>（取得額比 {fmtPct(c.pct)}）</span>
               </span>
-              <span style={{ fontSize: 11, color: "#8b93b8" }}>投資額 {fmtMoney(c.cost, c.currency)}</span>
+              <span style={{ fontSize: 11, color: "#8b93b8" }}>取得額 {fmtMoney(c.cost, c.currency)}</span>
             </div>
             {days[c.currency] && (
               <div onClick={(e) => { if (onOpenToday) { e.stopPropagation(); onOpenToday(); } }}

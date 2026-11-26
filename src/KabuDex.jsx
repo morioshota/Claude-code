@@ -1020,7 +1020,7 @@ export default function KabuDex() {
 
         {view === "ranch" && <RanchView stocks={stocks} activity={activity} quotes={quotes} onSelect={openDetail} />}
         {view === "today" && <DailyView stocks={stocks} onSelect={openDetail} onQuotes={(m) => setQuotes((q) => ({ ...q, ...m }))} />}
-        {view === "analysis" && <AnalysisView stocks={stocks} onSelect={openDetail} />}
+        {view === "analysis" && <AnalysisView stocks={stocks} onSelect={(id) => openDetail(ownerIdOf(id))} />}
         {view === "album" && <AlbumView stocks={stocks} onSelect={(id) => openDetail(ownerIdOf(id))} onSaveLesson={saveLesson} onSaveTrade={saveTrade} />}
 
         {view === "dex" && (<>

@@ -6,6 +6,7 @@
    - 目標株価とアナリスト評価は「第三者の意見」という事実として載せ、
      アプリからの推奨ではない旨を必ず併記する(2026-07オーナー承認) */
 
+import { TotalPnl } from "./TotalPnl.jsx";
 import { useState, useEffect, useRef } from "react";
 import { Creature, TypeChip, btnStyle } from "./ui.jsx";
 import { AssetHistory } from "./AssetHistory.jsx";
@@ -538,6 +539,7 @@ export function AnalysisView({ stocks, onSelect }) {
   if (actives.length === 0) {
     return (
       <div>
+      <TotalPnl stocks={stocks} quotes={quotes} loading={loading} />
       <AssetHistory stocks={stocks} onSelect={onSelect} />
       <div style={{ textAlign: "center", padding: "50px 20px", color: "#5b6284", border: "2px dashed #2a3050", borderRadius: 16, fontSize: 13, lineHeight: 2 }}>
         <div style={{ fontSize: 34, marginBottom: 8 }}>📊</div>
@@ -565,6 +567,7 @@ export function AnalysisView({ stocks, onSelect }) {
 
   return (
     <div>
+      <TotalPnl stocks={stocks} quotes={quotes} loading={loading} />
       <AssetHistory stocks={stocks} onSelect={onSelect} />
       <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 200, fontSize: 11.5, color: "#8b93b8", lineHeight: 1.7 }}>

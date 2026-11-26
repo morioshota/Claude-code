@@ -24,7 +24,7 @@ const EXIT = "#a5b4fc";   // 売却で確定したぶん(含み損益→実現�
 const mono = "'DotGothic16', ui-monospace, monospace";
 
 const MODES = [
-  { key: "value", label: "時価と投資額" },
+  { key: "value", label: "時価と取得額" },
   { key: "pnl", label: "含み損益" },
   { key: "stack", label: "銘柄の積み上げ" },
 ];
@@ -61,6 +61,7 @@ const fullDate = (d) => { const [y, m, dd] = String(d).split("-"); return `${y}/
 export function AssetHistory({ stocks, onSelect }) {
   const [range, setRange] = useState(() => { try { return localStorage.getItem("kabu-asset-range") || "1y"; } catch (e) { return "1y"; } });
   const [mode, setMode] = useState("value");
+  const [compBy, setCompBy] = useState(() => { try { return localStorage.getItem("kabu-asset-comp") || "stock"; } catch (e) { return "stock"; } });
   const [charts, setCharts] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
@@ -240,11 +241,11 @@ export function AssetHistory({ stocks, onSelect }) {
       </div>
       <div style={{ display: "flex", flexWrap: "nowrap", alignItems: "baseline", gap: 14, marginTop: 2, minWidth: 0 }}>
         <span style={{ fontFamily: mono, fontSize: 22, color: "#f2f4ff", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{fmtMoney(P.value, cc)}</span>
-        <span style={{ fontSize: 12, color: "#c7cdec", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>投資額 {fmtMoney(P.cost, cc)}</span>
+        <span style={{ fontSize: 12, color: "#c7cdec", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>取得額 {fmtMoney(P.cost, cc)}</span>
       </div>
       <div style={{ fontSize: 13, color: "#f2f4ff", marginTop: 2 }}>
         含み損益 <b style={{ fontFamily: mono, fontSize: 15, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(P.pnl, cc, true)}</b>
-        <span style={{ color: "#8b93b8" }}>（{P.cost ? fmtPct((P.pnl / P.cost) * 100) : "—"}）</span>
+        <span style={{ color: "#8b93b8" }}>（取得額比 {P.cost ? fmtPct((P.pnl / P.cost) * 100) : "—"}）</span>
       </div>
       {/* ＋と−の綱引きバー: 左が含み益の合計、右が含み損の合計。長さは金額の比 */}
       <div style={{ display: "flex", height: 10, borderRadius: 6, overflow: "hidden", marginTop: 8, background: "#1b2140" }}>
@@ -279,6 +280,9 @@ export function AssetHistory({ stocks, onSelect }) {
   pts.forEach((pt) => { const f = flowBetween(P0, pt); flowMax = Math.max(flowMax, Math.abs(f.dCost), Math.abs(f.dPnl), Math.abs(f.dRealized), Math.abs(f.dMove), Math.abs(f.dValue)); });
   // ％の物差し(2026-11・オーナー要望で％も併記): 時価のブロックは「期間のはじめの時価」、損益のブロックは「その日の投資額」に対する割合
   // 💰損益は「元本(その日の投資額)に対する割合」(2026-11・オーナー指定「損益のみ元本に対した比率で、他は今のまま」)。何の％か分かるよう「元本比」と書く
+  // 2026-11 見直し(オーナー指摘「時価ブロックの％が何に対してか分からない／含み損益の％が損益ブロックと違うのはおかしい」):
+  //   ％の横に必ず物差しの名前を書く。時価の増減は「はじめの時価比」(期間のはじめの時価から何％増えたか)、
+  //   含み損益・確定損益は どちらのブロックでも同じ「取得額比」(その日の取得額＝持っている株を買った金額)
   const pctOf = (v, base, label = "") => (base > 0 ? `${label}${fmtPct((v / base) * 100)}` : null);
   const flowRow = (label, v, color, sub, pct) => (
     <div style={{ display: "grid", gridTemplateColumns: "108px minmax(40px,1fr) 104px", alignItems: "center", gap: 8, fontSize: 11.5 }}>
@@ -313,20 +317,20 @@ export function AssetHistory({ stocks, onSelect }) {
         </div>
       </div>
       {secTitle("💼 時価", "持っている株の評価額")}
-      {flowRow("投資額の増減", flow.dCost, COST, "買った・売った取得額", pctOf(flow.dCost, P0.value))}
-      {flowRow("＋ 含み損益の増減", flow.dPnl, sign(flow.dPnl), null, pctOf(flow.dPnl, P0.value))}
+      {flowRow("取得額の増減", flow.dCost, COST, "買った・売った株の取得額", pctOf(flow.dCost, P0.value, "はじめの時価比 "))}
+      {flowRow("＋ 含み損益の増減", flow.dPnl, sign(flow.dPnl), null, pctOf(flow.dPnl, P.cost, "取得額比 "))}
       <div style={{ borderTop: "1px dashed #2a3050" }} />
-      {flowRow("＝ 時価の変化", flow.dValue, GOLD, null, pctOf(flow.dValue, P0.value))}
+      {flowRow("＝ 時価の変化", flow.dValue, GOLD, null, pctOf(flow.dValue, P0.value, "はじめの時価比 "))}
       <div style={{ height: 4 }} />
-      {secTitle("💰 損益", `株価の動きで増えた・減ったぶん（％は元本 ${fmtMoney(P.cost, H.currency)} に対する割合）`)}
-      {flowRow("含み損益の増減", flow.dPnl, sign(flow.dPnl), "持っている株の評価", pctOf(flow.dPnl, P.cost, "元本比 "))}
-      {flowRow("＋ 確定した損益", flow.dRealized, EXIT, flow.dRealized ? "売って確定（実現損益）" : "この間の売却なし", flow.dRealized ? pctOf(flow.dRealized, P.cost, "元本比 ") : null)}
+      {secTitle("💰 損益", "株価の動きで増えた・減ったぶん")}
+      {flowRow("含み損益の増減", flow.dPnl, sign(flow.dPnl), "持っている株の評価", pctOf(flow.dPnl, P.cost, "取得額比 "))}
+      {flowRow("＋ 確定した損益", flow.dRealized, EXIT, flow.dRealized ? "売って確定（実現損益）" : "この間の売却なし", flow.dRealized ? pctOf(flow.dRealized, P.cost, "取得額比 ") : null)}
       <div style={{ borderTop: "1px dashed #2a3050" }} />
-      {flowRow("＝ 損益の合計", flow.dMove, sign(flow.dMove), null, pctOf(flow.dMove, P.cost, "元本比 "))}
+      {flowRow("＝ 損益の合計", flow.dMove, sign(flow.dMove), null, pctOf(flow.dMove, P.cost, "取得額比 "))}
       <div style={{ fontSize: 10, color: "#5b6284", lineHeight: 1.6 }}>
         売った株の損益は、売った時点で「確定した損益」になって手元のお金に移るので、時価（持っている株の評価額）には入りません。
         そのため時価の変化には含み損益の増減だけが入り、損益の合計には確定したぶんも足しています。
-        <br />％は、💰損益が「元本＝その日の投資額（{fmtMoney(P.cost, H.currency)}）」に対する割合、💼時価が「期間のはじめの時価{fromZero ? "（0円なので出しません）" : `（${fmtMoney(P0.value, H.currency)}）`}」に対する割合です。
+        <br />％の見方：「取得額比」＝その日の取得額（{fmtMoney(P.cost, H.currency)}・持っている株を買った金額）に対する割合（含み損益と同じ物差し）。「はじめの時価比」＝期間のはじめの時価{fromZero ? "（0円なので出しません）" : `（${fmtMoney(P0.value, H.currency)}）`}から何％増えた・減ったか。物差しが違うので、時価のブロックの％どうしは足し算になりません。
       </div>
     </div>
   );
@@ -383,6 +387,55 @@ export function AssetHistory({ stocks, onSelect }) {
           );
         })}
       </div>
+    </div>
+  );
+
+  /* ---- 構成比(2026-11・オーナー要望): その日の時価のうち、銘柄・タイプごとに何％か。偏りの事実を見るため(判定はしない) ---- */
+  const compRows = (() => {
+    const total = P.items.reduce((a, it) => a + Math.max(0, it.value), 0);
+    if (!(total > 0)) return [];
+    const m = {};
+    P.items.forEach((it) => {
+      const s = H.stocks[it.id] || {};
+      const key = compBy === "type" ? (s.type || "?") : it.id;
+      const t = TYPES[s.type] || {};
+      const r = (m[key] ||= { key, label: compBy === "type" ? `${t.icon || ""} ${t.label || "その他"}` : s.name, color: t.color || "#8b93b8", value: 0, n: 0, id: it.id });
+      r.value += Math.max(0, it.value); r.n++;
+    });
+    return Object.values(m).map((r) => ({ ...r, pct: (r.value / total) * 100 })).sort((a, b) => b.value - a.value);
+  })();
+  const compChip = (k, label) => (
+    <button key={k} onClick={() => { setCompBy(k); try { localStorage.setItem("kabu-asset-comp", k); } catch (e) { /* 表示だけ */ } }}
+      style={{ ...chip(compBy === k, "#dfe4ff"), padding: "2px 9px", fontSize: 10.5 }}>{label}</button>
+  );
+  const composition = compRows.length > 0 && (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: "#8b93b8" }}>🥧 {fullDate(P.date)} の構成比（時価 {fmtMoney(P.value, cc)} のうち）</span>
+        <span style={{ display: "flex", gap: 4, flexShrink: 0 }}>{compChip("stock", "銘柄別")}{compChip("type", "タイプ別")}</span>
+      </div>
+      {/* 1本の帯で全体の割合を見せる */}
+      <div style={{ display: "flex", height: 12, borderRadius: 6, overflow: "hidden", background: "#1b2140", marginBottom: 8 }}>
+        {compRows.map((r, i) => <div key={r.key} title={`${r.label} ${r.pct.toFixed(1)}%`} style={{ width: `${r.pct}%`, background: r.color, opacity: compBy === "stock" ? 0.55 + 0.45 * ((i % 2) ? 0.6 : 1) : 0.9, borderRight: "1px solid #0e1122" }} />)}
+      </div>
+      <div style={{ display: "grid", gap: 4 }}>
+        {compRows.map((r) => (
+          <div key={r.key} onClick={() => compBy === "stock" && onSelect && onSelect(r.id)}
+            style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(60px,1.2fr) 112px", alignItems: "center", gap: 8, fontSize: 11.5, cursor: compBy === "stock" ? "pointer" : "default" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 2, flexShrink: 0, background: r.color }} />
+              <span style={{ color: "#dfe4ff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.label}{compBy === "type" ? `（${r.n}）` : ""}</span>
+            </span>
+            <div style={{ height: 8, borderRadius: 4, background: "#1b2140", overflow: "hidden" }}>
+              <div style={{ width: `${r.pct}%`, height: "100%", background: r.color, opacity: 0.85 }} />
+            </div>
+            <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#dfe4ff", whiteSpace: "nowrap", lineHeight: 1.15 }}>
+              {r.pct.toFixed(1)}%<br /><span style={{ color: "#6b7394", fontSize: 10 }}>{fmtMoney(r.value, cc)}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 10, color: "#5b6284", marginTop: 5 }}>時価に占める割合の事実です。偏りの良し悪しの判定はしていません。</div>
     </div>
   );
 
@@ -456,7 +509,7 @@ export function AssetHistory({ stocks, onSelect }) {
       </div>
       {/* 凡例 */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 10.5, color: "#8b93b8", marginTop: 6 }}>
-        {mode === "value" && <><span><b style={{ color: GOLD }}>━</b> 時価</span><span><b style={{ color: COST }}>┅</b> 投資額</span><span><b style={{ color: PLUS }}>■</b> 投資額より上（含み益）</span><span><b style={{ color: MINUS }}>■</b> 投資額より下（含み損）</span></>}
+        {mode === "value" && <><span><b style={{ color: GOLD }}>━</b> 時価</span><span><b style={{ color: COST }}>┅</b> 取得額</span><span><b style={{ color: PLUS }}>■</b> 取得額より上（含み益）</span><span><b style={{ color: MINUS }}>■</b> 取得額より下（含み損）</span></>}
         {mode === "pnl" && <><span><b style={{ color: PLUS }}>■</b> 含み益の合計</span><span><b style={{ color: MINUS }}>■</b> 含み損の合計</span><span><b style={{ color: "#f2f4ff" }}>━</b> 差し引き</span></>}
         {mode === "stack" && <span>色＝銘柄のタイプ。積み上げた高さが時価の合計</span>}
         {H.events.length > 0 && <span>買／売＝あなたが記録した購入・買い増し・売却（タップでその日へ）</span>}
@@ -464,6 +517,7 @@ export function AssetHistory({ stocks, onSelect }) {
 
       {flowCard}
       {breakdown}
+      {composition}
 
       <div style={{ fontSize: 10, color: "#5b6284", marginTop: 10, lineHeight: 1.7 }}>
         記録した保有情報（株数・平均取得単価・購入日・売却日・売買の記録）と過去の終値（遅延データ）からさかのぼって計算した<b>試算</b>です。買い増し・一部売却は、銘柄の「📒 売買の記録」に入れたぶんが反映されます（平均取得単価は移動平均）。
