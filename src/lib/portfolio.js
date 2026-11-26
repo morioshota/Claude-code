@@ -166,9 +166,40 @@ export function flowBetween(a, b) {
 }
 
 
+/* ---- 平均取得額(2026-11・オーナー選択「A」) ----
+   始めて(いちばん早い購入日)から今日までの毎日について「その日に持っていた株の取得額」を足し、日数で割る。
+   売って別の株を買い直しても分母が積み上がらない(「取得額の合計」はそうならず、物差しにならなかった＝オーナー指摘)。
+   何も持っていない日は0円として数える。株価は使わない(購入日・売却日・📒売買の記録だけで決まる)。通貨ごと */
+const DAY_MS = 864e5;
+const dayNo = (d) => Math.floor(Date.parse(d) / DAY_MS);
+export function avgCostOf(stocks, today) {
+  const by = {}, noDate = [];
+  const end = dayNo(today) + 1; // 今日まで(今日を含む)
+  positionsOf(stocks).forEach((p) => {
+    if (!p.from) { noDate.push(p.stock.name); return; }
+    const c = (by[currencyOf(p.stock)] ||= { area: 0, start: Infinity });
+    const stop = p.to ? Math.min(dayNo(p.to), end) : end; // 売却日は持っていない日として数える
+    // 取得額が変わる区切り(売買の記録があればその日ごと)
+    const steps = p.timeline
+      ? p.timeline.filter((t) => t.date).map((t) => ({ d: dayNo(t.date), cost: t.shares * t.avg }))
+      : [{ d: dayNo(p.from), cost: p.shares * p.avg }];
+    steps.forEach((st, k) => {
+      const a = st.d, b = Math.min(k + 1 < steps.length ? steps[k + 1].d : stop, stop);
+      if (b > a) c.area += st.cost * (b - a);
+    });
+    c.start = Math.min(c.start, steps[0].d);
+  });
+  const out = {};
+  Object.entries(by).forEach(([cur, c]) => {
+    const days = Math.max(1, end - c.start);
+    out[cur] = { avgCost: c.area / days, days, since: new Date(c.start * DAY_MS).toISOString().slice(0, 10) };
+  });
+  return { by: out, noDate };
+}
+
 /* ---- 通算損益(2026-11・オーナー要望「始めてから合計いくら増えたか」) ----
    通算損益 ＝ いま持っている株の含み損益 ＋ これまでに確定した損益(卒業・前回までの卒業・一部売却の実現損益)
-   ％は「取得額比」＝ 通算損益 ÷ これまでに買った株の取得額の合計(いま持っている分＋売った分)。通貨ごと(為替換算なし)。
+   ％は「平均取得額比」＝ 通算損益 ÷ 平均取得額(始めてから今日までの、持っていた株の取得額の日々の平均)。通貨ごと(為替換算なし)。
    売却単価・平均取得単価が無い卒業生は計算できないので数えず、名前を返す(画面で「記録が足りない」と出す) */
 const soldCostOfTrades = (trades) => {
   let shares = 0, avg = 0, cost = 0;
@@ -180,7 +211,7 @@ const soldCostOfTrades = (trades) => {
   });
   return cost;
 };
-export function totalsOf(stocks, quotes) {
+export function totalsOf(stocks, quotes, today = new Date().toISOString().slice(0, 10)) {
   const by = {};
   const cur = (c) => (by[c] ||= { currency: c, unreal: 0, realized: 0, costNow: 0, costSold: 0, holdN: 0, soldN: 0 });
   const missingQuote = [], missingSale = [];
@@ -205,9 +236,13 @@ export function totalsOf(stocks, quotes) {
     // 卒業で売った株の取得額＋その保有中に一部売却した株の取得額
     t.costSold += (tr.avg || 0) * (tr.shares || 0) + (hasTrades(g) ? soldCostOfTrades(g.trades) : 0);
   });
+  // ％の分母は「平均取得額」(上の avgCostOf)。以前の「取得額の合計(持っている分＋売った分)」は買い替えのたびに積み上がるのでやめた
+  const avg = avgCostOf(stocks, today);
   const list = Object.values(by).map((t) => {
-    const pnl = t.unreal + t.realized, cost = t.costNow + t.costSold;
-    return { ...t, pnl, cost, pct: cost > 0 ? (pnl / cost) * 100 : null };
+    const pnl = t.unreal + t.realized;
+    const a = avg.by[t.currency];
+    return { ...t, pnl, avgCost: a ? a.avgCost : null, days: a ? a.days : null, since: a ? a.since : null,
+      pct: a && a.avgCost > 0 ? (pnl / a.avgCost) * 100 : null };
   }).sort((a, b) => (a.currency === "JPY" ? -1 : b.currency === "JPY" ? 1 : 0));
-  return { list, missingQuote, missingSale };
+  return { list, missingQuote, missingSale, noDate: avg.noDate };
 }

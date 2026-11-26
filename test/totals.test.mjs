@@ -1,6 +1,6 @@
 // 通算損益(node test/totals.test.mjs)
 import assert from "node:assert/strict";
-import { totalsOf } from "../src/lib/portfolio.js";
+import { totalsOf, avgCostOf } from "../src/lib/portfolio.js";
 
 const stocks = [
   // 保有中: 100株×1000円 → 1200円(含み +20,000)。一部売却 50株を1100円で(確定 +5,000・売った分の取得額 50,000)
@@ -13,12 +13,28 @@ const stocks = [
   // 売却単価が無い卒業生は数えない
   { id: "d", name: "D", code: "4444", status: "sold", shares: 10, avgPrice: 100 },
 ];
-const { list, missingSale } = totalsOf(stocks, { a: { close: 1200, currency: "JPY" } });
+const { list, missingSale } = totalsOf(stocks, { a: { close: 1200, currency: "JPY" } }, "2026-12-31");
 const t = list[0];
 assert.equal(t.unreal, 20000);
 assert.equal(t.realized, 5000 + 20000 - 2000);
-assert.equal(t.cost, 100000 + 50000 + 100000 + 20000);
 assert.equal(t.pnl, 43000);
-assert.ok(Math.abs(t.pct - (43000 / 270000) * 100) < 1e-9);
+assert.equal(t.pct, (43000 / t.avgCost) * 100);
 assert.deepEqual(missingSale, ["D"]);
+
+// 平均取得額: 売って買い直しても積み上がらない(オーナーの例: 100万円で1〜6月A社、7〜12月B社 → 平均100万円)
+{
+  const ex = [
+    { id: "A", name: "A", code: "1001", status: "sold", shares: 100, avgPrice: 10000, buyDate: "2025-01-01", soldAt: "2025-07-01", sellPrice: 10500 },
+    { id: "B", name: "B", code: "1002", status: "hold", shares: 100, avgPrice: 10000, buyDate: "2025-07-01" },
+  ];
+  const r = avgCostOf(ex, "2025-12-31").by.JPY;
+  assert.ok(Math.abs(r.avgCost - 1000000) < 1, String(r.avgCost));
+  // 途中で買い足し: 前半100万・後半300万 → 平均およそ200万
+  const ex2 = [{ id: "C", name: "C", code: "1003", status: "hold", trades: [
+    { id: "1", date: "2025-01-01", kind: "buy", shares: 100, price: 10000, initial: true },
+    { id: "2", date: "2025-07-02", kind: "buy", shares: 200, price: 10000 }] }];
+  const r2 = avgCostOf(ex2, "2025-12-31").by.JPY;
+  assert.ok(Math.abs(r2.avgCost - 2000000) < 20000, String(r2.avgCost));
+  assert.deepEqual(avgCostOf([{ id: "D", name: "D", code: "1004", status: "hold", shares: 1, avgPrice: 1 }], "2025-12-31").noDate, ["D"]);
+}
 console.log("totals: ok");
